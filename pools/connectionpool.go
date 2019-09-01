@@ -17,16 +17,18 @@ import (
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
 	Config             *models.RabbitSeasoning
+	Initialized        bool
 	tlsConfig          *tls.Config
 	errors             chan error
 	connections        *queue.Queue
 	connectionCount    uint64
-	flagLock           *sync.Mutex
+	poolLock           *sync.Mutex
 	flaggedConnections map[uint64]bool
 }
 
-// New creates hosting structure for the ConnectionPool.
-func New(seasoning *models.RabbitSeasoning) (*ConnectionPool, error) {
+// NewConnectionPool creates hosting structure for the ConnectionPool.
+// Needs to be Initialize() afterwards.
+func NewConnectionPool(seasoning *models.RabbitSeasoning, initializeNow bool) (*ConnectionPool, error) {
 
 	var tlsConfig *tls.Config
 	var err error
@@ -40,21 +42,36 @@ func New(seasoning *models.RabbitSeasoning) (*ConnectionPool, error) {
 		}
 	}
 
-	return &ConnectionPool{
-		Config:      seasoning,
-		tlsConfig:   tlsConfig,
-		errors:      make(chan error, 1),
-		connections: queue.New(seasoning.Pools.ConnectionCount),
-	}, nil
+	cp := &ConnectionPool{
+		Config:             seasoning,
+		tlsConfig:          tlsConfig,
+		errors:             make(chan error, 1),
+		connections:        queue.New(seasoning.Pools.ConnectionCount),
+		poolLock:           &sync.Mutex{},
+		flaggedConnections: make(map[uint64]bool),
+	}
+
+	if initializeNow {
+		cp.Initialize()
+	}
+
+	return cp, nil
 }
 
 // Initialize creates the ConnectionPool based on the config details.
 // Blocks on network/communication issues unless overridden by config.
 func (cp *ConnectionPool) Initialize() {
-	if cp.Config.TLSConfig.EnableTLS {
-		cp.initializeWithTLS()
-	} else {
-		cp.initialize()
+	cp.poolLock.Lock()
+	defer cp.poolLock.Unlock()
+
+	if !cp.Initialized {
+		if cp.Config.TLSConfig.EnableTLS {
+			cp.initializeWithTLS()
+		} else {
+			cp.initialize()
+		}
+
+		cp.Initialized = true
 	}
 }
 
@@ -66,7 +83,7 @@ func (cp *ConnectionPool) initialize() {
 				break
 			}
 
-			cp.errors <- err
+			go func() { cp.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -83,7 +100,7 @@ func (cp *ConnectionPool) initializeWithTLS() {
 				break
 			}
 
-			cp.errors <- err
+			go func() { cp.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -95,17 +112,17 @@ func (cp *ConnectionPool) initializeWithTLS() {
 // CreateConnectionHost creates the Connection with RabbitMQ server.
 func (cp *ConnectionPool) createConnectionHost() (*models.ConnectionHost, error) {
 	var amqpConn *amqp.Connection
-	var innerError error
+	var err error
 	retryCount := atomic.LoadInt32(&cp.Config.Pools.ConnectionRetryCount)
 
 	for i := retryCount; i > 0; i-- {
-		amqpConn, innerError = amqp.Dial(cp.Config.Pools.URI)
-		if innerError != nil {
+		amqpConn, err = amqp.Dial(cp.Config.Pools.URI)
+		if err != nil {
 			if cp.Config.Pools.BreakOnError {
 				break
 			}
 
-			cp.errors <- innerError
+			go func() { cp.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -142,7 +159,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS() (*models.ConnectionHost,
 				break
 			}
 
-			cp.errors <- err
+			go func() { cp.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -209,24 +226,29 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	return connectionHost, nil
 }
 
+// ConnectionCount flags that connection as usable in the future.
+func (cp *ConnectionPool) ConnectionCount() int64 {
+	return cp.connections.Len()
+}
+
 // UnflagConnection flags that connection as usable in the future.
 func (cp *ConnectionPool) UnflagConnection(connectionID uint64) {
-	cp.flagLock.Lock()
-	defer cp.flagLock.Unlock()
+	cp.poolLock.Lock()
+	defer cp.poolLock.Unlock()
 	cp.flaggedConnections[connectionID] = false
 }
 
 // FlagConnection flags that connection as non-usable in the future.
 func (cp *ConnectionPool) FlagConnection(connectionID uint64) {
-	cp.flagLock.Lock()
-	defer cp.flagLock.Unlock()
+	cp.poolLock.Lock()
+	defer cp.poolLock.Unlock()
 	cp.flaggedConnections[connectionID] = true
 }
 
 // IsConnectionFlagged checks to see if the connection has been flagged for removal.
 func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
-	cp.flagLock.Lock()
-	defer cp.flagLock.Unlock()
+	cp.poolLock.Lock()
+	defer cp.poolLock.Unlock()
 	_, ok := cp.flaggedConnections[connectionID]
 	return ok
 }

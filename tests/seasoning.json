@@ -1,9 +1,9 @@
 {
     "Pools": {
-        "URI": "http://guest@guest:localhost:5672/",
+        "URI": "amqp://guest:guest@localhost:5672/",
         "BreakOnError": false,
         "ConnectionRetryCount": 5,
-        "ConnectionCount": 1,
+        "ConnectionCount": 100,
         "ChannelRetryCount": 5,
         "ChannelCount": 1
     },

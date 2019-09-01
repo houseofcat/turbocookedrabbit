@@ -10,26 +10,6 @@ import (
 	"github.com/streadway/amqp"
 )
 
-func TestBasicConnection(t *testing.T) {
-
-}
-
-func TestReconnection(t *testing.T) {
-
-}
-
-func TestPoolConnection(t *testing.T) {
-
-}
-
-func TestConnectionPool(t *testing.T) {
-
-}
-
-func TestChannelPool(t *testing.T) {
-
-}
-
 func TestTLSConnection(t *testing.T) {
 	// https://github.com/streadway/amqp/blob/master/examples_test.go
 	// This example assume you have a RabbitMQ node running on localhost
