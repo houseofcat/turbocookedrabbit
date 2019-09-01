@@ -9,12 +9,12 @@ import (
 )
 
 func TestReadConfig(t *testing.T) {
-	filePath := "seasoning.json"
+	fileNamePath := "seasoning.json"
 
-	assert.FileExists(t, filePath)
+	assert.FileExists(t, fileNamePath)
 
-	config, err := utils.ConvertJSONFileToConfig(filePath)
+	config, err := utils.ConvertJSONFileToConfig(fileNamePath)
 
 	assert.Nil(t, err)
-	assert.NotEmpty(config.ConnectionFactory.URI, "")
+	assert.NotEqual(t, "", config.Pools.URI, "RabbitMQ URI should not be blank.")
 }
