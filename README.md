@@ -1,5 +1,6 @@
 # TurboCookedRabbit
- A user friendly RabbitMQ written in Golang.
+ A user friendly RabbitMQ written in Golang.  
+ Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
 ### Developer's Notes
 It was programmed against the follow:
