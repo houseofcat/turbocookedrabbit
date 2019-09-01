@@ -1,7 +1,10 @@
 {
     "Pools": {
-        "URI": "http://guest@guest:localhost:5672",
+        "URI": "http://guest@guest:localhost:5672/",
+        "BreakOnError": false,
+        "ConnectionRetryCount": 5,
         "ConnectionCount": 1,
+        "ChannelRetryCount": 5,
         "ChannelCount": 1
     },
     "TLSConfig": {
