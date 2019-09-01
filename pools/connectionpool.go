@@ -23,6 +23,7 @@ type ConnectionPool struct {
 	connections        *queue.Queue
 	connectionCount    uint64
 	poolLock           *sync.Mutex
+	connectionLock     int32
 	flaggedConnections map[uint64]bool
 }
 
@@ -186,6 +187,13 @@ func (cp *ConnectionPool) Errors() <-chan error {
 
 // GetConnection gets a connection based on whats available in ConnectionPool queue.
 func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
+	if atomic.LoadInt32(&cp.connectionLock) > 0 {
+		return nil, errors.New("can not get connection - connection pool has been shutdown")
+	}
+
+	if !cp.Initialized {
+		return nil, errors.New("can not get connection - connection pool has not been initialized")
+	}
 
 	// Pull from the queue.
 	// Pauses here if the queue is empty.
@@ -228,7 +236,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 
 // ConnectionCount flags that connection as usable in the future.
 func (cp *ConnectionPool) ConnectionCount() int64 {
-	return cp.connections.Len()
+	return cp.connections.Len() // Locking
 }
 
 // UnflagConnection flags that connection as usable in the future.
@@ -251,4 +259,34 @@ func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
 	defer cp.poolLock.Unlock()
 	_, ok := cp.flaggedConnections[connectionID]
 	return ok
+}
+
+// Shutdown closes all connections in the ConnectionPool.
+func (cp *ConnectionPool) Shutdown() {
+	cp.poolLock.Lock()
+	defer cp.poolLock.Unlock()
+
+	// Create channel lock (> 0)
+	atomic.AddInt32(&cp.connectionLock, 1)
+
+	if cp.Initialized {
+		for !cp.connections.Empty() {
+			items, _ := cp.connections.Get(cp.connections.Len())
+
+			for _, item := range items {
+				connectionHost := item.(*models.ConnectionHost)
+				if !connectionHost.Connection.IsClosed() {
+					connectionHost.Connection.Close()
+				}
+			}
+		}
+
+		cp.connections = queue.New(cp.Config.Pools.ConnectionCount)
+		cp.flaggedConnections = make(map[uint64]bool)
+		atomic.AddUint64(&cp.connectionCount, 1)
+		cp.Initialized = false
+
+		// Release channel lock (0)
+		atomic.AddInt32(&cp.connectionLock, -1*atomic.LoadInt32(&cp.connectionLock))
+	}
 }
