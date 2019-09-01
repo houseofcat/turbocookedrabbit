@@ -1,0 +1,13 @@
+{
+    "RabbitSeasoning": {
+        "ConnectionFactory": {
+            "URI": "http://guest@guest:localhost:5672"
+        },
+        "TLSConfig": {
+            "EnableTLS": false,
+            "PEMCertLocation": "test/catest.pem",
+            "LocalCertLocation": "client/cert.ca",
+            "CertServerName": "hostname-in-cert"
+        }
+    }
+}
