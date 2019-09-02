@@ -116,6 +116,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 			time.Sleep(50 * time.Millisecond)
 			continue
 		}
+
+		break
 	}
 
 	if amqpChan == nil {
@@ -123,8 +125,9 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	}
 
 	channelHost := &models.ChannelHost{
-		Channel:   amqpChan,
-		ChannelID: channelID,
+		Channel:          amqpChan,
+		ChannelID:        channelID,
+		ConnectionClosed: connHost.Connection.IsClosed,
 	}
 
 	return channelHost, nil
@@ -157,7 +160,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 		return nil, errors.New("invalid struct type found in ConnectionPool queue")
 	}
 
-	if cp.IsChannelFlagged(channelHost.ChannelID) {
+	if channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
 		var newHost *models.ChannelHost
 		var err error

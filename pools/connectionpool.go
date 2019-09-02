@@ -130,6 +130,8 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 			time.Sleep(1 * time.Second)
 			continue
 		}
+
+		break
 	}
 
 	if amqpConn == nil {
@@ -165,6 +167,8 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 			time.Sleep(1 * time.Second)
 			continue
 		}
+
+		break
 	}
 
 	if amqpConn == nil {

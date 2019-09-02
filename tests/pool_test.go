@@ -240,3 +240,41 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, channelHost)
 }
+
+func TestGetChannelAfterKillingConnection(t *testing.T) {
+	Seasoning.Pools.ConnectionCount = 1
+	Seasoning.Pools.ChannelCount = 2
+	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
+	assert.Nil(t, err)
+
+	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
+	assert.Nil(t, err)
+
+	now := time.Now()
+	if !channelPool.Initialized {
+		channelPool.Initialize()
+	}
+	elapsed := time.Since(now)
+
+	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
+	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
+	assert.Equal(t, Seasoning.Pools.ChannelCount, channelPool.ChannelCount())
+
+	// Flush Errors
+	select {
+	case conErr := <-connectionPool.Errors():
+		fmt.Print(conErr)
+	case chanErr := <-channelPool.Errors():
+		fmt.Print(chanErr)
+	default:
+		break
+	}
+
+	// Breakpoint here: Kill all the connections server side before proceeding.
+	chanHost, err := channelPool.GetChannel()
+	assert.NotNil(t, chanHost)
+	assert.Nil(t, err)
+
+	err = chanHost.Channel.Close()
+	assert.Nil(t, err)
+}

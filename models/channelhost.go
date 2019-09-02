@@ -10,8 +10,10 @@ import (
 
 // ChannelHost is an internal representation of amqp.Connection.
 type ChannelHost struct {
-	Channel   *amqp.Channel
-	ChannelID uint64
+	Channel          *amqp.Channel
+	Connection       *amqp.Connection
+	ChannelID        uint64
+	ConnectionClosed func() bool // super unreliable
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -38,8 +40,9 @@ func (ch *ChannelHost) NewChannelHost(
 	}
 
 	channelHost := &ChannelHost{
-		Channel:   amqpChan,
-		ChannelID: channelID,
+		Channel:          amqpChan,
+		ChannelID:        channelID,
+		ConnectionClosed: amqpConn.IsClosed,
 	}
 
 	return channelHost, nil
