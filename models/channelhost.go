@@ -19,7 +19,7 @@ type ChannelHost struct {
 func (ch *ChannelHost) NewChannelHost(
 	amqpConn *amqp.Connection,
 	channelID uint64,
-	retryCount int32) (*ChannelHost, error) {
+	retryCount uint32) (*ChannelHost, error) {
 
 	if amqpConn.IsClosed() {
 		return nil, errors.New("can not open a channel - connection is already closed")

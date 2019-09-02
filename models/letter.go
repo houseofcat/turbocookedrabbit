@@ -2,9 +2,10 @@ package models
 
 // Letter contains the message body and address of where things are going.
 type Letter struct {
-	LetterID uint64
-	Body     []byte
-	Envelope Envelope
+	LetterID   uint64
+	RetryCount uint32
+	Body       []byte
+	Envelope   Envelope
 }
 
 // Envelope contains all the address details of where a letter is going.

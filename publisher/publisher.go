@@ -1,6 +1,8 @@
 package publisher
 
 import (
+	"errors"
+	"sync"
 	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
@@ -14,8 +16,11 @@ type Publisher struct {
 	Config        *models.RabbitSeasoning
 	ChannelPool   *pools.ChannelPool
 	letters       chan *models.Letter
+	autoStop      chan bool
 	notifications chan *models.Notification
+	autoStopped   bool
 	smallSleep    time.Duration
+	pubLock       *sync.Mutex
 }
 
 // NewPublisher creates and configures a new Publisher.
@@ -34,8 +39,11 @@ func NewPublisher(seasoning *models.RabbitSeasoning, chanPool *pools.ChannelPool
 		Config:        seasoning,
 		ChannelPool:   chanPool,
 		letters:       make(chan *models.Letter, 1),
+		autoStop:      make(chan bool, 1),
 		notifications: make(chan *models.Notification, 1),
 		smallSleep:    time.Duration(50) * time.Millisecond,
+		pubLock:       &sync.Mutex{},
+		autoStopped:   true,
 	}, nil
 }
 
@@ -48,7 +56,7 @@ func (pub *Publisher) Shutdown(skipPools bool) {
 
 // Publish sends a single message to the address on the letter.
 // Subscribe to Notifications to see success and errors.
-func (pub *Publisher) Publish(letter *models.Letter, retryCount uint32) {
+func (pub *Publisher) Publish(letter *models.Letter) {
 
 	chanHost, err := pub.ChannelPool.GetChannel()
 	if err != nil {
@@ -57,7 +65,7 @@ func (pub *Publisher) Publish(letter *models.Letter, retryCount uint32) {
 	}
 
 PublishWithRetry:
-	for i := retryCount + 1; i > 0; i-- {
+	for i := letter.RetryCount + 1; i > 0; i-- {
 		pubErr := pub.simplePublish(chanHost.Channel, letter)
 		if pubErr != nil {
 		GetChannelRetry:
@@ -111,7 +119,76 @@ func (pub *Publisher) sendToNotifications(letterID uint64, err error) {
 	go func() { pub.notifications <- notification }()
 }
 
-// Notifications yields all the success and failures during publish events.
+// Notifications yields all the success and failures during all publish events.
 func (pub *Publisher) Notifications() <-chan *models.Notification {
 	return pub.notifications
+}
+
+// StartAutoPublish starts auto-publishing letters queued up.
+func (pub *Publisher) StartAutoPublish() {
+	go func() {
+		select {
+		case stop := <-pub.autoStop:
+			if stop {
+				break
+			}
+		case letter := <-pub.letters:
+			{
+				pub.Publish(letter)
+			}
+		default:
+			time.Sleep(pub.smallSleep)
+		}
+	}()
+}
+
+// StopAutoPublish stops publishing letters queued up.
+// Immediate true option immediately returns to caller without draining the queue.
+// Immediate false option immediately returns to the caller but drains the letter queue in the background
+// and you can check their statuses still in Notifications.
+func (pub *Publisher) StopAutoPublish(immediate bool) {
+	go func() {
+		if immediate {
+			pub.autoStop <- true
+			pub.setAutoPublishStopped(true)
+		} else {
+			pub.autoStop <- true            // signal auto publish to stop
+			pub.setAutoPublishStopped(true) // prevent new letters being queued
+
+			// allow it to finish publishing all remaining letters
+			select {
+			case letter := <-pub.letters:
+				{
+					pub.Publish(letter)
+				}
+			default:
+				break
+			}
+		}
+	}()
+}
+
+// QueueLetter queues up a letter that will be consumed by AutoPublish.
+// Error signals that the AutoPublish
+func (pub *Publisher) QueueLetter(letter *models.Letter) error {
+	if pub.getAutoPublishStopped() {
+		return errors.New("can't add letters to the internal queue if AutoPublish has not been started")
+	}
+
+	go func() { pub.letters <- letter }()
+	return nil
+}
+
+func (pub *Publisher) getAutoPublishStopped() bool {
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
+
+	return pub.autoStopped
+}
+
+func (pub *Publisher) setAutoPublishStopped(autoStopped bool) {
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
+
+	pub.autoStopped = autoStopped
 }
