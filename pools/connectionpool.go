@@ -268,7 +268,7 @@ func (cp *ConnectionPool) Shutdown() {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
 
-	// Create channel lock (> 0)
+	// Create connection lock (> 0)
 	atomic.AddInt32(&cp.connectionLock, 1)
 
 	if cp.Initialized {
@@ -288,7 +288,7 @@ func (cp *ConnectionPool) Shutdown() {
 		atomic.StoreUint64(&cp.connectionCount, uint64(0))
 		cp.Initialized = false
 
-		// Release channel lock (0)
+		// Release connection lock (0)
 		atomic.StoreInt32(&cp.connectionLock, 0)
 	}
 }

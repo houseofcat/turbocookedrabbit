@@ -3,6 +3,7 @@ package models
 import (
 	"crypto/tls"
 	"fmt"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -24,6 +25,9 @@ func (ch *ConnectionHost) NewConnectionHost(
 
 	for i := retryCount; i > 0; i-- {
 		amqpConn, err = amqp.Dial(uri)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		}
 	}
 	if amqpConn == nil {
 		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
@@ -49,6 +53,9 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 
 	for i := retryCount; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+certServerName, tlsConfig)
+		if err != nil {
+			time.Sleep(1 * time.Second)
+		}
 	}
 	if amqpConn == nil {
 		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
