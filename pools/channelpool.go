@@ -29,6 +29,14 @@ type ChannelPool struct {
 // NewChannelPool creates hosting structure for the ChannelPool.
 func NewChannelPool(seasoning *models.RabbitSeasoning, connPool *ConnectionPool, initializeNow bool) (*ChannelPool, error) {
 
+	if connPool == nil {
+		var err error
+		connPool, err = NewConnectionPool(seasoning, false)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	cp := &ChannelPool{
 		Config:          seasoning,
 		ConnectionPool:  connPool,
@@ -55,6 +63,10 @@ func (cp *ChannelPool) Initialize() {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
 
+	if !cp.ConnectionPool.Initialized {
+		cp.ConnectionPool.Initialize()
+	}
+
 	if !cp.Initialized {
 		cp.initialize()
 		cp.Initialized = true
@@ -62,7 +74,7 @@ func (cp *ChannelPool) Initialize() {
 }
 
 func (cp *ChannelPool) initialize() {
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ConnectionCount); i++ {
+	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ChannelCount); i++ {
 		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
 		if err != nil {
 			if cp.Config.Pools.BreakOnError {
@@ -79,7 +91,7 @@ func (cp *ChannelPool) initialize() {
 	}
 }
 
-// CreateChannelHost creates the Connection with RabbitMQ server.
+// CreateChannelHost creates the Channel (backed by a Connection) with RabbitMQ server.
 func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost, error) {
 
 	var amqpChan *amqp.Channel
@@ -88,6 +100,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 
 	channelRetryCount := atomic.LoadInt32(&cp.Config.Pools.ChannelRetryCount)
 	connHost, err = cp.ConnectionPool.GetConnection()
+
 	if connHost == nil {
 		return nil, fmt.Errorf("opening channel failed - could not get connection [last err: %s]", err)
 	}
@@ -190,9 +203,9 @@ func (cp *ChannelPool) IsChannelFlagged(connectionID uint64) bool {
 	defer cp.poolLock.Unlock()
 	if flagged, ok := cp.flaggedChannels[connectionID]; ok {
 		return flagged
-	} else {
-		return false
 	}
+
+	return false
 }
 
 // Shutdown closes all connections in the ConnectionPool.
@@ -210,7 +223,9 @@ func (cp *ChannelPool) Shutdown() {
 			for _, item := range items {
 				channelHost := item.(*models.ChannelHost)
 				err := channelHost.Channel.Close()
-				go func() { cp.errors <- err }()
+				if err != nil {
+					go func() { cp.errors <- err }()
+				}
 			}
 		}
 

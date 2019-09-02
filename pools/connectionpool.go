@@ -261,9 +261,9 @@ func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
 	defer cp.poolLock.Unlock()
 	if flagged, ok := cp.flaggedConnections[connectionID]; ok {
 		return flagged
-	} else {
-		return false
 	}
+
+	return false
 }
 
 // Shutdown closes all connections in the ConnectionPool.
