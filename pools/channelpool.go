@@ -30,8 +30,8 @@ type ChannelPool struct {
 func NewChannelPool(seasoning *models.RabbitSeasoning, connPool *ConnectionPool, initializeNow bool) (*ChannelPool, error) {
 
 	if connPool == nil {
-		var err error
-		connPool, err = NewConnectionPool(seasoning, false)
+		var err error // If connPool is nil, create one here.
+		connPool, err = NewConnectionPool(seasoning, true)
 		if err != nil {
 			return nil, err
 		}
@@ -44,10 +44,6 @@ func NewChannelPool(seasoning *models.RabbitSeasoning, connPool *ConnectionPool,
 		channels:        queue.New(seasoning.Pools.ChannelCount),
 		poolLock:        &sync.Mutex{},
 		flaggedChannels: make(map[uint64]bool),
-	}
-
-	if !connPool.Initialized && initializeNow {
-		connPool.Initialize()
 	}
 
 	if initializeNow {
@@ -98,14 +94,14 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	var connHost *models.ConnectionHost
 	var err error
 
-	channelRetryCount := atomic.LoadInt32(&cp.Config.Pools.ChannelRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.Pools.ChannelRetryCount)
 	connHost, err = cp.ConnectionPool.GetConnection()
 
 	if connHost == nil {
 		return nil, fmt.Errorf("opening channel failed - could not get connection [last err: %s]", err)
 	}
 
-	for i := channelRetryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpChan, err = connHost.Connection.Channel()
 		if err != nil {
 			if cp.Config.Pools.BreakOnError {
@@ -138,7 +134,7 @@ func (cp *ChannelPool) Errors() <-chan error {
 	return cp.errors
 }
 
-// GetChannel gets a connection based on whats available in ConnectionPool queue.
+// GetChannel gets a connection based on whats available in ChannelPool queue.
 func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can not get channel - channel pool has been shutdown")
@@ -157,7 +153,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 
 	channelHost, ok := structs[0].(*models.ChannelHost)
 	if !ok {
-		return nil, errors.New("invalid struct type found in ConnectionPool queue")
+		return nil, errors.New("invalid struct type found in ChannelPool queue")
 	}
 
 	if channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
@@ -211,7 +207,7 @@ func (cp *ChannelPool) IsChannelFlagged(connectionID uint64) bool {
 	return false
 }
 
-// Shutdown closes all connections in the ConnectionPool.
+// Shutdown closes all channels and all connections.
 func (cp *ChannelPool) Shutdown() {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
@@ -237,7 +233,9 @@ func (cp *ChannelPool) Shutdown() {
 		atomic.StoreUint64(&cp.channelCount, uint64(0))
 		cp.Initialized = false
 
-		// Release channel lock (0)
-		atomic.StoreInt32(&cp.channelLock, 0)
+		cp.ConnectionPool.Shutdown()
 	}
+
+	// Release channel lock (0)
+	atomic.StoreInt32(&cp.channelLock, 0)
 }

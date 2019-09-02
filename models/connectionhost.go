@@ -18,12 +18,12 @@ type ConnectionHost struct {
 func (ch *ConnectionHost) NewConnectionHost(
 	uri string,
 	connectionID uint64,
-	retryCount int) (*ConnectionHost, error) {
+	retryCount uint32) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var err error
 
-	for i := retryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.Dial(uri)
 		if err != nil {
 			time.Sleep(1 * time.Second)
@@ -46,12 +46,12 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 	certServerName string,
 	connectionID uint64,
 	tlsConfig *tls.Config,
-	retryCount int) (*ConnectionHost, error) {
+	retryCount uint32) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var err error
 
-	for i := retryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+certServerName, tlsConfig)
 		if err != nil {
 			time.Sleep(1 * time.Second)

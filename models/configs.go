@@ -9,9 +9,9 @@ type RabbitSeasoning struct {
 // Pools represents settings for creating/configuring the ConnectionPool.
 type Pools struct {
 	URI                  string `json:"URI"`
-	ConnectionRetryCount int32  `json:"ConnectionRetryCount"`
+	ConnectionRetryCount uint32 `json:"ConnectionRetryCount"`
 	ConnectionCount      int64  `json:"ConnectionCount"`
-	ChannelRetryCount    int32  `json:"ChannelRetryCount"`
+	ChannelRetryCount    uint32 `json:"ChannelRetryCount"`
 	ChannelCount         int64  `json:"ChannelCount"`
 	BreakOnError         bool   `json:"BreakOnError"`
 }

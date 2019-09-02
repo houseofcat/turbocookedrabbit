@@ -117,9 +117,9 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadInt32(&cp.Config.Pools.ConnectionRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.Pools.ConnectionRetryCount)
 
-	for i := retryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.Dial(cp.Config.Pools.URI)
 		if err != nil {
 			if cp.Config.Pools.BreakOnError {
@@ -154,9 +154,9 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadInt32(&cp.Config.Pools.ConnectionRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.Pools.ConnectionRetryCount)
 
-	for i := retryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
 		if err != nil {
 			if cp.Config.Pools.BreakOnError {
@@ -294,8 +294,8 @@ func (cp *ConnectionPool) Shutdown() {
 		cp.flaggedConnections = make(map[uint64]bool)
 		atomic.StoreUint64(&cp.connectionCount, uint64(0))
 		cp.Initialized = false
-
-		// Release connection lock (0)
-		atomic.StoreInt32(&cp.connectionLock, 0)
 	}
+
+	// Release connection lock (0)
+	atomic.StoreInt32(&cp.connectionLock, 0)
 }

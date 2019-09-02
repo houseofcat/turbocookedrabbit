@@ -28,7 +28,7 @@ func (ch *ChannelHost) NewChannelHost(
 	var amqpChan *amqp.Channel
 	var err error
 
-	for i := retryCount; i > 0; i-- {
+	for i := retryCount + 1; i > 0; i-- {
 		amqpChan, err = amqpConn.Channel()
 		if err != nil {
 			time.Sleep(50 * time.Millisecond)

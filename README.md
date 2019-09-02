@@ -3,7 +3,7 @@
  Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
 ### Developer's Notes
-It was programmed against the follow:
+It was programmed against the following:
 
  * Golang 1.12.9
  * RabbitMQ Server v3.7.17 (simple localhost)
