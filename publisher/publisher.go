@@ -15,6 +15,7 @@ type Publisher struct {
 	ChannelPool   *pools.ChannelPool
 	letters       chan *models.Letter
 	notifications chan *models.Notification
+	smallSleep    time.Duration
 }
 
 // NewPublisher creates and configures a new Publisher.
@@ -34,6 +35,7 @@ func NewPublisher(seasoning *models.RabbitSeasoning, chanPool *pools.ChannelPool
 		ChannelPool:   chanPool,
 		letters:       make(chan *models.Letter, 1),
 		notifications: make(chan *models.Notification, 1),
+		smallSleep:    time.Duration(50) * time.Millisecond,
 	}, nil
 }
 
@@ -65,8 +67,8 @@ PublishWithRetry:
 					if err != nil {
 						pub.sendToNotifications(letter.LetterID, err)
 
-						time.Sleep(50 * time.Millisecond)
-						i-- // decrement retry count
+						time.Sleep(pub.smallSleep)
+						i-- // failure to acquire a new channel counts against the retry count
 					} else {
 						break GetChannelRetry
 					}

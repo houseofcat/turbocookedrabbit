@@ -15,15 +15,17 @@ import (
 
 // ChannelPool houses the pool of RabbitMQ channels.
 type ChannelPool struct {
-	Config          *models.RabbitSeasoning
-	ConnectionPool  *ConnectionPool
-	Initialized     bool
-	errors          chan error
-	channels        *queue.Queue
-	channelCount    uint64
-	poolLock        *sync.Mutex
-	channelLock     int32
-	flaggedChannels map[uint64]bool
+	Config                  *models.RabbitSeasoning
+	ConnectionPool          *ConnectionPool
+	Initialized             bool
+	errors                  chan error
+	channels                *queue.Queue
+	channelCount            uint64
+	poolLock                *sync.Mutex
+	channelLock             int32
+	flaggedChannels         map[uint64]bool
+	smallSleep              time.Duration
+	initializeErrorCountMax int
 }
 
 // NewChannelPool creates hosting structure for the ChannelPool.
@@ -38,12 +40,14 @@ func NewChannelPool(seasoning *models.RabbitSeasoning, connPool *ConnectionPool,
 	}
 
 	cp := &ChannelPool{
-		Config:          seasoning,
-		ConnectionPool:  connPool,
-		errors:          make(chan error, 1),
-		channels:        queue.New(seasoning.Pools.ChannelCount),
-		poolLock:        &sync.Mutex{},
-		flaggedChannels: make(map[uint64]bool),
+		Config:                  seasoning,
+		ConnectionPool:          connPool,
+		errors:                  make(chan error, 1),
+		channels:                queue.New(seasoning.Pools.ChannelCount),
+		poolLock:                &sync.Mutex{},
+		flaggedChannels:         make(map[uint64]bool),
+		smallSleep:              time.Duration(50) * time.Millisecond,
+		initializeErrorCountMax: 5,
 	}
 
 	if initializeNow {
@@ -70,15 +74,18 @@ func (cp *ChannelPool) Initialize() {
 }
 
 func (cp *ChannelPool) initialize() {
+	errCount := 0
 	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ChannelCount); i++ {
 		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
 		if err != nil {
-			if cp.Config.Pools.BreakOnError {
+			go func() { cp.errors <- err }()
+			errCount++
+
+			if cp.Config.Pools.BreakOnError || errCount >= cp.initializeErrorCountMax {
 				break
 			}
 
-			go func() { cp.errors <- err }()
-			time.Sleep(1 * time.Second)
+			time.Sleep(cp.smallSleep)
 			continue
 		}
 
@@ -109,7 +116,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 			}
 
 			go func() { cp.errors <- err }()
-			time.Sleep(50 * time.Millisecond)
+			time.Sleep(cp.smallSleep)
 			continue
 		}
 
