@@ -27,7 +27,8 @@ type Publisher struct {
 func NewPublisher(
 	seasoning *models.RabbitSeasoning,
 	chanPool *pools.ChannelPool,
-	connPool *pools.ConnectionPool) (*Publisher, error) {
+	connPool *pools.ConnectionPool,
+	sleepDuration uint32) (*Publisher, error) {
 
 	// If nil, create your own isolated ChannelPool based on configuration settings.
 	if chanPool == nil {
@@ -41,10 +42,10 @@ func NewPublisher(
 	return &Publisher{
 		Config:        seasoning,
 		ChannelPool:   chanPool,
-		letters:       make(chan *models.Letter, 1),
+		letters:       make(chan *models.Letter, 10),
 		autoStop:      make(chan bool, 1),
 		notifications: make(chan *models.Notification, 1),
-		smallSleep:    time.Duration(50) * time.Millisecond,
+		smallSleep:    time.Duration(sleepDuration) * time.Millisecond,
 		pubLock:       &sync.Mutex{},
 		autoStopped:   true,
 	}, nil

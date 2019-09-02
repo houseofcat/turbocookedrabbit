@@ -23,3 +23,9 @@ type TLSConfig struct {
 	LocalCertLocation string `json:"LocalCertLocation"`
 	CertServerName    string `json:"CertServerName"`
 }
+
+// TopologyConfig allows you to build a simple toplogy from Json.
+type TopologyConfig struct {
+	Exchanges []*Exchange `json:"Exchanges"`
+	Queues    []*Queue    `json:"Queues"`
+}

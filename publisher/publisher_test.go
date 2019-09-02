@@ -30,7 +30,7 @@ func TestCreatePublisher(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 }
@@ -41,7 +41,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -88,7 +88,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	assert.NoError(t, err)
 
 	letter := utils.CreateLetter("", "TestQueue", nil)
@@ -126,16 +126,26 @@ func TestAutoPublishManyMessages(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	assert.NoError(t, err)
 
+	// Pre-create test messages
 	timeStart := time.Now()
+	letters := make([]*models.Letter, messageCount)
+
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+	}
+
+	elapsed := time.Since(timeStart)
+	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+
+	timeStart = time.Now()
 	publisher.StartAutoPublish()
 
 	go func() {
-		for i := 0; i < messageCount; i++ {
-			letter := utils.CreateLetter("", "TestQueue", nil)
 
+		for _, letter := range letters {
 			err = publisher.QueueLetter(letter)
 			assert.NoError(t, err)
 		}
@@ -156,6 +166,7 @@ ListeningForNotificationsLoop:
 			if chanErr != nil {
 				failureCount++
 			}
+			break
 		case notification := <-publisher.Notifications():
 			if notification.Success {
 				successCount++
@@ -166,12 +177,15 @@ ListeningForNotificationsLoop:
 			if successCount+failureCount == messageCount {
 				break ListeningForNotificationsLoop
 			}
+
+			break
 		default:
 			time.Sleep(1 * time.Millisecond)
+			break
 		}
 	}
 
-	elapsed := time.Since(timeStart)
+	elapsed = time.Since(timeStart)
 
 	assert.Equal(t, messageCount, successCount+failureCount)
 	fmt.Printf("All Messages Accounted For: %d\r\n", successCount)
