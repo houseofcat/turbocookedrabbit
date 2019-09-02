@@ -188,8 +188,11 @@ func (cp *ChannelPool) FlagChannel(connectionID uint64) {
 func (cp *ChannelPool) IsChannelFlagged(connectionID uint64) bool {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
-	_, ok := cp.flaggedChannels[connectionID]
-	return ok
+	if flagged, ok := cp.flaggedChannels[connectionID]; ok {
+		return flagged
+	} else {
+		return false
+	}
 }
 
 // Shutdown closes all connections in the ConnectionPool.
