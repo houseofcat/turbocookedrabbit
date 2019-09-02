@@ -12,7 +12,7 @@ import (
 func TestCreateConnectionPool(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 
@@ -36,7 +36,7 @@ func TestCreateConnectionPool(t *testing.T) {
 func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 12
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !connectionPool.Initialized {
@@ -74,7 +74,7 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 func TestGetConnectionAfterShutdown(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 24
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !connectionPool.Initialized {
@@ -117,10 +117,10 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 func TestCreateChannelPool(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !channelPool.Initialized {
@@ -146,10 +146,10 @@ func TestCreateChannelPool(t *testing.T) {
 func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !channelPool.Initialized {
@@ -193,10 +193,10 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 func TestGetChannelAfterShutdown(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !channelPool.Initialized {
@@ -241,14 +241,14 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	assert.Nil(t, channelHost)
 }
 
-func TestGetChannelAfterKillingConnection(t *testing.T) {
+func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 1
 	Seasoning.Pools.ChannelCount = 2
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
 
 	now := time.Now()
 	if !channelPool.Initialized {
@@ -270,11 +270,51 @@ func TestGetChannelAfterKillingConnection(t *testing.T) {
 		break
 	}
 
-	// Breakpoint here: Kill all the connections server side before proceeding.
+	connectionPool.Shutdown()
+
+	chanHost, err := channelPool.GetChannel()
+	assert.Nil(t, chanHost)
+	assert.Error(t, err)
+}
+
+func TestCreateChannelPoolSimple(t *testing.T) {
+	Seasoning.Pools.ConnectionCount = 1
+	Seasoning.Pools.ChannelCount = 2
+
+	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	// Flush Errors
+	select {
+	case chanErr := <-channelPool.Errors():
+		fmt.Print(chanErr)
+	default:
+		break
+	}
+
 	chanHost, err := channelPool.GetChannel()
 	assert.NotNil(t, chanHost)
-	assert.Nil(t, err)
+	assert.NoError(t, err)
+}
 
-	err = chanHost.Channel.Close()
-	assert.Nil(t, err)
+func TestGetChannelAfterKillingChannelPool(t *testing.T) {
+	Seasoning.Pools.ConnectionCount = 1
+	Seasoning.Pools.ChannelCount = 2
+
+	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	// Flush Errors
+	select {
+	case chanErr := <-channelPool.Errors():
+		fmt.Print(chanErr)
+	default:
+		break
+	}
+
+	channelPool.Shutdown()
+
+	chanHost, err := channelPool.GetChannel()
+	assert.Nil(t, chanHost)
+	assert.Error(t, err)
 }

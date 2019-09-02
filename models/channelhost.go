@@ -11,7 +11,6 @@ import (
 // ChannelHost is an internal representation of amqp.Connection.
 type ChannelHost struct {
 	Channel          *amqp.Channel
-	Connection       *amqp.Connection
 	ChannelID        uint64
 	ConnectionClosed func() bool // super unreliable
 }
