@@ -48,8 +48,10 @@ func NewPublisher(seasoning *models.RabbitSeasoning, chanPool *pools.ChannelPool
 }
 
 // Shutdown cleanly shutsdown the publisher and resets it's internal state.
-func (pub *Publisher) Shutdown(skipPools bool) {
-	if !skipPools { // in case the ChannelPool is shared between structs, you can prevent it from shuttingdown
+func (pub *Publisher) Shutdown(shutdownPools bool) {
+	pub.StopAutoPublish(true)
+
+	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shuttingdown
 		pub.ChannelPool.Shutdown()
 	}
 }
@@ -91,6 +93,84 @@ PublishWithRetry:
 	}
 }
 
+// Notifications yields all the success and failures during all publish events.
+func (pub *Publisher) Notifications() <-chan *models.Notification {
+	return pub.notifications
+}
+
+// StartAutoPublish starts auto-publishing letters queued up.
+func (pub *Publisher) StartAutoPublish() {
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
+
+	select {
+	case <-pub.autoStop:
+		// flush the autostops before start
+	default:
+		break
+	}
+
+	go func() {
+		select {
+		case stop := <-pub.autoStop:
+			if stop {
+				break
+			}
+		case letter := <-pub.letters:
+			{
+				pub.Publish(letter)
+			}
+		default:
+			time.Sleep(pub.smallSleep)
+		}
+	}()
+}
+
+// StopAutoPublish stops publishing letters queued up.
+// Immediate true option returns to caller after draining the queue.
+// Immediate false option immediately returns to the caller but drains the letter queue in the background
+// and you can check their statuses still in Notifications.
+func (pub *Publisher) StopAutoPublish(immediate bool) {
+	if immediate {
+		pub.stopAutoPublish()
+	} else {
+		go pub.stopAutoPublish()
+	}
+}
+
+func (pub *Publisher) stopAutoPublish() {
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
+
+	if pub.autoStopped { // Invalid/Multiple/Subsequent calls exit out
+		return
+	}
+
+	pub.autoStopped = true               // prevent new letters being queued
+	go func() { pub.autoStop <- true }() // signal auto publish to stop
+
+	// allow it to finish publishing all remaining letters
+	select {
+	case letter := <-pub.letters:
+		{
+			pub.Publish(letter)
+		}
+	default:
+		break
+	}
+}
+
+// QueueLetter queues up a letter that will be consumed by AutoPublish.
+// Error signals that the AutoPublish
+func (pub *Publisher) QueueLetter(letter *models.Letter) error {
+	if pub.autoPublishStopped() {
+		return errors.New("can't add letters to the internal queue if AutoPublish has not been started")
+	}
+
+	go func() { pub.letters <- letter }()
+	return nil
+}
+
 func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Letter) error {
 	return amqpChan.Publish(
 		letter.Envelope.Exchange,
@@ -119,76 +199,9 @@ func (pub *Publisher) sendToNotifications(letterID uint64, err error) {
 	go func() { pub.notifications <- notification }()
 }
 
-// Notifications yields all the success and failures during all publish events.
-func (pub *Publisher) Notifications() <-chan *models.Notification {
-	return pub.notifications
-}
-
-// StartAutoPublish starts auto-publishing letters queued up.
-func (pub *Publisher) StartAutoPublish() {
-	go func() {
-		select {
-		case stop := <-pub.autoStop:
-			if stop {
-				break
-			}
-		case letter := <-pub.letters:
-			{
-				pub.Publish(letter)
-			}
-		default:
-			time.Sleep(pub.smallSleep)
-		}
-	}()
-}
-
-// StopAutoPublish stops publishing letters queued up.
-// Immediate true option immediately returns to caller without draining the queue.
-// Immediate false option immediately returns to the caller but drains the letter queue in the background
-// and you can check their statuses still in Notifications.
-func (pub *Publisher) StopAutoPublish(immediate bool) {
-	go func() {
-		if immediate {
-			pub.autoStop <- true
-			pub.setAutoPublishStopped(true)
-		} else {
-			pub.autoStop <- true            // signal auto publish to stop
-			pub.setAutoPublishStopped(true) // prevent new letters being queued
-
-			// allow it to finish publishing all remaining letters
-			select {
-			case letter := <-pub.letters:
-				{
-					pub.Publish(letter)
-				}
-			default:
-				break
-			}
-		}
-	}()
-}
-
-// QueueLetter queues up a letter that will be consumed by AutoPublish.
-// Error signals that the AutoPublish
-func (pub *Publisher) QueueLetter(letter *models.Letter) error {
-	if pub.getAutoPublishStopped() {
-		return errors.New("can't add letters to the internal queue if AutoPublish has not been started")
-	}
-
-	go func() { pub.letters <- letter }()
-	return nil
-}
-
-func (pub *Publisher) getAutoPublishStopped() bool {
+func (pub *Publisher) autoPublishStopped() bool {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
 	return pub.autoStopped
-}
-
-func (pub *Publisher) setAutoPublishStopped(autoStopped bool) {
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
-
-	pub.autoStopped = autoStopped
 }
