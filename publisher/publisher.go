@@ -24,7 +24,10 @@ type Publisher struct {
 }
 
 // NewPublisher creates and configures a new Publisher.
-func NewPublisher(seasoning *models.RabbitSeasoning, chanPool *pools.ChannelPool, connPool *pools.ConnectionPool) (*Publisher, error) {
+func NewPublisher(
+	seasoning *models.RabbitSeasoning,
+	chanPool *pools.ChannelPool,
+	connPool *pools.ConnectionPool) (*Publisher, error) {
 
 	// If nil, create your own isolated ChannelPool based on configuration settings.
 	if chanPool == nil {
@@ -124,6 +127,8 @@ func (pub *Publisher) StartAutoPublish() {
 			time.Sleep(pub.smallSleep)
 		}
 	}()
+
+	pub.autoStopped = false
 }
 
 // StopAutoPublish stops publishing letters queued up.

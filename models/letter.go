@@ -5,7 +5,7 @@ type Letter struct {
 	LetterID   uint64
 	RetryCount uint32
 	Body       []byte
-	Envelope   Envelope
+	Envelope   *Envelope
 }
 
 // Envelope contains all the address details of where a letter is going.
