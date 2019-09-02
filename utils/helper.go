@@ -7,7 +7,7 @@ func CreateLetter(exchangeName string, queueName string, body []byte) *models.Le
 
 	letterID := uint64(1)
 	if body == nil {
-		body = []byte("\xFF\xFF\x89\xFF\xFF")
+		body = []byte("\x68\x65\x6c\x6c\x6f\x77\x20\x77\x6f\x72\x6c\x64")
 	}
 
 	envelope := &models.Envelope{

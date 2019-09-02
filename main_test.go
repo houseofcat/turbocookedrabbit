@@ -1,8 +1,90 @@
 package tests
 
 import (
+	"fmt"
+	"os"
 	"testing"
+	"time"
+
+	"github.com/streadway/amqp"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/utils"
 )
+
+var Seasoning *models.RabbitSeasoning
+
+func TestMain(m *testing.M) { // Load Configuration On Startup
+	var err error
+	Seasoning, err = utils.ConvertJSONFileToConfig("mainseasoning.json")
+	if err != nil {
+		return
+	}
+	os.Exit(m.Run())
+}
+
+func TestReadConfig(t *testing.T) {
+	fileNamePath := "seasoning.json"
+
+	assert.FileExists(t, fileNamePath)
+
+	config, err := utils.ConvertJSONFileToConfig(fileNamePath)
+
+	assert.Nil(t, err)
+	assert.NotEqual(t, "", config.Pools.URI, "RabbitMQ URI should not be blank.")
+}
+
+func TestBasicPublish(t *testing.T) {
+	//defer leaktest.Check(t)() // Fail on leaked goroutines.
+	Seasoning.Pools.ConnectionCount = 3
+	Seasoning.Pools.ChannelCount = 12
+
+	messageCount := 100000
+
+	// Pre-create test messages
+	timeStart := time.Now()
+	letters := make([]*models.Letter, messageCount)
+
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+	}
+
+	elapsed := time.Since(timeStart)
+	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+
+	// Test
+	timeStart = time.Now()
+	amqpConn, err := amqp.Dial(Seasoning.Pools.URI)
+	if err != nil {
+		return
+	}
+
+	amqpChan, err := amqpConn.Channel()
+	if err != nil {
+		return
+	}
+
+	for i := 0; i < messageCount; i++ {
+		letter := letters[i]
+		go amqpChan.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType: letter.Envelope.ContentType,
+				Body:        letter.Body,
+			},
+		)
+	}
+
+	elapsed = time.Since(timeStart)
+	fmt.Printf("Publish Time: %s\r\n", elapsed)
+	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
+
+	// TODO: Poll Queues till the message counts are there. Should be messageCount distributed evenly in 10 queues.
+}
 
 func TestTLSConnection(t *testing.T) {
 	// https://github.com/streadway/amqp/blob/master/examples_test.go

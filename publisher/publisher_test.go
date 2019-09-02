@@ -6,11 +6,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/publisher"
 	"github.com/houseofcat/turbocookedrabbit/utils"
-	"github.com/stretchr/testify/assert"
 )
 
 var Seasoning *models.RabbitSeasoning
@@ -36,6 +38,7 @@ func TestCreatePublisher(t *testing.T) {
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
@@ -80,6 +83,8 @@ AssertLoop:
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+
+	channelPool.Shutdown()
 }
 
 func TestAutoPublishSingleMessage(t *testing.T) {
@@ -116,10 +121,13 @@ AssertLoop:
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+
+	channelPool.Shutdown()
 }
 
 func TestAutoPublishManyMessages(t *testing.T) {
-	messageCount := 1000
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	messageCount := 100000
 
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
@@ -149,8 +157,6 @@ func TestAutoPublishManyMessages(t *testing.T) {
 			err = publisher.QueueLetter(letter)
 			assert.NoError(t, err)
 		}
-
-		publisher.StopAutoPublish(false)
 	}()
 
 	successCount := 0
@@ -192,4 +198,401 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Success Count: %d\r\n", successCount)
 	fmt.Printf("Failure Count: %d\r\n", failureCount)
 	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
+	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
+
+	// Shut down everything.
+	publisher.StopAutoPublish(false)
+	channelPool.Shutdown()
+}
+
+func TestTwoAutoPublishSameChannelPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	messageCount := 50000
+	publisherMultiple := 2
+
+	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p1Err)
+
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p2Err)
+
+	// Pre-create test messages
+	timeStart := time.Now()
+	letters := make([]*models.Letter, messageCount)
+
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+	}
+
+	elapsed := time.Since(timeStart)
+	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+
+	timeStart = time.Now()
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
+
+	go func() {
+
+		for _, letter := range letters {
+			err = publisher1.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher2.QueueLetter(letter)
+			assert.NoError(t, err)
+		}
+	}()
+
+	successCount := 0
+	failureCount := 0
+	timer := time.NewTimer(1 * time.Minute)
+
+ListeningForNotificationsLoop:
+	for {
+		select {
+		case <-timer.C:
+			break ListeningForNotificationsLoop
+		case chanErr := <-channelPool.Errors():
+			if chanErr != nil {
+				failureCount++
+			}
+			break
+		case notification := <-publisher1.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher2.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		default:
+			time.Sleep(1 * time.Millisecond)
+			break
+		}
+	}
+
+	elapsed = time.Since(timeStart)
+
+	assert.Equal(t, publisherMultiple*messageCount, successCount+failureCount)
+	fmt.Printf("All Messages Accounted For: %d\r\n", successCount)
+	fmt.Printf("Success Count: %d\r\n", successCount)
+	fmt.Printf("Failure Count: %d\r\n", failureCount)
+	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
+	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
+
+	// Shut down everything.
+	publisher1.StopAutoPublish(false)
+	publisher2.StopAutoPublish(false)
+	channelPool.Shutdown()
+}
+
+func TestFourAutoPublishSameChannelPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	messageCount := 50000
+	publisherMultiple := 4
+
+	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p1Err)
+
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p2Err)
+
+	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p3Err)
+
+	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	assert.NoError(t, p4Err)
+
+	// Pre-create test messages
+	timeStart := time.Now()
+	letters := make([]*models.Letter, messageCount)
+
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+	}
+
+	elapsed := time.Since(timeStart)
+	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+
+	timeStart = time.Now()
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
+	publisher3.StartAutoPublish()
+	publisher4.StartAutoPublish()
+
+	go func() {
+
+		for _, letter := range letters {
+			err = publisher1.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher2.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher3.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher4.QueueLetter(letter)
+			assert.NoError(t, err)
+		}
+	}()
+
+	successCount := 0
+	failureCount := 0
+	timer := time.NewTimer(1 * time.Minute)
+
+ListeningForNotificationsLoop:
+	for {
+		select {
+		case <-timer.C:
+			break ListeningForNotificationsLoop
+		case chanErr := <-channelPool.Errors():
+			if chanErr != nil {
+				failureCount++
+			}
+			break
+		case notification := <-publisher1.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher2.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher3.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher4.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		default:
+			time.Sleep(1 * time.Millisecond)
+			break
+		}
+	}
+
+	elapsed = time.Since(timeStart)
+
+	assert.Equal(t, publisherMultiple*messageCount, successCount+failureCount)
+	fmt.Printf("All Messages Accounted For: %d\r\n", successCount)
+	fmt.Printf("Success Count: %d\r\n", successCount)
+	fmt.Printf("Failure Count: %d\r\n", failureCount)
+	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
+	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
+
+	// Shut down everything.
+	publisher1.StopAutoPublish(false)
+	publisher2.StopAutoPublish(false)
+	publisher3.StopAutoPublish(false)
+	publisher4.StopAutoPublish(false)
+	channelPool.Shutdown()
+}
+
+func TestFourAutoPublishFourChannelPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	Seasoning.Pools.ConnectionCount = 3
+	Seasoning.Pools.ChannelCount = 12
+	messageCount := 50000
+	publisherMultiple := 4
+
+	channelPool1, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool2, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool3, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool4, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool1.FlushErrors()
+
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool1, nil, 1)
+	assert.NoError(t, p1Err)
+
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool2, nil, 1)
+	assert.NoError(t, p2Err)
+
+	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool3, nil, 1)
+	assert.NoError(t, p3Err)
+
+	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool4, nil, 1)
+	assert.NoError(t, p4Err)
+
+	// Pre-create test messages
+	timeStart := time.Now()
+	letters := make([]*models.Letter, messageCount)
+
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+	}
+
+	elapsed := time.Since(timeStart)
+	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+
+	timeStart = time.Now()
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
+	publisher3.StartAutoPublish()
+	publisher4.StartAutoPublish()
+
+	go func() {
+
+		for _, letter := range letters {
+			err = publisher1.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher2.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher3.QueueLetter(letter)
+			assert.NoError(t, err)
+
+			err = publisher4.QueueLetter(letter)
+			assert.NoError(t, err)
+		}
+	}()
+
+	successCount := 0
+	failureCount := 0
+	timer := time.NewTimer(1 * time.Minute)
+
+ListeningForNotificationsLoop:
+	for {
+		select {
+		case <-timer.C:
+			break ListeningForNotificationsLoop
+		case notification := <-publisher1.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher2.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher3.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		case notification := <-publisher4.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == publisherMultiple*messageCount {
+				break ListeningForNotificationsLoop
+			}
+
+			break
+		default:
+			time.Sleep(1 * time.Millisecond)
+			break
+		}
+	}
+
+	elapsed = time.Since(timeStart)
+
+	assert.Equal(t, publisherMultiple*messageCount, successCount+failureCount)
+	fmt.Printf("All Messages Accounted For: %d\r\n", successCount)
+	fmt.Printf("Success Count: %d\r\n", successCount)
+	fmt.Printf("Failure Count: %d\r\n", failureCount)
+	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
+	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
+
+	// Shut down everything.
+	publisher1.StopAutoPublish(false)
+	publisher2.StopAutoPublish(false)
+	publisher3.StopAutoPublish(false)
+	publisher4.StopAutoPublish(false)
+	channelPool1.Shutdown()
+	channelPool2.Shutdown()
+	channelPool3.Shutdown()
+	channelPool4.Shutdown()
 }

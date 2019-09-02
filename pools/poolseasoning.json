@@ -3,9 +3,9 @@
         "URI": "amqp://guest:guest@localhost:5672/",
         "BreakOnError": false,
         "ConnectionRetryCount": 5,
-        "ConnectionCount": 2,
+        "ConnectionCount": 5,
         "ChannelRetryCount": 5,
-        "ChannelCount": 10
+        "ChannelCount": 25
     },
     "TLSConfig": {
         "EnableTLS": false,
