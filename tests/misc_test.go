@@ -1,13 +1,7 @@
 package tests
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"io/ioutil"
-	"log"
 	"testing"
-
-	"github.com/streadway/amqp"
 )
 
 func TestTLSConnection(t *testing.T) {
@@ -68,24 +62,24 @@ func TestTLSConnection(t *testing.T) {
 	// If your server name in your certificate is different than the host you are
 	// connecting to, set the hostname used for verification in
 	// ServerName field of the tls.Config struct.
-	cfg := new(tls.Config)
+	/* 	cfg := new(tls.Config)
 
-	// see at the top
-	cfg.RootCAs = x509.NewCertPool()
+	   	// see at the top
+	   	cfg.RootCAs = x509.NewCertPool()
 
-	if ca, err := ioutil.ReadFile("testca/cacert.pem"); err == nil {
-		cfg.RootCAs.AppendCertsFromPEM(ca)
-	}
+	   	if ca, err := ioutil.ReadFile("testca/cacert.pem"); err == nil {
+	   		cfg.RootCAs.AppendCertsFromPEM(ca)
+	   	}
 
-	// Move the client cert and key to a location specific to your application
-	// and load them here.
+	   	// Move the client cert and key to a location specific to your application
+	   	// and load them here.
 
-	if cert, err := tls.LoadX509KeyPair("client/cert.pem", "client/key.pem"); err == nil {
-		cfg.Certificates = append(cfg.Certificates, cert)
-	}
+	   	if cert, err := tls.LoadX509KeyPair("client/cert.pem", "client/key.pem"); err == nil {
+	   		cfg.Certificates = append(cfg.Certificates, cert)
+	   	}
 
-	// see a note about Common Name (CN) at the top
-	conn, err := amqp.DialTLS("amqps://server-name-from-certificate/", cfg)
+	   	// see a note about Common Name (CN) at the top
+	   	conn, err := amqp.DialTLS("amqps://server-name-from-certificate/", cfg)
 
-	log.Printf("conn: %v, err: %v", conn, err)
+	   	log.Printf("conn: %v, err: %v", conn, err) */
 }

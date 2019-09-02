@@ -1,20 +1,30 @@
-package tests
+package publisher_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/publisher"
+	"github.com/houseofcat/turbocookedrabbit/utils"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCreatePublisher(t *testing.T) {
-	Seasoning.Pools.ConnectionCount = 1
-	Seasoning.Pools.ChannelCount = 2
+var Seasoning *models.RabbitSeasoning
 
+func TestMain(m *testing.M) { // Load Configuration On Startup
+	var err error
+	Seasoning, err = utils.ConvertJSONFileToConfig("publisherseasoning.json")
+	if err != nil {
+		return
+	}
+	os.Exit(m.Run())
+}
+
+func TestCreatePublisher(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
@@ -26,9 +36,6 @@ func TestCreatePublisher(t *testing.T) {
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
-	Seasoning.Pools.ConnectionCount = 1
-	Seasoning.Pools.ChannelCount = 2
-
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
@@ -76,9 +83,6 @@ AssertLoop:
 }
 
 func TestAutoPublishSingleMessage(t *testing.T) {
-	Seasoning.Pools.ConnectionCount = 1
-	Seasoning.Pools.ChannelCount = 2
-
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
@@ -87,7 +91,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
-	letter := CreateLetter("", "TestQueue", nil)
+	letter := utils.CreateLetter("", "TestQueue", nil)
 
 	publisher.StartAutoPublish()
 
@@ -115,8 +119,7 @@ AssertLoop:
 }
 
 func TestAutoPublishManyMessages(t *testing.T) {
-	Seasoning.Pools.ConnectionCount = 4
-	Seasoning.Pools.ChannelCount = 16
+	messageCount := 1000
 
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
@@ -126,11 +129,12 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
+	timeStart := time.Now()
 	publisher.StartAutoPublish()
 
 	go func() {
-		for i := 0; i < 100; i++ {
-			letter := CreateLetter("", "TestQueue", nil)
+		for i := 0; i < messageCount; i++ {
+			letter := utils.CreateLetter("", "TestQueue", nil)
 
 			err = publisher.QueueLetter(letter)
 			assert.NoError(t, err)
@@ -159,15 +163,19 @@ ListeningForNotificationsLoop:
 				failureCount++
 			}
 
-			if successCount+failureCount == 100 {
+			if successCount+failureCount == messageCount {
 				break ListeningForNotificationsLoop
 			}
 		default:
-			time.Sleep(10 * time.Millisecond)
+			time.Sleep(1 * time.Millisecond)
 		}
 	}
 
-	assert.Equal(t, 100, successCount+failureCount)
+	elapsed := time.Since(timeStart)
+
+	assert.Equal(t, messageCount, successCount+failureCount)
+	fmt.Printf("All Messages Accounted For: %d\r\n", successCount)
 	fmt.Printf("Success Count: %d\r\n", successCount)
 	fmt.Printf("Failure Count: %d\r\n", failureCount)
+	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
 }

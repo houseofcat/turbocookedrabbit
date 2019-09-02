@@ -1,26 +1,40 @@
-package tests
+package pools_test
 
 import (
 	"fmt"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/utils"
 	"github.com/stretchr/testify/assert"
 )
+
+var Seasoning *models.RabbitSeasoning
+
+func TestMain(m *testing.M) { // Load Configuration On Startup
+	var err error
+	Seasoning, err = utils.ConvertJSONFileToConfig("poolseasoning.json")
+	if err != nil {
+		return
+	}
+	os.Exit(m.Run())
+}
 
 func TestCreateConnectionPool(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 
 	if !connectionPool.Initialized {
 		connectionPool.Initialize()
 	}
 
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 	fmt.Printf("Created %d connection(s) finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 
@@ -41,26 +55,18 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !connectionPool.Initialized {
 		connectionPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 
-	// Flush Errors
-	select {
-	case err = <-connectionPool.Errors():
-		fmt.Print(err)
-	default:
-		break
-	}
-
-	now = time.Now()
+	timeStart = time.Now()
 	connectionPool.Shutdown()
-	elapsed = time.Since(now)
+	elapsed = time.Since(timeStart)
 
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
@@ -79,11 +85,11 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !connectionPool.Initialized {
 		connectionPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
@@ -97,9 +103,9 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	}
 
 	connectionCount := connectionPool.ConnectionCount()
-	now = time.Now()
+	timeStart = time.Now()
 	connectionPool.Shutdown()
-	elapsed = time.Since(now)
+	elapsed = time.Since(timeStart)
 
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionCount, elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
@@ -125,11 +131,11 @@ func TestCreateChannelPool(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !channelPool.Initialized {
 		channelPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
@@ -154,11 +160,11 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !channelPool.Initialized {
 		channelPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
@@ -175,9 +181,9 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	}
 
 	channelCount := channelPool.ChannelCount()
-	now = time.Now()
+	timeStart = time.Now()
 	channelPool.Shutdown()
-	elapsed = time.Since(now)
+	elapsed = time.Since(timeStart)
 
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
@@ -201,11 +207,11 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !channelPool.Initialized {
 		channelPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
@@ -222,9 +228,9 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	}
 
 	channelCount := channelPool.ChannelCount()
-	now = time.Now()
+	timeStart = time.Now()
 	channelPool.Shutdown()
-	elapsed = time.Since(now)
+	elapsed = time.Since(timeStart)
 
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
@@ -253,11 +259,11 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, connectionPool, false)
 	assert.NoError(t, err)
 
-	now := time.Now()
+	timeStart := time.Now()
 	if !channelPool.Initialized {
 		channelPool.Initialize()
 	}
-	elapsed := time.Since(now)
+	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())

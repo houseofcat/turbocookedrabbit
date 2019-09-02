@@ -1,4 +1,4 @@
-package tests
+package consumer_test
 
 import (
 	"os"
@@ -17,4 +17,8 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 		return
 	}
 	os.Exit(m.Run())
+}
+
+func TestConsumer(t *testing.T) {
+
 }
