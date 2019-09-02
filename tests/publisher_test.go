@@ -18,29 +18,11 @@ func TestCreatePublisher(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
-	// Flush Any Errors
-	select {
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
-
-	// Flush Any Notifications
-	select {
-	case notification := <-publisher.Notifications():
-		if notification.Success {
-			fmt.Printf("Publish Success: %d\r\n", notification.LetterID)
-		} else {
-			fmt.Printf("Publish Failed: %s\r\n", notification.Error)
-		}
-	default:
-		break
-	}
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
@@ -50,13 +32,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
-	// Flush Any Errors
-	select {
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -82,34 +58,31 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 	publisher.Publish(letter)
 
 	// Assert on all Notifications
-	select {
-	case chanErr := <-channelPool.Errors():
-		assert.NoError(t, chanErr) // This test fails on channel errors.
-		break
-	case notification := <-publisher.Notifications():
-		assert.True(t, notification.Success)
-		assert.Equal(t, letterID, notification.LetterID)
-		assert.NoError(t, notification.Error)
-		break
-	default:
-		time.Sleep(100 * time.Millisecond)
+AssertLoop:
+	for {
+		select {
+		case chanErr := <-channelPool.Errors():
+			assert.NoError(t, chanErr) // This test fails on channel errors.
+			break AssertLoop
+		case notification := <-publisher.Notifications():
+			assert.True(t, notification.Success)
+			assert.Equal(t, letterID, notification.LetterID)
+			assert.NoError(t, notification.Error)
+			break AssertLoop
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 }
 
-func TestAutoPublish(t *testing.T) {
+func TestAutoPublishSingleMessage(t *testing.T) {
 	Seasoning.Pools.ConnectionCount = 1
 	Seasoning.Pools.ChannelCount = 2
 
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
-	// Flush Any Errors
-	select {
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -124,16 +97,77 @@ func TestAutoPublish(t *testing.T) {
 	publisher.StopAutoPublish(false)
 
 	// Assert on all Notifications
-	select {
-	case chanErr := <-channelPool.Errors():
-		assert.NoError(t, chanErr) // This test fails on channel errors.
-		break
-	case notification := <-publisher.Notifications():
-		assert.True(t, notification.Success)
-		assert.Equal(t, letter.LetterID, notification.LetterID)
-		assert.NoError(t, notification.Error)
-		break
-	default:
-		time.Sleep(100 * time.Millisecond)
+AssertLoop:
+	for {
+		select {
+		case chanErr := <-channelPool.Errors():
+			assert.NoError(t, chanErr) // This test fails on channel errors.
+			break AssertLoop
+		case notification := <-publisher.Notifications():
+			assert.True(t, notification.Success)
+			assert.Equal(t, letter.LetterID, notification.LetterID)
+			assert.NoError(t, notification.Error)
+			break AssertLoop
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
+}
+
+func TestAutoPublishManyMessages(t *testing.T) {
+	Seasoning.Pools.ConnectionCount = 4
+	Seasoning.Pools.ChannelCount = 16
+
+	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	assert.NoError(t, err)
+
+	publisher.StartAutoPublish()
+
+	go func() {
+		for i := 0; i < 100; i++ {
+			letter := CreateLetter("", "TestQueue", nil)
+
+			err = publisher.QueueLetter(letter)
+			assert.NoError(t, err)
+		}
+
+		publisher.StopAutoPublish(false)
+	}()
+
+	successCount := 0
+	failureCount := 0
+	timer := time.NewTimer(1 * time.Minute)
+
+ListeningForNotificationsLoop:
+	for {
+		select {
+		case <-timer.C:
+			break ListeningForNotificationsLoop
+		case chanErr := <-channelPool.Errors():
+			if chanErr != nil {
+				failureCount++
+			}
+		case notification := <-publisher.Notifications():
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			if successCount+failureCount == 100 {
+				break ListeningForNotificationsLoop
+			}
+		default:
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
+
+	assert.Equal(t, 100, successCount+failureCount)
+	fmt.Printf("Success Count: %d\r\n", successCount)
+	fmt.Printf("Failure Count: %d\r\n", failureCount)
 }

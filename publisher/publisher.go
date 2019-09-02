@@ -106,25 +106,29 @@ func (pub *Publisher) StartAutoPublish() {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
-	select {
-	case <-pub.autoStop:
-		// flush the autostops before start
-	default:
-		break
+FlushLoop:
+	for {
+		select {
+		case <-pub.autoStop:
+			// flush the autostops before start
+		default:
+			break FlushLoop
+		}
 	}
 
 	go func() {
-		select {
-		case stop := <-pub.autoStop:
-			if stop {
-				break
+	PublishLoop:
+		for {
+			select {
+			case stop := <-pub.autoStop:
+				if stop {
+					break PublishLoop
+				}
+			case letter := <-pub.letters:
+				go pub.Publish(letter)
+			default:
+				time.Sleep(pub.smallSleep)
 			}
-		case letter := <-pub.letters:
-			{
-				pub.Publish(letter)
-			}
-		default:
-			time.Sleep(pub.smallSleep)
 		}
 	}()
 
@@ -155,13 +159,14 @@ func (pub *Publisher) stopAutoPublish() {
 	go func() { pub.autoStop <- true }() // signal auto publish to stop
 
 	// allow it to finish publishing all remaining letters
-	select {
-	case letter := <-pub.letters:
-		{
-			pub.Publish(letter)
+FlushLoop:
+	for {
+		select {
+		case letter := <-pub.letters:
+			go pub.Publish(letter)
+		default:
+			break FlushLoop
 		}
-	default:
-		break
 	}
 }
 

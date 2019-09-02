@@ -9,6 +9,7 @@ func CreateLetter(exchangeName string, queueName string, body []byte) *models.Le
 	if body == nil {
 		body = []byte("\xFF\xFF\x89\xFF\xFF")
 	}
+
 	envelope := &models.Envelope{
 		Exchange:    "",
 		RoutingKey:  queueName,

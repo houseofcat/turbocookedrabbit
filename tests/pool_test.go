@@ -25,11 +25,14 @@ func TestCreateConnectionPool(t *testing.T) {
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 
 	// Flush Errors
-	select {
-	case err = <-connectionPool.Errors():
-		fmt.Print(err)
-	default:
-		break
+FlushLoop:
+	for {
+		select {
+		case err = <-connectionPool.Errors():
+			fmt.Print(err)
+		default:
+			break FlushLoop
+		}
 	}
 }
 

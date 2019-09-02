@@ -312,3 +312,16 @@ func (cp *ConnectionPool) Shutdown() {
 	// Release connection lock (0)
 	atomic.StoreInt32(&cp.connectionLock, 0)
 }
+
+// FlushErrors empties all current errors in the error channel.
+func (cp *ConnectionPool) FlushErrors() {
+	// Flush Errors
+FlushLoop:
+	for {
+		select {
+		case <-cp.Errors():
+		default:
+			break FlushLoop
+		}
+	}
+}

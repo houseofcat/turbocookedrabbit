@@ -103,6 +103,9 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 
 	retryCount := atomic.LoadUint32(&cp.Config.Pools.ChannelRetryCount)
 	connHost, err = cp.ConnectionPool.GetConnection()
+	if err != nil {
+		return nil, err
+	}
 
 	if connHost == nil {
 		return nil, fmt.Errorf("opening channel failed - could not get connection [last err: %s]", err)
@@ -245,4 +248,17 @@ func (cp *ChannelPool) Shutdown() {
 
 	// Release channel lock (0)
 	atomic.StoreInt32(&cp.channelLock, 0)
+}
+
+// FlushErrors empties all current errors in the error channel.
+func (cp *ChannelPool) FlushErrors() {
+	// Flush Errors
+FlushLoop:
+	for {
+		select {
+		case <-cp.Errors():
+		default:
+			break FlushLoop
+		}
+	}
 }
