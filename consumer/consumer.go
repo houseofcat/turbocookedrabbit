@@ -15,8 +15,8 @@ import (
 type Consumer struct {
 	Config       *models.RabbitSeasoning
 	ChannelPool  *pools.ChannelPool
+	QueueName    string
 	ConsumerName string
-	RoutingKey   string
 	errors       chan error
 	messages     chan *models.Message
 	stop         chan bool
@@ -29,11 +29,11 @@ type Consumer struct {
 	conLock      *sync.Mutex
 }
 
-// NewConsumer creates a new Consumer to receive messages from a specific routing key/queuename.
+// NewConsumer creates a new Consumer to receive messages from a specific queuename.
 func NewConsumer(
 	config *models.RabbitSeasoning,
 	channelPool *pools.ChannelPool,
-	routingKey string,
+	queuename string,
 	consumerName string,
 	autoAck bool,
 	exclusive bool,
@@ -51,7 +51,7 @@ func NewConsumer(
 	return &Consumer{
 		Config:       config,
 		ChannelPool:  channelPool,
-		RoutingKey:   routingKey,
+		QueueName:    queuename,
 		ConsumerName: consumerName,
 		errors:       make(chan error, 1),
 		messages:     make(chan *models.Message, 1),
@@ -104,14 +104,14 @@ GetChannelLoop:
 		}
 
 		// Start Consuming
-		deliveries, err := chanHost.Channel.Consume(con.RoutingKey, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, con.args)
+		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, con.args)
 		if err != nil {
 			go func() { con.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue // Retry
 		}
 
-	GetDeliveries:
+	GetDeliveriesLoop:
 		for {
 			// Listen for channel closure (close errors).
 			// Highest priority so separated to it's own select.
@@ -121,15 +121,16 @@ GetChannelLoop:
 					go func() {
 						con.errors <- fmt.Errorf("consumer's current channel closed\r\n[Reason: %s]\r\n[Code: %d]", amqpError.Reason, amqpError.Code)
 					}()
+
+					break GetDeliveriesLoop
 				}
-				break GetDeliveries
 			default:
 				break
 			}
 
 			// Convert amqp.Delivery into our internal struct for later use.
 			select {
-			case delivery := <-deliveries:
+			case delivery := <-deliveryChan:
 				go con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 			default:
 				break
@@ -211,6 +212,21 @@ FlushLoop:
 	for {
 		select {
 		case <-con.errors:
+			break
+		default:
+			break FlushLoop
+		}
+	}
+}
+
+// FlushMessages allows you to flush out all previous Messages.
+// WARNING: THIS WILL RESULT IN LOST MESSAGES.
+func (con *Consumer) FlushMessages() {
+
+FlushLoop:
+	for {
+		select {
+		case <-con.messages:
 			break
 		default:
 			break FlushLoop
