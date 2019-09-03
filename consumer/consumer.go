@@ -165,7 +165,13 @@ GetChannelLoop:
 				break
 			}
 		}
+
+		// Quality of Service channel overrides reset
+		if con.Config.Pools.GlobalQosCount != 0 && con.Config.Pools.GlobalQosSize != 0 {
+			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
+		}
 	}
+
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 

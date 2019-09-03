@@ -19,7 +19,7 @@ var Seasoning *models.RabbitSeasoning
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
-	Seasoning, err = utils.ConvertJSONFileToConfig("publisherseasoning.json")
+	Seasoning, err = utils.ConvertJSONFileToConfig("testpublisherseasoning.json")
 	if err != nil {
 		return
 	}
