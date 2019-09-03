@@ -130,6 +130,10 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 		return nil, errors.New("opening channel retries exhausted")
 	}
 
+	if cp.Config.Pools.GlobalQosCount != 0 && cp.Config.Pools.GlobalQosSize != 0 {
+		amqpChan.Qos(cp.Config.Pools.GlobalQosCount, cp.Config.Pools.GlobalQosSize, true)
+	}
+
 	channelHost := &models.ChannelHost{
 		Channel:          amqpChan,
 		ChannelID:        channelID,

@@ -13,20 +13,25 @@ import (
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
-	Config       *models.RabbitSeasoning
-	ChannelPool  *pools.ChannelPool
-	QueueName    string
-	ConsumerName string
-	errors       chan error
-	messages     chan *models.Message
-	stop         chan bool
-	started      bool
-	autoAck      bool
-	exclusive    bool
-	noLocal      bool
-	noWait       bool
-	args         map[string]interface{}
-	conLock      *sync.Mutex
+	Config           *models.RabbitSeasoning
+	ChannelPool      *pools.ChannelPool
+	QueueName        string
+	ConsumerName     string
+	QOS              uint32
+	errors           chan error
+	messageGroup     *sync.WaitGroup
+	messages         chan *models.Message
+	consumeStop      chan bool
+	stopImmediate    bool
+	started          bool
+	autoAck          bool
+	exclusive        bool
+	noLocal          bool
+	noWait           bool
+	args             map[string]interface{}
+	qosCountOverride int
+	qosSizeOverride  int
+	conLock          *sync.Mutex
 }
 
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.
@@ -38,7 +43,9 @@ func NewConsumer(
 	autoAck bool,
 	exclusive bool,
 	noWait bool,
-	args map[string]interface{}) (*Consumer, error) {
+	args map[string]interface{},
+	qosCountOverride int, // if zero ignored
+	qosSizeOverride int) (*Consumer, error) {
 
 	var err error
 	if channelPool == nil {
@@ -49,23 +56,28 @@ func NewConsumer(
 	}
 
 	return &Consumer{
-		Config:       config,
-		ChannelPool:  channelPool,
-		QueueName:    queuename,
-		ConsumerName: consumerName,
-		errors:       make(chan error, 1),
-		messages:     make(chan *models.Message, 1),
-		started:      false,
-		autoAck:      autoAck,
-		exclusive:    exclusive,
-		noWait:       noWait,
-		args:         args,
-		conLock:      &sync.Mutex{},
+		Config:           config,
+		ChannelPool:      channelPool,
+		QueueName:        queuename,
+		ConsumerName:     consumerName,
+		errors:           make(chan error, 10),
+		messageGroup:     &sync.WaitGroup{},
+		messages:         make(chan *models.Message, 10),
+		consumeStop:      make(chan bool, 1),
+		stopImmediate:    false,
+		started:          false,
+		autoAck:          autoAck,
+		exclusive:        exclusive,
+		noWait:           noWait,
+		args:             args,
+		qosCountOverride: qosCountOverride,
+		qosSizeOverride:  qosSizeOverride,
+		conLock:          &sync.Mutex{},
 	}, nil
 }
 
-// StartConsumer starts the Consumer.
-func (con *Consumer) StartConsumer() error {
+// StartConsuming starts the Consumer.
+func (con *Consumer) StartConsuming() error {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
@@ -76,18 +88,18 @@ func (con *Consumer) StartConsumer() error {
 	con.FlushErrors()
 	con.FlushStop()
 
-	go con.startConsumer()
+	go con.startConsuming()
 	con.started = true
 	return nil
 }
 
-func (con *Consumer) startConsumer() {
+func (con *Consumer) startConsuming() {
 
 GetChannelLoop:
 	for {
 		// Detect if we should stop.
 		select {
-		case stop := <-con.stop:
+		case stop := <-con.consumeStop:
 			if stop {
 				break GetChannelLoop
 			}
@@ -111,6 +123,11 @@ GetChannelLoop:
 			continue // Retry
 		}
 
+		// Quality of Service channel overrides
+		if con.qosCountOverride != 0 && con.qosSizeOverride != 0 {
+			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
+		}
+
 	GetDeliveriesLoop:
 		for {
 			// Listen for channel closure (close errors).
@@ -131,15 +148,17 @@ GetChannelLoop:
 			// Convert amqp.Delivery into our internal struct for later use.
 			select {
 			case delivery := <-deliveryChan:
-				go con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
+				con.messageGroup.Add(1)
+				con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 			default:
 				break
 			}
 
 			// Detect if we should stop.
 			select {
-			case stop := <-con.stop:
+			case stop := <-con.consumeStop:
 				if stop {
+					chanHost.Channel.Flow(false)
 					break GetChannelLoop
 				}
 			default:
@@ -147,16 +166,26 @@ GetChannelLoop:
 			}
 		}
 	}
-
-	con.started = false
-}
-
-// SignalStop allows you to signal stop to the consumer.
-// Will stop on the consumer channelclose or responding to signal after getting all remaining deviveries.
-func (con *Consumer) SignalStop() error {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
+	immediateStop := con.stopImmediate
+
+	if !immediateStop {
+		con.messageGroup.Wait() // wait for every message to be received to internal queue
+	}
+
+	con.started = false
+	con.stopImmediate = false
+}
+
+// StopConsuming allows you to signal stop to the consumer.
+// Will stop on the consumer channelclose or responding to signal after getting all remaining deviveries.
+func (con *Consumer) StopConsuming(immediate bool) error {
+	con.conLock.Lock()
+	defer con.conLock.Unlock()
+
+	con.stopImmediate = true
 	if !con.started {
 		return errors.New("can't stop a stopped consumer")
 	}
@@ -167,7 +196,7 @@ func (con *Consumer) SignalStop() error {
 
 // SignalStop sends stop signal.
 func (con *Consumer) signalStop() {
-	go func() { con.stop <- true }()
+	go func() { con.consumeStop <- true }()
 }
 
 // Messages yields all the internal messages ready for consuming.
@@ -188,7 +217,10 @@ func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Deli
 		MessageTag: delivery.DeliveryTag,
 	}
 
-	go func() { con.messages <- msg }()
+	go func() {
+		defer con.messageGroup.Done()
+		con.messages <- msg
+	}()
 }
 
 // FlushStop allows you to flush out all previous Stop signals.
@@ -197,7 +229,7 @@ func (con *Consumer) FlushStop() {
 FlushLoop:
 	for {
 		select {
-		case <-con.stop:
+		case <-con.consumeStop:
 			break
 		default:
 			break FlushLoop

@@ -15,10 +15,11 @@ import (
 type Publisher struct {
 	Config        *models.RabbitSeasoning
 	ChannelPool   *pools.ChannelPool
+	publishGroup  *sync.WaitGroup
 	letters       chan *models.Letter
 	autoStop      chan bool
 	notifications chan *models.Notification
-	autoStopped   bool
+	autoStarted   bool
 	smallSleep    time.Duration
 	pubLock       *sync.Mutex
 }
@@ -32,7 +33,7 @@ func NewPublisher(
 
 	// If nil, create your own isolated ChannelPool based on configuration settings.
 	if chanPool == nil {
-		var err error // If a connpool is nil, this will create an internal one here.
+		var err error // If a connpool is nil, create one here.
 		chanPool, err = pools.NewChannelPool(seasoning, connPool, true)
 		if err != nil {
 			return nil, err
@@ -42,12 +43,13 @@ func NewPublisher(
 	return &Publisher{
 		Config:        seasoning,
 		ChannelPool:   chanPool,
+		publishGroup:  &sync.WaitGroup{},
 		letters:       make(chan *models.Letter, 10),
 		autoStop:      make(chan bool, 1),
-		notifications: make(chan *models.Notification, 1),
+		notifications: make(chan *models.Notification, 10),
 		smallSleep:    time.Duration(sleepDuration) * time.Millisecond,
 		pubLock:       &sync.Mutex{},
-		autoStopped:   true,
+		autoStarted:   false,
 	}, nil
 }
 
@@ -63,37 +65,47 @@ func (pub *Publisher) Shutdown(shutdownPools bool) {
 // Publish sends a single message to the address on the letter.
 // Subscribe to Notifications to see success and errors.
 func (pub *Publisher) Publish(letter *models.Letter) {
+	pub.publishGroup.Add(1)
+	defer pub.publishGroup.Done()
 
 	chanHost, err := pub.ChannelPool.GetChannel()
 	if err != nil {
 		pub.sendToNotifications(letter.LetterID, err)
-		return
+		return // exit out if you can't get a channel
 	}
 
-PublishWithRetry:
-	for i := letter.RetryCount + 1; i > 0; i-- {
+	go func() {
 		pubErr := pub.simplePublish(chanHost.Channel, letter)
-		if pubErr != nil {
-		GetChannelRetry:
-			for {
-				if i > 0 {
-					chanHost, err = pub.ChannelPool.GetChannel()
-					if err != nil {
-						pub.sendToNotifications(letter.LetterID, err)
+		pub.sendToNotifications(letter.LetterID, pubErr)
+	}()
+}
 
-						time.Sleep(pub.smallSleep)
-						i-- // failure to acquire a new channel counts against the retry count
-					} else {
-						break GetChannelRetry
-					}
-				} else {
-					break PublishWithRetry
-				}
+// PublishWithRetry sends a single message to the address on the letter with retry capabilities.
+// Subscribe to Notifications to see success and errors.
+// RetryCount is based on the letter property. Zero means it will try once.
+func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
+	pub.publishGroup.Add(1)
+	defer pub.publishGroup.Done()
+
+	chanHost, err := pub.ChannelPool.GetChannel()
+	if err != nil {
+		pub.sendToNotifications(letter.LetterID, err)
+		return // exit out if you can't get a channel
+	}
+
+	var pubErr error
+	for i := letter.RetryCount + 1; i > 0; i-- {
+		pubErr = pub.simplePublish(chanHost.Channel, letter)
+		if pubErr != nil {
+			chanHost, err = pub.ChannelPool.GetChannel()
+			if err != nil {
+				pub.sendToNotifications(letter.LetterID, err)
+				break // break out if you can't get a channel
 			}
-		} else {
-			pub.sendToNotifications(letter.LetterID, nil)
-			break PublishWithRetry
+			continue // try again
 		}
+		pub.sendToNotifications(letter.LetterID, pubErr)
+		break // finished
 	}
 }
 
@@ -103,7 +115,7 @@ func (pub *Publisher) Notifications() <-chan *models.Notification {
 }
 
 // StartAutoPublish starts auto-publishing letters queued up.
-func (pub *Publisher) StartAutoPublish() {
+func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
@@ -126,14 +138,22 @@ FlushLoop:
 					break PublishLoop
 				}
 			case letter := <-pub.letters:
-				go pub.Publish(letter)
+				if allowRetry {
+					go pub.PublishWithRetry(letter)
+				} else {
+					go pub.Publish(letter)
+				}
 			default:
 				time.Sleep(pub.smallSleep)
 			}
 		}
 	}()
 
-	pub.autoStopped = false
+	pub.publishGroup.Wait() // let all remaining publishes finish.
+
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
+	pub.autoStarted = false
 }
 
 // StopAutoPublish stops publishing letters queued up.
@@ -152,29 +172,17 @@ func (pub *Publisher) stopAutoPublish() {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
-	if pub.autoStopped { // Invalid/Multiple/Subsequent calls exit out
+	if !pub.autoStarted {
 		return
 	}
 
-	pub.autoStopped = true               // prevent new letters being queued
 	go func() { pub.autoStop <- true }() // signal auto publish to stop
-
-	// allow it to finish publishing all remaining letters
-FlushLoop:
-	for {
-		select {
-		case letter := <-pub.letters:
-			go pub.Publish(letter)
-		default:
-			break FlushLoop
-		}
-	}
 }
 
 // QueueLetter queues up a letter that will be consumed by AutoPublish.
 // Error signals that the AutoPublish
 func (pub *Publisher) QueueLetter(letter *models.Letter) error {
-	if pub.autoPublishStopped() {
+	if !pub.autoPublishStarted() {
 		return errors.New("can't add letters to the internal queue if AutoPublish has not been started")
 	}
 
@@ -207,12 +215,14 @@ func (pub *Publisher) sendToNotifications(letterID uint64, err error) {
 		notification.Success = true
 	}
 
-	go func() { pub.notifications <- notification }()
+	go func() {
+		pub.notifications <- notification
+	}()
 }
 
-func (pub *Publisher) autoPublishStopped() bool {
+func (pub *Publisher) autoPublishStarted() bool {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
-	return pub.autoStopped
+	return pub.autoStarted
 }

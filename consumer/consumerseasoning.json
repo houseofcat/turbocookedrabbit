@@ -5,7 +5,9 @@
         "ConnectionRetryCount": 5,
         "ConnectionCount": 5,
         "ChannelRetryCount": 5,
-        "ChannelCount": 25
+        "ChannelCount": 25,
+        "GlobalQosCount": 4,
+        "GlobalQosSize": 65535
     },
     "TLSConfig": {
         "EnableTLS": false,

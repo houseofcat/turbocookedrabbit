@@ -14,6 +14,8 @@ type Pools struct {
 	ChannelRetryCount    uint32 `json:"ChannelRetryCount"`
 	ChannelCount         int64  `json:"ChannelCount"`
 	BreakOnError         bool   `json:"BreakOnError"`
+	GlobalQosCount       int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
+	GlobalQosSize        int    `json:"GlobalQosSize"`  // Leave at 0 if you want to ignore them.
 }
 
 // TLSConfig represents settings for configuring TLS.
