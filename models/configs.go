@@ -26,6 +26,4 @@ type TLSConfig struct {
 
 // TopologyConfig allows you to build a simple toplogy from Json.
 type TopologyConfig struct {
-	Exchanges []*Exchange `json:"Exchanges"`
-	Queues    []*Queue    `json:"Queues"`
 }

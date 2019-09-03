@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/utils"
@@ -24,6 +25,8 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 }
 
 func TestCreateConnectionPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
@@ -38,19 +41,14 @@ func TestCreateConnectionPool(t *testing.T) {
 	fmt.Printf("Created %d connection(s) finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 
-	// Flush Errors
-FlushLoop:
-	for {
-		select {
-		case err = <-connectionPool.Errors():
-			fmt.Print(err)
-		default:
-			break FlushLoop
-		}
-	}
+	connectionPool.FlushErrors()
+
+	connectionPool.Shutdown()
 }
 
 func TestCreateConnectionPoolAndShutdown(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	Seasoning.Pools.ConnectionCount = 12
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
@@ -71,13 +69,8 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
 
-	// Flush Errors
-	select {
-	case err = <-connectionPool.Errors():
-		fmt.Print(err)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	connectionPool.Shutdown()
 }
 
 func TestGetConnectionAfterShutdown(t *testing.T) {
@@ -94,13 +87,7 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 
-	// Flush Errors
-	select {
-	case err = <-connectionPool.Errors():
-		fmt.Print(err)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
 
 	connectionCount := connectionPool.ConnectionCount()
 	timeStart = time.Now()
@@ -110,20 +97,17 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionCount, elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
 
-	// Flush Errors
-	select {
-	case err = <-connectionPool.Errors():
-		fmt.Print(err)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
 
 	connHost, err := connectionPool.GetConnection()
 	assert.Error(t, err)
 	assert.Nil(t, connHost)
+
+	connectionPool.Shutdown()
 }
 
 func TestCreateChannelPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
@@ -141,15 +125,11 @@ func TestCreateChannelPool(t *testing.T) {
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 	assert.Equal(t, Seasoning.Pools.ChannelCount, channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
+
+	connectionPool.Shutdown()
+	channelPool.Shutdown()
 }
 
 func TestCreateChannelPoolAndShutdown(t *testing.T) {
@@ -170,15 +150,8 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 	assert.Equal(t, Seasoning.Pools.ChannelCount, channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
 
 	channelCount := channelPool.ChannelCount()
 	timeStart = time.Now()
@@ -188,18 +161,14 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
+	connectionPool.Shutdown()
 }
 
 func TestGetChannelAfterShutdown(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	Seasoning.Pools.ConnectionCount = 10
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
 	assert.NoError(t, err)
@@ -217,15 +186,8 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 	assert.Equal(t, Seasoning.Pools.ChannelCount, channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
 
 	channelCount := channelPool.ChannelCount()
 	timeStart = time.Now()
@@ -235,15 +197,8 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
 
 	channelHost, err := channelPool.GetChannel()
 	assert.Error(t, err)
@@ -251,6 +206,8 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 }
 
 func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	Seasoning.Pools.ConnectionCount = 1
 	Seasoning.Pools.ChannelCount = 2
 	connectionPool, err := pools.NewConnectionPool(Seasoning, false)
@@ -269,58 +226,45 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	assert.Equal(t, Seasoning.Pools.ConnectionCount, connectionPool.ConnectionCount())
 	assert.Equal(t, Seasoning.Pools.ChannelCount, channelPool.ChannelCount())
 
-	// Flush Errors
-	select {
-	case conErr := <-connectionPool.Errors():
-		fmt.Print(conErr)
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	connectionPool.FlushErrors()
+	channelPool.FlushErrors()
 
 	connectionPool.Shutdown()
 
 	chanHost, err := channelPool.GetChannel()
 	assert.Nil(t, chanHost)
 	assert.Error(t, err)
+
+	channelPool.Shutdown()
 }
 
 func TestCreateChannelPoolSimple(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	Seasoning.Pools.ConnectionCount = 1
 	Seasoning.Pools.ChannelCount = 2
 
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
-	// Flush Errors
-	select {
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
+	channelPool.FlushErrors()
 
 	chanHost, err := channelPool.GetChannel()
 	assert.NotNil(t, chanHost)
 	assert.NoError(t, err)
+
+	channelPool.Shutdown()
 }
 
 func TestGetChannelAfterKillingChannelPool(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
 	Seasoning.Pools.ConnectionCount = 1
 	Seasoning.Pools.ChannelCount = 2
 
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
-	// Flush Errors
-	select {
-	case chanErr := <-channelPool.Errors():
-		fmt.Print(chanErr)
-	default:
-		break
-	}
-
+	channelPool.FlushErrors()
 	channelPool.Shutdown()
 
 	chanHost, err := channelPool.GetChannel()

@@ -1,4 +1,4 @@
-package models
+package topography
 
 // Exchange allows for you to create Exchange topology.
 type Exchange struct {

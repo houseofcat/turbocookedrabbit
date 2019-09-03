@@ -13,6 +13,7 @@ type ChannelHost struct {
 	Channel          *amqp.Channel
 	ChannelID        uint64
 	ConnectionClosed func() bool // super unreliable
+	closeErrors      chan *amqp.Error
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -38,6 +39,8 @@ func (ch *ChannelHost) NewChannelHost(
 		return nil, fmt.Errorf("opening channel retries exhausted [last err: %s]", err)
 	}
 
+	amqpChan.NotifyClose(ch.closeErrors)
+
 	channelHost := &ChannelHost{
 		Channel:          amqpChan,
 		ChannelID:        channelID,
@@ -45,4 +48,9 @@ func (ch *ChannelHost) NewChannelHost(
 	}
 
 	return channelHost, nil
+}
+
+// CloseErrors allow you to listen for amqp.Error messages.
+func (ch *ChannelHost) CloseErrors() <-chan *amqp.Error {
+	return ch.closeErrors
 }
