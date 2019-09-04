@@ -37,6 +37,8 @@ type ConsumerConfig struct {
 	Args             map[string]interface{} `json:"Args"`
 	QosCountOverride int                    `json:"QosCountOverride"` // if zero ignored
 	QosSizeOverride  int                    `json:"QosSizeOverride"`  // if zero ignored
+	MessageBuffer    uint32                 `json:"MessageBuffer"`
+	ErrorBuffer      uint32                 `json:"ErrorBuffer"`
 }
 
 // TopologyConfig allows you to build a simple toplogy from Json.

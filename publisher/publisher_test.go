@@ -103,7 +103,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 	err = publisher.QueueLetter(letter)
 	assert.NoError(t, err)
 
-	publisher.StopAutoPublish(false)
+	publisher.StopAutoPublish()
 
 	// Assert on all Notifications
 AssertLoop:
@@ -201,7 +201,7 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
 
 	// Shut down everything.
-	publisher.StopAutoPublish(false)
+	publisher.StopAutoPublish()
 	channelPool.Shutdown()
 }
 
@@ -301,8 +301,8 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Shut down everything.
-	publisher1.StopAutoPublish(false)
-	publisher2.StopAutoPublish(false)
+	publisher1.StopAutoPublish()
+	publisher2.StopAutoPublish()
 	channelPool.Shutdown()
 }
 
@@ -440,10 +440,10 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Shut down everything.
-	publisher1.StopAutoPublish(false)
-	publisher2.StopAutoPublish(false)
-	publisher3.StopAutoPublish(false)
-	publisher4.StopAutoPublish(false)
+	publisher1.StopAutoPublish()
+	publisher2.StopAutoPublish()
+	publisher3.StopAutoPublish()
+	publisher4.StopAutoPublish()
 	channelPool.Shutdown()
 }
 
@@ -587,10 +587,10 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Shut down everything.
-	publisher1.StopAutoPublish(false)
-	publisher2.StopAutoPublish(false)
-	publisher3.StopAutoPublish(false)
-	publisher4.StopAutoPublish(false)
+	publisher1.StopAutoPublish()
+	publisher2.StopAutoPublish()
+	publisher3.StopAutoPublish()
+	publisher4.StopAutoPublish()
 	channelPool1.Shutdown()
 	channelPool2.Shutdown()
 	channelPool3.Shutdown()

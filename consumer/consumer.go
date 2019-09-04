@@ -50,9 +50,9 @@ func NewConsumerFromConfig(
 		ChannelPool:      channelPool,
 		QueueName:        consumerConfig.QueueName,
 		ConsumerName:     consumerConfig.ConsumerName,
-		errors:           make(chan error, 10),
+		errors:           make(chan error, consumerConfig.ErrorBuffer),
 		messageGroup:     &sync.WaitGroup{},
-		messages:         make(chan *models.Message, 10),
+		messages:         make(chan *models.Message, consumerConfig.MessageBuffer),
 		consumeStop:      make(chan bool, 1),
 		stopImmediate:    false,
 		started:          false,
@@ -77,7 +77,9 @@ func NewConsumer(
 	noWait bool,
 	args map[string]interface{},
 	qosCountOverride int, // if zero ignored
-	qosSizeOverride int) (*Consumer, error) {
+	qosSizeOverride int,
+	messageBuffer uint32,
+	errorBuffer uint32) (*Consumer, error) {
 
 	var err error
 	if channelPool == nil {
@@ -92,9 +94,9 @@ func NewConsumer(
 		ChannelPool:      channelPool,
 		QueueName:        queuename,
 		ConsumerName:     consumerName,
-		errors:           make(chan error, 10),
+		errors:           make(chan error, errorBuffer),
 		messageGroup:     &sync.WaitGroup{},
-		messages:         make(chan *models.Message, 10),
+		messages:         make(chan *models.Message, messageBuffer),
 		consumeStop:      make(chan bool, 1),
 		stopImmediate:    false,
 		started:          false,
@@ -147,17 +149,17 @@ GetChannelLoop:
 			continue // Retry
 		}
 
+		// Quality of Service channel overrides
+		if con.qosCountOverride != 0 && con.qosSizeOverride != 0 {
+			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
+		}
+
 		// Start Consuming
 		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, con.args)
 		if err != nil {
 			go func() { con.errors <- err }()
 			time.Sleep(1 * time.Second)
 			continue // Retry
-		}
-
-		// Quality of Service channel overrides
-		if con.qosCountOverride != 0 && con.qosSizeOverride != 0 {
-			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
 		}
 
 	GetDeliveriesLoop:
@@ -168,7 +170,7 @@ GetChannelLoop:
 			case amqpError := <-chanHost.CloseErrors():
 				if amqpError != nil {
 					go func() {
-						con.errors <- fmt.Errorf("consumer's current channel closed\r\n[Reason: %s]\r\n[Code: %d]", amqpError.Reason, amqpError.Code)
+						con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", amqpError.Reason, amqpError.Code)
 					}()
 
 					break GetDeliveriesLoop
@@ -208,16 +210,17 @@ GetChannelLoop:
 	}
 
 	con.conLock.Lock()
-	defer con.conLock.Unlock()
-
 	immediateStop := con.stopImmediate
+	con.conLock.Unlock()
 
 	if !immediateStop {
-		con.messageGroup.Wait() // wait for every message to be received to internal queue
+		con.messageGroup.Wait() // wait for every message to be received to the internal queue
 	}
 
+	con.conLock.Lock()
 	con.started = false
 	con.stopImmediate = false
+	con.conLock.Unlock()
 }
 
 // StopConsuming allows you to signal stop to the consumer.
@@ -231,13 +234,8 @@ func (con *Consumer) StopConsuming(immediate bool) error {
 		return errors.New("can't stop a stopped consumer")
 	}
 
-	con.signalStop()
-	return nil
-}
-
-// SignalStop sends stop signal.
-func (con *Consumer) signalStop() {
 	go func() { con.consumeStop <- true }()
+	return nil
 }
 
 // Messages yields all the internal messages ready for consuming.
@@ -259,7 +257,7 @@ func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Deli
 	}
 
 	go func() {
-		defer con.messageGroup.Done()
+		defer con.messageGroup.Done() // finished after getting the message in the channel
 		con.messages <- msg
 	}()
 }
@@ -300,7 +298,6 @@ FlushLoop:
 	for {
 		select {
 		case <-con.messages:
-			break
 		default:
 			break FlushLoop
 		}
