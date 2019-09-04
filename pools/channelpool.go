@@ -173,7 +173,17 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 		return nil, errors.New("invalid struct type found in ChannelPool queue")
 	}
 
-	if channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
+	notifiedClosed := false
+	select {
+	case <-channelHost.CloseErrors():
+		notifiedClosed = true
+	default:
+		break
+	}
+
+	// Between these three states we do our best to determine that a channel is dead in the various
+	// lifecycles.
+	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
 		newHost, err := cp.createChannelHost(channelHost.ChannelID)
 		if err != nil {

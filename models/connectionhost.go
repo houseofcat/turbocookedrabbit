@@ -12,6 +12,7 @@ import (
 type ConnectionHost struct {
 	Connection   *amqp.Connection
 	ConnectionID uint64
+	closeErrors  chan *amqp.Error
 }
 
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -36,7 +37,10 @@ func (ch *ConnectionHost) NewConnectionHost(
 	connectionHost := &ConnectionHost{
 		Connection:   amqpConn,
 		ConnectionID: connectionID,
+		closeErrors:  make(chan *amqp.Error, 1),
 	}
+
+	amqpConn.NotifyClose(ch.closeErrors)
 
 	return connectionHost, nil
 }
@@ -67,4 +71,9 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 	}
 
 	return connectionHost, nil
+}
+
+// CloseErrors allow you to listen for amqp.Error messages.
+func (ch *ConnectionHost) CloseErrors() <-chan *amqp.Error {
+	return ch.closeErrors
 }

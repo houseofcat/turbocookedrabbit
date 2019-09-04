@@ -227,7 +227,17 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 		return nil, errors.New("invalid struct type found in ConnectionPool queue")
 	}
 
-	if cp.IsConnectionFlagged(connectionHost.ConnectionID) || connectionHost.Connection.IsClosed() {
+	notifiedClosed := false
+	select {
+	case <-connectionHost.CloseErrors():
+		notifiedClosed = true
+	default:
+		break
+	}
+
+	// Between these three states we do our best to determine that a connection is dead in the various
+	// lifecycles.
+	if notifiedClosed || cp.IsConnectionFlagged(connectionHost.ConnectionID) || connectionHost.Connection.IsClosed() {
 
 		var newHost *models.ConnectionHost
 		var err error
