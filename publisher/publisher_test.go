@@ -98,7 +98,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	letter := utils.CreateLetter("", "TestQueue", nil)
 
-	publisher.StartAutoPublish()
+	publisher.StartAutoPublish(false)
 
 	err = publisher.QueueLetter(letter)
 	assert.NoError(t, err)
@@ -149,7 +149,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher.StartAutoPublish()
+	publisher.StartAutoPublish(false)
 
 	go func() {
 
@@ -233,8 +233,8 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish()
-	publisher2.StartAutoPublish()
+	publisher1.StartAutoPublish(false)
+	publisher2.StartAutoPublish(false)
 
 	go func() {
 
@@ -340,10 +340,10 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish()
-	publisher2.StartAutoPublish()
-	publisher3.StartAutoPublish()
-	publisher4.StartAutoPublish()
+	publisher1.StartAutoPublish(false)
+	publisher2.StartAutoPublish(false)
+	publisher3.StartAutoPublish(false)
+	publisher4.StartAutoPublish(false)
 
 	go func() {
 
@@ -449,8 +449,8 @@ ListeningForNotificationsLoop:
 
 func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
-	Seasoning.Pools.ConnectionCount = 3
-	Seasoning.Pools.ChannelCount = 12
+	Seasoning.PoolConfig.ConnectionCount = 3
+	Seasoning.PoolConfig.ChannelCount = 12
 	messageCount := 50000
 	publisherMultiple := 4
 
@@ -492,10 +492,10 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish()
-	publisher2.StartAutoPublish()
-	publisher3.StartAutoPublish()
-	publisher4.StartAutoPublish()
+	publisher1.StartAutoPublish(false)
+	publisher2.StartAutoPublish(false)
+	publisher3.StartAutoPublish(false)
+	publisher4.StartAutoPublish(false)
 
 	go func() {
 

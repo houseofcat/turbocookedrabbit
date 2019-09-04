@@ -23,7 +23,7 @@ func (ch *ChannelHost) NewChannelHost(
 	retryCount uint32) (*ChannelHost, error) {
 
 	if amqpConn.IsClosed() {
-		return nil, errors.New("can not open a channel - connection is already closed")
+		return nil, errors.New("can't open a channel - connection is already closed")
 	}
 
 	var amqpChan *amqp.Channel

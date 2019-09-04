@@ -29,21 +29,24 @@ type ChannelPool struct {
 }
 
 // NewChannelPool creates hosting structure for the ChannelPool.
-func NewChannelPool(seasoning *models.RabbitSeasoning, connPool *ConnectionPool, initializeNow bool) (*ChannelPool, error) {
+func NewChannelPool(
+	config *models.RabbitSeasoning,
+	connPool *ConnectionPool,
+	initializeNow bool) (*ChannelPool, error) {
 
 	if connPool == nil {
 		var err error // If connPool is nil, create one here.
-		connPool, err = NewConnectionPool(seasoning, true)
+		connPool, err = NewConnectionPool(config, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	cp := &ChannelPool{
-		Config:                  seasoning,
+		Config:                  config,
 		ConnectionPool:          connPool,
-		errors:                  make(chan error, 1),
-		channels:                queue.New(seasoning.Pools.ChannelCount),
+		errors:                  make(chan error, 10),
+		channels:                queue.New(config.PoolConfig.ChannelCount),
 		poolLock:                &sync.Mutex{},
 		flaggedChannels:         make(map[uint64]bool),
 		smallSleep:              time.Duration(50) * time.Millisecond,
@@ -75,13 +78,13 @@ func (cp *ChannelPool) Initialize() {
 
 func (cp *ChannelPool) initialize() {
 	errCount := 0
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ChannelCount); i++ {
+	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ChannelCount); i++ {
 		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.Pools.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
 				break
 			}
 
@@ -101,7 +104,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	var connHost *models.ConnectionHost
 	var err error
 
-	retryCount := atomic.LoadUint32(&cp.Config.Pools.ChannelRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ChannelRetryCount)
 	connHost, err = cp.ConnectionPool.GetConnection()
 	if err != nil {
 		return nil, err
@@ -114,7 +117,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	for i := retryCount + 1; i > 0; i-- {
 		amqpChan, err = connHost.Connection.Channel()
 		if err != nil {
-			if cp.Config.Pools.BreakOnError {
+			if cp.Config.PoolConfig.BreakOnError {
 				break
 			}
 
@@ -130,8 +133,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 		return nil, errors.New("opening channel retries exhausted")
 	}
 
-	if cp.Config.Pools.GlobalQosCount != 0 && cp.Config.Pools.GlobalQosSize != 0 {
-		amqpChan.Qos(cp.Config.Pools.GlobalQosCount, cp.Config.Pools.GlobalQosSize, true)
+	if cp.Config.PoolConfig.GlobalQosCount != 0 && cp.Config.PoolConfig.GlobalQosSize != 0 {
+		amqpChan.Qos(cp.Config.PoolConfig.GlobalQosCount, cp.Config.PoolConfig.GlobalQosSize, true)
 	}
 
 	channelHost := &models.ChannelHost{
@@ -151,11 +154,11 @@ func (cp *ChannelPool) Errors() <-chan error {
 // GetChannel gets a connection based on whats available in ChannelPool queue.
 func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
-		return nil, errors.New("can not get channel - channel pool has been shutdown")
+		return nil, errors.New("can't get channel - channel pool has been shutdown")
 	}
 
 	if !cp.Initialized {
-		return nil, errors.New("can not get channel - channel pool has not been initialized")
+		return nil, errors.New("can't get channel - channel pool has not been initialized")
 	}
 
 	// Pull from the queue.
@@ -242,7 +245,7 @@ func (cp *ChannelPool) Shutdown() {
 			}
 		}
 
-		cp.channels = queue.New(cp.Config.Pools.ChannelCount)
+		cp.channels = queue.New(cp.Config.PoolConfig.ChannelCount)
 		cp.flaggedChannels = make(map[uint64]bool)
 		atomic.StoreUint64(&cp.channelCount, uint64(0))
 		cp.Initialized = false

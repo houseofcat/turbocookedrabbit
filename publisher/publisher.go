@@ -93,9 +93,8 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 		return // exit out if you can't get a channel
 	}
 
-	var pubErr error
 	for i := letter.RetryCount + 1; i > 0; i-- {
-		pubErr = pub.simplePublish(chanHost.Channel, letter)
+		pubErr := pub.simplePublish(chanHost.Channel, letter)
 		if pubErr != nil {
 			chanHost, err = pub.ChannelPool.GetChannel()
 			if err != nil {

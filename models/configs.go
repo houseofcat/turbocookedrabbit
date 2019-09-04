@@ -2,12 +2,13 @@ package models
 
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
-	Pools     *Pools     `json:"Pools"`
-	TLSConfig *TLSConfig `json:"TLSConfig"`
+	PoolConfig      *PoolConfig       `json:"PoolConfig"`
+	TLSConfig       *TLSConfig        `json:"TLSConfig"`
+	ConsumerConfigs []*ConsumerConfig `json:"ConsumerConfigs"`
 }
 
-// Pools represents settings for creating/configuring the ConnectionPool.
-type Pools struct {
+// PoolConfig represents settings for creating/configuring the ConnectionPool.
+type PoolConfig struct {
 	URI                  string `json:"URI"`
 	ConnectionRetryCount uint32 `json:"ConnectionRetryCount"`
 	ConnectionCount      int64  `json:"ConnectionCount"`
@@ -24,6 +25,18 @@ type TLSConfig struct {
 	PEMCertLocation   string `json:"PEMCertLocation"`
 	LocalCertLocation string `json:"LocalCertLocation"`
 	CertServerName    string `json:"CertServerName"`
+}
+
+// ConsumerConfig represents settings for configuring a consumer with ease.
+type ConsumerConfig struct {
+	QueueName        string                 `json:"QueueName"`
+	ConsumerName     string                 `json:"ConsumerName"`
+	AutoAck          bool                   `json:"AutoAck"`
+	Exclusive        bool                   `json:"Exclusive"`
+	NoWait           bool                   `json:"NoWait"`
+	Args             map[string]interface{} `json:"Args"`
+	QosCountOverride int                    `json:"QosCountOverride"` // if zero ignored
+	QosSizeOverride  int                    `json:"QosSizeOverride"`  // if zero ignored
 }
 
 // TopologyConfig allows you to build a simple toplogy from Json.

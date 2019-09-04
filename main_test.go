@@ -32,13 +32,13 @@ func TestReadConfig(t *testing.T) {
 	config, err := utils.ConvertJSONFileToConfig(fileNamePath)
 
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", config.Pools.URI, "RabbitMQ URI should not be blank.")
+	assert.NotEqual(t, "", config.PoolConfig.URI, "RabbitMQ URI should not be blank.")
 }
 
 func TestBasicPublish(t *testing.T) {
 	//defer leaktest.Check(t)() // Fail on leaked goroutines.
-	Seasoning.Pools.ConnectionCount = 3
-	Seasoning.Pools.ChannelCount = 12
+	Seasoning.PoolConfig.ConnectionCount = 3
+	Seasoning.PoolConfig.ChannelCount = 12
 
 	messageCount := 100000
 
@@ -55,7 +55,7 @@ func TestBasicPublish(t *testing.T) {
 
 	// Test
 	timeStart = time.Now()
-	amqpConn, err := amqp.Dial(Seasoning.Pools.URI)
+	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
 	if err != nil {
 		return
 	}

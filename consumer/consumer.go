@@ -34,6 +34,38 @@ type Consumer struct {
 	conLock          *sync.Mutex
 }
 
+// NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
+func NewConsumerFromConfig(
+	consumerConfig *models.ConsumerConfig,
+	channelPool *pools.ChannelPool) (*Consumer, error) {
+
+	if channelPool == nil {
+		return nil, errors.New("can't start a consumer without a channel pool")
+	} else if !channelPool.Initialized {
+		channelPool.Initialize()
+	}
+
+	return &Consumer{
+		Config:           nil,
+		ChannelPool:      channelPool,
+		QueueName:        consumerConfig.QueueName,
+		ConsumerName:     consumerConfig.ConsumerName,
+		errors:           make(chan error, 10),
+		messageGroup:     &sync.WaitGroup{},
+		messages:         make(chan *models.Message, 10),
+		consumeStop:      make(chan bool, 1),
+		stopImmediate:    false,
+		started:          false,
+		autoAck:          consumerConfig.AutoAck,
+		exclusive:        consumerConfig.Exclusive,
+		noWait:           consumerConfig.NoWait,
+		args:             consumerConfig.Args,
+		qosCountOverride: consumerConfig.QosCountOverride,
+		qosSizeOverride:  consumerConfig.QosSizeOverride,
+		conLock:          &sync.Mutex{},
+	}, nil
+}
+
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.
 func NewConsumer(
 	config *models.RabbitSeasoning,
@@ -167,8 +199,11 @@ GetChannelLoop:
 		}
 
 		// Quality of Service channel overrides reset
-		if con.Config.Pools.GlobalQosCount != 0 && con.Config.Pools.GlobalQosSize != 0 {
-			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
+		if con.Config.PoolConfig.GlobalQosCount != 0 && con.Config.PoolConfig.GlobalQosSize != 0 {
+			chanHost.Channel.Qos(
+				con.Config.PoolConfig.GlobalQosCount,
+				con.Config.PoolConfig.GlobalQosCount,
+				false)
 		}
 	}
 

@@ -31,25 +31,27 @@ type ConnectionPool struct {
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 // Needs to be Initialize() afterwards.
-func NewConnectionPool(seasoning *models.RabbitSeasoning, initializeNow bool) (*ConnectionPool, error) {
+func NewConnectionPool(
+	config *models.RabbitSeasoning,
+	initializeNow bool) (*ConnectionPool, error) {
 
 	var tlsConfig *tls.Config
 	var err error
 
-	if seasoning.TLSConfig.EnableTLS {
+	if config.TLSConfig.EnableTLS {
 		tlsConfig, err = utils.CreateTLSConfig(
-			seasoning.TLSConfig.PEMCertLocation,
-			seasoning.TLSConfig.LocalCertLocation)
+			config.TLSConfig.PEMCertLocation,
+			config.TLSConfig.LocalCertLocation)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	cp := &ConnectionPool{
-		Config:                  seasoning,
+		Config:                  config,
 		tlsConfig:               tlsConfig,
 		errors:                  make(chan error, 1),
-		connections:             queue.New(seasoning.Pools.ConnectionCount),
+		connections:             queue.New(config.PoolConfig.ConnectionCount),
 		poolLock:                &sync.Mutex{},
 		flaggedConnections:      make(map[uint64]bool),
 		smallSleep:              time.Duration(50) * time.Millisecond,
@@ -82,13 +84,13 @@ func (cp *ConnectionPool) Initialize() {
 
 func (cp *ConnectionPool) initialize() {
 	errCount := 0
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ConnectionCount); i++ {
+	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ConnectionCount); i++ {
 		connectionHost, err := cp.createConnectionHost(atomic.LoadUint64(&cp.connectionCount))
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.Pools.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
 				break
 			}
 
@@ -103,13 +105,13 @@ func (cp *ConnectionPool) initialize() {
 
 func (cp *ConnectionPool) initializeWithTLS() {
 	errCount := 0
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.Pools.ConnectionCount); i++ {
+	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ConnectionCount); i++ {
 		connectionHost, err := cp.createConnectionHostWithTLS(atomic.LoadUint64(&cp.connectionCount))
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.Pools.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
 				break
 			}
 
@@ -127,14 +129,14 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadUint32(&cp.Config.Pools.ConnectionRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ConnectionRetryCount)
 
 	for i := retryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.Dial(cp.Config.Pools.URI)
+		amqpConn, err = amqp.Dial(cp.Config.PoolConfig.URI)
 		if err != nil {
 			go func() { cp.errors <- err }()
 
-			if cp.Config.Pools.BreakOnError {
+			if cp.Config.PoolConfig.BreakOnError {
 				break
 			}
 
@@ -165,7 +167,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadUint32(&cp.Config.Pools.ConnectionRetryCount)
+	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ConnectionRetryCount)
 
 	for i := retryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
@@ -173,7 +175,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 			go func() { cp.errors <- err }()
 
-			if cp.Config.Pools.BreakOnError {
+			if cp.Config.PoolConfig.BreakOnError {
 				break
 			}
 
@@ -206,11 +208,11 @@ func (cp *ConnectionPool) Errors() <-chan error {
 // GetConnection gets a connection based on whats available in ConnectionPool queue.
 func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	if atomic.LoadInt32(&cp.connectionLock) > 0 {
-		return nil, errors.New("can not get connection - connection pool has been shutdown")
+		return nil, errors.New("can't get connection - connection pool has been shutdown")
 	}
 
 	if !cp.Initialized {
-		return nil, errors.New("can not get connection - connection pool has not been initialized")
+		return nil, errors.New("can't get connection - connection pool has not been initialized")
 	}
 
 	// Pull from the queue.
@@ -303,7 +305,7 @@ func (cp *ConnectionPool) Shutdown() {
 			}
 		}
 
-		cp.connections = queue.New(cp.Config.Pools.ConnectionCount)
+		cp.connections = queue.New(cp.Config.PoolConfig.ConnectionCount)
 		cp.flaggedConnections = make(map[uint64]bool)
 		atomic.StoreUint64(&cp.connectionCount, uint64(0))
 		cp.Initialized = false
