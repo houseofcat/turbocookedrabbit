@@ -45,6 +45,10 @@ func NewConsumerFromConfig(
 		channelPool.Initialize()
 	}
 
+	if consumerConfig.MessageBuffer == 0 || consumerConfig.ErrorBuffer == 0 {
+		return nil, errors.New("message and/or error buffer in config can't be 0")
+	}
+
 	return &Consumer{
 		Config:           nil,
 		ChannelPool:      channelPool,
@@ -87,6 +91,10 @@ func NewConsumer(
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	if messageBuffer == 0 || errorBuffer == 0 {
+		return nil, errors.New("message and/or error buffer can't be 0")
 	}
 
 	return &Consumer{
@@ -181,7 +189,7 @@ GetChannelLoop:
 
 			// Convert amqp.Delivery into our internal struct for later use.
 			select {
-			case delivery := <-deliveryChan:
+			case delivery := <-deliveryChan: // all buffered deliveries are wipe on a channel close error
 				con.messageGroup.Add(1)
 				con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 			default:
@@ -192,7 +200,6 @@ GetChannelLoop:
 			select {
 			case stop := <-con.consumeStop:
 				if stop {
-					chanHost.Channel.Flow(false)
 					break GetChannelLoop
 				}
 			default:
@@ -229,10 +236,11 @@ func (con *Consumer) StopConsuming(immediate bool) error {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
-	con.stopImmediate = true
 	if !con.started {
 		return errors.New("can't stop a stopped consumer")
 	}
+
+	con.stopImmediate = true
 
 	go func() { con.consumeStop <- true }()
 	return nil
@@ -249,12 +257,12 @@ func (con *Consumer) Errors() <-chan error {
 }
 
 func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
-	msg := &models.Message{
-		IsAckable:  isAckable,
-		Channel:    amqpChan,
-		Body:       delivery.Body,
-		MessageTag: delivery.DeliveryTag,
-	}
+	msg := models.NewMessage(
+		isAckable,
+		delivery.Body,
+		delivery.DeliveryTag,
+		amqpChan,
+	)
 
 	go func() {
 		defer con.messageGroup.Done() // finished after getting the message in the channel

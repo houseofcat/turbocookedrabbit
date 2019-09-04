@@ -1,11 +1,11 @@
 {
-    "Pools": {
+    "PoolConfig": {
         "URI": "amqp://guest:guest@localhost:5672/",
         "BreakOnError": false,
         "ConnectionRetryCount": 5,
-        "ConnectionCount": 5,
+        "ConnectionCount": 3,
         "ChannelRetryCount": 5,
-        "ChannelCount": 25,
+        "ChannelCount": 12,
         "GlobalQosCount": 4,
         "GlobalQosSize": 65535
     },
