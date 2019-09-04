@@ -81,7 +81,7 @@ func NewConsumer(
 	noWait bool,
 	args map[string]interface{},
 	qosCountOverride int, // if zero ignored
-	qosSizeOverride int,
+	qosSizeOverride int, // if zero ignored
 	messageBuffer uint32,
 	errorBuffer uint32) (*Consumer, error) {
 

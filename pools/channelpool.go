@@ -175,10 +175,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 
 	if channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
-		var newHost *models.ChannelHost
-		var err error
-
-		newHost, err = cp.createChannelHost(channelHost.ChannelID)
+		newHost, err := cp.createChannelHost(channelHost.ChannelID)
 		if err != nil {
 			return nil, err
 		}
