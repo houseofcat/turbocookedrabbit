@@ -7,17 +7,18 @@ import (
 	"time"
 
 	"github.com/fortytw2/leaktest"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/utils"
-	"github.com/stretchr/testify/assert"
 )
 
 var Seasoning *models.RabbitSeasoning
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
-	Seasoning, err = utils.ConvertJSONFileToConfig("poolseasoning.json")
+	Seasoning, err = utils.ConvertJSONFileToConfig("testpoolseasoning.json")
 	if err != nil {
 		return
 	}

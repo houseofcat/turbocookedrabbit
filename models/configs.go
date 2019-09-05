@@ -2,9 +2,9 @@ package models
 
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
-	PoolConfig      *PoolConfig       `json:"PoolConfig"`
-	TLSConfig       *TLSConfig        `json:"TLSConfig"`
-	ConsumerConfigs []*ConsumerConfig `json:"ConsumerConfigs"`
+	PoolConfig      *PoolConfig                `json:"PoolConfig"`
+	TLSConfig       *TLSConfig                 `json:"TLSConfig"`
+	ConsumerConfigs map[string]*ConsumerConfig `json:"ConsumerConfigs"`
 }
 
 // PoolConfig represents settings for creating/configuring the ConnectionPool.

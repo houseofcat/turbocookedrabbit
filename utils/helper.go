@@ -2,7 +2,7 @@ package utils
 
 import "github.com/houseofcat/turbocookedrabbit/models"
 
-// CreateLetter creates a letter for publishing.
+// CreateLetter creates a mock letter for publishing.
 func CreateLetter(exchangeName string, queueName string, body []byte) *models.Letter {
 
 	letterID := uint64(1)
