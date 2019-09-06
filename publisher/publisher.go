@@ -118,31 +118,35 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 
 	pub.FlushStops()
 
-PublishLoop:
-	for {
-		select {
-		case stop := <-pub.autoStop:
-			if stop {
-				break PublishLoop
-			}
-		case letter := <-pub.letters:
-			pub.publishGroup.Add(1)
+	go func() {
+	PublishLoop:
+		for {
+			select {
+			case stop := <-pub.autoStop:
+				if stop {
+					break PublishLoop
+				}
+			case letter := <-pub.letters:
+				pub.publishGroup.Add(1)
 
-			if allowRetry {
-				go pub.PublishWithRetry(letter)
-			} else {
-				go pub.Publish(letter)
+				if allowRetry {
+					go pub.PublishWithRetry(letter)
+				} else {
+					go pub.Publish(letter)
+				}
+			default:
+				time.Sleep(pub.smallSleep)
 			}
-		default:
-			time.Sleep(pub.smallSleep)
 		}
-	}
 
-	pub.publishGroup.Wait() // let all remaining publishes finish.
+		pub.publishGroup.Wait() // let all remaining publishes finish.
 
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
-	pub.autoStarted = false
+		pub.pubLock.Lock()
+		defer pub.pubLock.Unlock()
+		pub.autoStarted = false
+	}()
+
+	pub.autoStarted = true
 }
 
 // StopAutoPublish stops publishing letters queued up.

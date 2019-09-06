@@ -270,14 +270,19 @@ func (cp *ChannelPool) GetAckableChannel(noWait bool) (*models.ChannelHost, erro
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.
 	// This creates a Round Robin on Connections and their resources.
-	cp.channels.Put(channelHost)
+	cp.ackChannels.Put(channelHost)
 
 	return channelHost, nil
 }
 
-// ChannelCount flags that connection as usable in the future.
+// ChannelCount lets you know how many non-ackable channels you have to use.
 func (cp *ChannelPool) ChannelCount() int64 {
 	return cp.channels.Len() // Locking
+}
+
+// AckChannelCount lets you know how many ackable channels you have to use.
+func (cp *ChannelPool) AckChannelCount() int64 {
+	return cp.ackChannels.Len() // Locking
 }
 
 // UnflagChannel flags that connection as usable in the future.
@@ -314,19 +319,11 @@ func (cp *ChannelPool) Shutdown() {
 	atomic.AddInt32(&cp.channelLock, 1)
 
 	if cp.Initialized {
-		for !cp.channels.Empty() {
-			items, _ := cp.channels.Get(cp.channels.Len())
-
-			for _, item := range items {
-				channelHost := item.(*models.ChannelHost)
-				err := channelHost.Channel.Close()
-				if err != nil {
-					go func() { cp.errors <- err }()
-				}
-			}
-		}
+		cp.shutdownChannels()
+		cp.shutdownAckChannels()
 
 		cp.channels = queue.New(cp.Config.PoolConfig.ChannelCount)
+		cp.channels = queue.New(cp.Config.PoolConfig.AckChannelCount)
 		cp.flaggedChannels = make(map[uint64]bool)
 		atomic.StoreUint64(&cp.channelCount, uint64(0))
 		cp.Initialized = false
@@ -336,6 +333,34 @@ func (cp *ChannelPool) Shutdown() {
 
 	// Release channel lock (0)
 	atomic.StoreInt32(&cp.channelLock, 0)
+}
+
+func (cp *ChannelPool) shutdownChannels() {
+	for !cp.channels.Empty() {
+		items, _ := cp.channels.Get(cp.channels.Len())
+
+		for _, item := range items {
+			channelHost := item.(*models.ChannelHost)
+			err := channelHost.Channel.Close()
+			if err != nil {
+				go func() { cp.errors <- err }()
+			}
+		}
+	}
+}
+
+func (cp *ChannelPool) shutdownAckChannels() {
+	for !cp.ackChannels.Empty() {
+		items, _ := cp.channels.Get(cp.ackChannels.Len())
+
+		for _, item := range items {
+			channelHost := item.(*models.ChannelHost)
+			err := channelHost.Channel.Close()
+			if err != nil {
+				go func() { cp.errors <- err }()
+			}
+		}
+	}
 }
 
 // FlushErrors empties all current errors in the error channel.
