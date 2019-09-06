@@ -327,7 +327,7 @@ func (cp *ConnectionPool) Shutdown() {
 
 // FlushErrors empties all current errors in the error channel.
 func (cp *ConnectionPool) FlushErrors() {
-	// Flush Errors
+
 FlushLoop:
 	for {
 		select {

@@ -20,6 +20,7 @@ type ChannelPool struct {
 	Initialized             bool
 	errors                  chan error
 	channels                *queue.Queue
+	ackChannels             *queue.Queue
 	channelCount            uint64
 	poolLock                *sync.Mutex
 	channelLock             int32
@@ -47,6 +48,7 @@ func NewChannelPool(
 		ConnectionPool:          connPool,
 		errors:                  make(chan error, 10),
 		channels:                queue.New(config.PoolConfig.ChannelCount),
+		ackChannels:             queue.New(config.PoolConfig.AckChannelCount),
 		poolLock:                &sync.Mutex{},
 		flaggedChannels:         make(map[uint64]bool),
 		smallSleep:              time.Duration(50) * time.Millisecond,
@@ -78,7 +80,28 @@ func (cp *ChannelPool) Initialize() {
 
 func (cp *ChannelPool) initialize() {
 	errCount := 0
+
+	// Create Channel queue.
 	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ChannelCount); i++ {
+		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
+		if err != nil {
+			go func() { cp.errors <- err }()
+			errCount++
+
+			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
+				break
+			}
+
+			time.Sleep(cp.smallSleep)
+			continue
+		}
+
+		atomic.AddUint64(&cp.channelCount, 1)
+		cp.channels.Put(channelHost)
+	}
+
+	// Create AckChannel queue.
+	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.AckChannelCount); i++ {
 		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
 		if err != nil {
 			go func() { cp.errors <- err }()
@@ -151,7 +174,7 @@ func (cp *ChannelPool) Errors() <-chan error {
 	return cp.errors
 }
 
-// GetChannel gets a connection based on whats available in ChannelPool queue.
+// GetChannel gets a channel based on whats available in ChannelPool queue.
 func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can't get channel - channel pool has been shutdown")
@@ -192,6 +215,57 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 
 		cp.UnflagChannel(channelHost.ChannelID)
 		channelHost = newHost
+	}
+
+	// Puts the connection back in the queue while also returning a pointer to the caller.
+	// This creates a Round Robin on Connections and their resources.
+	cp.channels.Put(channelHost)
+
+	return channelHost, nil
+}
+
+// GetAckableChannel gets an ackable channel based on whats available in AckChannelPool queue.
+func (cp *ChannelPool) GetAckableChannel(noWait bool) (*models.ChannelHost, error) {
+	if atomic.LoadInt32(&cp.channelLock) > 0 {
+		return nil, errors.New("can't get channel - channel pool has been shutdown")
+	}
+
+	if !cp.Initialized {
+		return nil, errors.New("can't get channel - channel pool has not been initialized")
+	}
+
+	// Pull from the queue.
+	// Pauses here if the queue is empty.
+	structs, err := cp.ackChannels.Get(1)
+	if err != nil {
+		return nil, err
+	}
+
+	channelHost, ok := structs[0].(*models.ChannelHost)
+	if !ok {
+		return nil, errors.New("invalid struct type found in ChannelPool queue")
+	}
+
+	notifiedClosed := false
+	select {
+	case <-channelHost.CloseErrors():
+		notifiedClosed = true
+	default:
+		break
+	}
+
+	// Between these three states we do our best to determine that a channel is dead in the various
+	// lifecycles.
+	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
+
+		channelHost, err = cp.createChannelHost(channelHost.ChannelID)
+		if err != nil {
+			return nil, err
+		}
+
+		cp.UnflagChannel(channelHost.ChannelID)
+
+		channelHost.Channel.Confirm(noWait)
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.
@@ -266,7 +340,7 @@ func (cp *ChannelPool) Shutdown() {
 
 // FlushErrors empties all current errors in the error channel.
 func (cp *ChannelPool) FlushErrors() {
-	// Flush Errors
+
 FlushLoop:
 	for {
 		select {

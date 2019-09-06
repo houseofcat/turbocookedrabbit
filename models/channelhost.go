@@ -13,7 +13,10 @@ type ChannelHost struct {
 	Channel          *amqp.Channel
 	ChannelID        uint64
 	ConnectionClosed func() bool // super unreliable
+	ErrorMessages    chan *ErrorMessage
+	ReturnMessages   chan *ReturnMessage
 	closeErrors      chan *amqp.Error
+	returnMessages   chan amqp.Return
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -40,17 +43,43 @@ func (ch *ChannelHost) NewChannelHost(
 	}
 
 	amqpChan.NotifyClose(ch.closeErrors)
+	amqpChan.NotifyReturn(ch.returnMessages)
 
 	channelHost := &ChannelHost{
 		Channel:          amqpChan,
 		ChannelID:        channelID,
 		ConnectionClosed: amqpConn.IsClosed,
+		ErrorMessages:    make(chan *ErrorMessage, 1),
+		ReturnMessages:   make(chan *ReturnMessage, 1),
+		closeErrors:      make(chan *amqp.Error, 1),
+		returnMessages:   make(chan amqp.Return, 1),
 	}
 
 	return channelHost, nil
 }
 
 // CloseErrors allow you to listen for amqp.Error messages.
-func (ch *ChannelHost) CloseErrors() <-chan *amqp.Error {
-	return ch.closeErrors
+func (ch *ChannelHost) CloseErrors() <-chan *ErrorMessage {
+	select {
+	case amqpError := <-ch.closeErrors:
+		ch.ErrorMessages <- NewErrorMessage(amqpError)
+
+	default:
+		break
+	}
+
+	return ch.ErrorMessages
+}
+
+// Returns allow you to listen for ReturnMessages.
+func (ch *ChannelHost) Returns() <-chan *ReturnMessage {
+	select {
+	case amqpReturn := <-ch.returnMessages:
+		ch.ReturnMessages <- NewReturnMessage(&amqpReturn)
+
+	default:
+		break
+	}
+
+	return ch.ReturnMessages
 }

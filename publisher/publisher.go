@@ -116,15 +116,7 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
-FlushLoop:
-	for {
-		select {
-		case <-pub.autoStop:
-			// flush the autostops before start
-		default:
-			break FlushLoop
-		}
-	}
+	pub.FlushStops()
 
 PublishLoop:
 	for {
@@ -209,4 +201,17 @@ func (pub *Publisher) autoPublishStarted() bool {
 	defer pub.pubLock.Unlock()
 
 	return pub.autoStarted
+}
+
+// FlushStops flushes out all the AutoStop messages.
+func (pub *Publisher) FlushStops() {
+
+FlushLoop:
+	for {
+		select {
+		case <-pub.autoStop:
+		default:
+			break FlushLoop
+		}
+	}
 }

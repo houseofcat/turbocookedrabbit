@@ -6,6 +6,7 @@
         "ConnectionCount": 3,
         "ChannelRetryCount": 5,
         "ChannelCount": 12,
+        "AckChannelCount": 12,
         "GlobalQosCount": 4,
         "GlobalQosSize": 65535
     },
