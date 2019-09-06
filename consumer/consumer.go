@@ -82,7 +82,6 @@ func NewConsumer(
 	noWait bool,
 	args map[string]interface{},
 	qosCountOverride int, // if zero ignored
-	qosSizeOverride int, // if zero ignored
 	messageBuffer uint32,
 	errorBuffer uint32) (*Consumer, error) {
 
@@ -114,7 +113,6 @@ func NewConsumer(
 		noWait:           noWait,
 		args:             args,
 		qosCountOverride: qosCountOverride,
-		qosSizeOverride:  qosSizeOverride,
 		conLock:          &sync.Mutex{},
 	}, nil
 }
@@ -167,12 +165,12 @@ GetChannelLoop:
 		}
 
 		// Quality of Service channel overrides
-		if con.qosCountOverride != 0 && con.qosSizeOverride != 0 {
-			chanHost.Channel.Qos(con.qosCountOverride, con.qosSizeOverride, false)
+		if con.qosCountOverride > 0 {
+			chanHost.Channel.Qos(con.qosCountOverride, 0, false)
 		}
 
 		// Start Consuming
-		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, con.args)
+		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
 		if err != nil {
 			go func() { con.errors <- err }()
 			time.Sleep(1 * time.Second)
@@ -221,10 +219,10 @@ GetChannelLoop:
 		}
 
 		// Quality of Service channel overrides reset
-		if con.Config.PoolConfig.GlobalQosCount != 0 && con.Config.PoolConfig.GlobalQosSize != 0 {
+		if con.Config.PoolConfig.GlobalQosCount > 0 {
 			chanHost.Channel.Qos(
 				con.Config.PoolConfig.GlobalQosCount,
-				con.Config.PoolConfig.GlobalQosCount,
+				0,
 				false)
 		}
 	}

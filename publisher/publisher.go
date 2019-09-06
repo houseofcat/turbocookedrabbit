@@ -65,6 +65,7 @@ func (pub *Publisher) Shutdown(shutdownPools bool) {
 // Publish sends a single message to the address on the letter.
 // Subscribe to Notifications to see success and errors.
 func (pub *Publisher) Publish(letter *models.Letter) {
+	pub.publishGroup.Add(1)
 	defer pub.publishGroup.Done()
 
 	chanHost, err := pub.ChannelPool.GetChannel()
@@ -73,16 +74,15 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 		return // exit out if you can't get a channel
 	}
 
-	go func() {
-		pubErr := pub.simplePublish(chanHost.Channel, letter)
-		pub.sendToNotifications(letter.LetterID, pubErr)
-	}()
+	pubErr := pub.simplePublish(chanHost.Channel, letter)
+	pub.sendToNotifications(letter.LetterID, pubErr)
 }
 
 // PublishWithRetry sends a single message to the address on the letter with retry capabilities.
 // Subscribe to Notifications to see success and errors.
 // RetryCount is based on the letter property. Zero means it will try once.
 func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
+	pub.publishGroup.Add(1)
 	defer pub.publishGroup.Done()
 
 	chanHost, err := pub.ChannelPool.GetChannel()
@@ -113,9 +113,6 @@ func (pub *Publisher) Notifications() <-chan *models.Notification {
 
 // StartAutoPublish starts auto-publishing letters queued up.
 func (pub *Publisher) StartAutoPublish(allowRetry bool) {
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
-
 	pub.FlushStops()
 
 	go func() {
@@ -127,8 +124,6 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 					break PublishLoop
 				}
 			case letter := <-pub.letters:
-				pub.publishGroup.Add(1)
-
 				if allowRetry {
 					go pub.PublishWithRetry(letter)
 				} else {
@@ -146,6 +141,8 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 		pub.autoStarted = false
 	}()
 
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
 	pub.autoStarted = true
 }
 

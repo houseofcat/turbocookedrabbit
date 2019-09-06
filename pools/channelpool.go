@@ -156,8 +156,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 		return nil, errors.New("opening channel retries exhausted")
 	}
 
-	if cp.Config.PoolConfig.GlobalQosCount != 0 && cp.Config.PoolConfig.GlobalQosSize != 0 {
-		amqpChan.Qos(cp.Config.PoolConfig.GlobalQosCount, cp.Config.PoolConfig.GlobalQosSize, true)
+	if cp.Config.PoolConfig.GlobalQosCount > 0 {
+		amqpChan.Qos(cp.Config.PoolConfig.GlobalQosCount, 0, true)
 	}
 
 	channelHost := &models.ChannelHost{
@@ -208,13 +208,12 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	// lifecycles.
 	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
-		newHost, err := cp.createChannelHost(channelHost.ChannelID)
+		channelHost, err = cp.createChannelHost(channelHost.ChannelID)
 		if err != nil {
 			return nil, err
 		}
 
 		cp.UnflagChannel(channelHost.ChannelID)
-		channelHost = newHost
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.

@@ -6,8 +6,8 @@ import "github.com/houseofcat/turbocookedrabbit/models"
 func CreateLetter(exchangeName string, queueName string, body []byte) *models.Letter {
 
 	letterID := uint64(1)
-	if body == nil {
-		body = []byte("\x68\x65\x6c\x6c\x6f\x77\x20\x77\x6f\x72\x6c\x64")
+	if body == nil { //   h   e   l   l   o       w   o   r   l   d
+		body = []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
 	}
 
 	envelope := &models.Envelope{

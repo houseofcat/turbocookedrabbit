@@ -239,23 +239,21 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	// lifecycles.
 	if notifiedClosed || cp.IsConnectionFlagged(connectionHost.ConnectionID) || connectionHost.Connection.IsClosed() {
 
-		var newHost *models.ConnectionHost
 		var err error
 
 		if cp.Config.TLSConfig.EnableTLS { // Replacement Connection
-			newHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
+			connectionHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
 			if err != nil {
 				return nil, err
 			}
 		} else { // Replacement Connection
-			newHost, err = cp.createConnectionHost(connectionHost.ConnectionID)
+			connectionHost, err = cp.createConnectionHost(connectionHost.ConnectionID)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		cp.UnflagConnection(connectionHost.ConnectionID)
-		connectionHost = newHost
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.

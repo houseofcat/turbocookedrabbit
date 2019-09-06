@@ -67,7 +67,7 @@ func TestBasicPublish(t *testing.T) {
 
 	for i := 0; i < messageCount; i++ {
 		letter := letters[i]
-		go amqpChan.Publish(
+		amqpChan.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,

@@ -7,8 +7,7 @@
         "ChannelRetryCount": 5,
         "ChannelCount": 12,
         "AckChannelCount": 12,
-        "GlobalQosCount": 4,
-        "GlobalQosSize": 65535
+        "GlobalQosCount": 4
     },
     "TLSConfig": {
         "EnableTLS": false,

@@ -1,9 +1,11 @@
 package consumer_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
@@ -106,15 +108,18 @@ func TestPublishAndConsume(t *testing.T) {
 	err = consumer.StartConsuming()
 	assert.NoError(t, err)
 
-	var notice *models.Notification
-	var message *models.Message
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1)*time.Second)
 
 ConsumeMessages:
 	for {
 		select {
-		case notice = <-publisher.Notifications():
-			publisher.StopAutoPublish()
-		case message = <-consumer.Messages():
+		case <-ctx.Done():
+			fmt.Print("\r\nContextTimeout\r\n")
+			break ConsumeMessages
+		case notice := <-publisher.Notifications():
+			fmt.Printf("UpperLoop: %s\r\n", notice.ToString())
+		case message := <-consumer.Messages():
+			fmt.Printf("Message Received: %s\r\n", string(message.Body))
 			consumer.StopConsuming(false)
 			break ConsumeMessages
 		case err := <-consumer.Errors():
@@ -122,20 +127,19 @@ ConsumeMessages:
 		case err := <-channelPool.Errors():
 			assert.NoError(t, err)
 		default:
+			time.Sleep(100 * time.Millisecond)
 			break
 		}
 	}
 
-	assert.True(t, notice.Success)
-	assert.NotNil(t, message)
-
+	publisher.StopAutoPublish()
 	channelPool.Shutdown()
 
 ErrorLoop:
 	for {
 		select {
 		case notice := <-publisher.Notifications():
-			fmt.Print(notice.ToString())
+			fmt.Printf("LowerLoop: %s", notice.ToString())
 		case err := <-consumer.Errors():
 			fmt.Printf("%s\r\n", err)
 		case err := <-channelPool.Errors():
@@ -144,4 +148,6 @@ ErrorLoop:
 			break ErrorLoop
 		}
 	}
+
+	cancel()
 }

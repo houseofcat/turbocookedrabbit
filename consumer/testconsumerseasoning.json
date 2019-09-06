@@ -3,12 +3,11 @@
 		"URI": "amqp://guest:guest@localhost:5672/",
 		"BreakOnError": false,
 		"ConnectionRetryCount": 5,
-		"ConnectionCount": 3,
+		"ConnectionCount": 1,
 		"ChannelRetryCount": 5,
-		"ChannelCount": 12,
-		"AckChannelCount": 12,
-		"GlobalQosCount": 4,
-		"GlobalQosSize": 65535
+		"ChannelCount": 2,
+		"AckChannelCount": 2,
+		"GlobalQosCount": 4
 	},
 	"TLSConfig": {
 		"EnableTLS": false,
