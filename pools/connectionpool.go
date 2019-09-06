@@ -295,7 +295,7 @@ func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
 	return false
 }
 
-// Shutdown closes all connections in the ConnectionPool.
+// Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
 func (cp *ConnectionPool) Shutdown() {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
@@ -304,16 +304,7 @@ func (cp *ConnectionPool) Shutdown() {
 	atomic.AddInt32(&cp.connectionLock, 1)
 
 	if cp.Initialized {
-		for !cp.connections.Empty() {
-			items, _ := cp.connections.Get(cp.connections.Len())
-
-			for _, item := range items {
-				connectionHost := item.(*models.ConnectionHost)
-				if !connectionHost.Connection.IsClosed() {
-					connectionHost.Connection.Close()
-				}
-			}
-		}
+		cp.shutdownConnections()
 
 		cp.connections = queue.New(cp.Config.PoolConfig.ConnectionCount)
 		cp.flaggedConnections = make(map[uint64]bool)
@@ -323,6 +314,20 @@ func (cp *ConnectionPool) Shutdown() {
 
 	// Release connection lock (0)
 	atomic.StoreInt32(&cp.connectionLock, 0)
+}
+
+// ShutdownConnections actually closes all the connections.
+func (cp *ConnectionPool) shutdownConnections() {
+	for !cp.connections.Empty() {
+		items, _ := cp.connections.Get(cp.connections.Len())
+
+		for _, item := range items {
+			connectionHost := item.(*models.ConnectionHost)
+			if !connectionHost.Connection.IsClosed() {
+				connectionHost.Connection.Close()
+			}
+		}
+	}
 }
 
 // FlushErrors empties all current errors in the error channel.

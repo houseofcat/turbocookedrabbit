@@ -116,7 +116,7 @@ func (cp *ChannelPool) initialize() {
 		}
 
 		atomic.AddUint64(&cp.channelCount, 1)
-		cp.channels.Put(channelHost)
+		cp.ackChannels.Put(channelHost)
 	}
 }
 
@@ -319,8 +319,14 @@ func (cp *ChannelPool) Shutdown() {
 	atomic.AddInt32(&cp.channelLock, 1)
 
 	if cp.Initialized {
-		cp.shutdownChannels()
-		cp.shutdownAckChannels()
+		done1 := make(chan bool, 1)
+		done2 := make(chan bool, 1)
+
+		go cp.shutdownChannels(done1)
+		go cp.shutdownAckChannels(done2)
+
+		<-done1
+		<-done2
 
 		cp.channels = queue.New(cp.Config.PoolConfig.ChannelCount)
 		cp.channels = queue.New(cp.Config.PoolConfig.AckChannelCount)
@@ -335,32 +341,30 @@ func (cp *ChannelPool) Shutdown() {
 	atomic.StoreInt32(&cp.channelLock, 0)
 }
 
-func (cp *ChannelPool) shutdownChannels() {
+func (cp *ChannelPool) shutdownChannels(done chan bool) {
 	for !cp.channels.Empty() {
 		items, _ := cp.channels.Get(cp.channels.Len())
 
 		for _, item := range items {
 			channelHost := item.(*models.ChannelHost)
-			err := channelHost.Channel.Close()
-			if err != nil {
-				go func() { cp.errors <- err }()
-			}
+			channelHost.Channel.Close()
 		}
 	}
+
+	done <- true
 }
 
-func (cp *ChannelPool) shutdownAckChannels() {
+func (cp *ChannelPool) shutdownAckChannels(done chan bool) {
 	for !cp.ackChannels.Empty() {
-		items, _ := cp.channels.Get(cp.ackChannels.Len())
+		items, _ := cp.ackChannels.Get(cp.ackChannels.Len())
 
 		for _, item := range items {
 			channelHost := item.(*models.ChannelHost)
-			err := channelHost.Channel.Close()
-			if err != nil {
-				go func() { cp.errors <- err }()
-			}
+			channelHost.Channel.Close()
 		}
 	}
+
+	done <- true
 }
 
 // FlushErrors empties all current errors in the error channel.
