@@ -151,3 +151,153 @@ ErrorLoop:
 
 	cancel()
 }
+
+func TestPublishAndConsumeMany(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	messageCount := 1000
+	channelPool, _ := pools.NewChannelPool(Seasoning, nil, true)
+	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+
+	channelPool.FlushErrors()
+
+	publisher.StartAutoPublish(false)
+
+	letters := make([]*models.Letter, messageCount)
+	for i := 0; i < messageCount; i++ {
+		letters[i] = utils.CreateLetter("", "ConsumerTestQueue", nil)
+	}
+
+	go func() {
+		for _, letter := range letters {
+			publisher.QueueLetter(letter)
+		}
+	}()
+
+	consumer.StartConsuming()
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Second))
+	messagesReceived := 0
+	messagesFailedToPublish := 0
+	consumerErrors := 0
+	channelPoolErrors := 0
+
+ConsumeMessages:
+	for {
+		select {
+		case <-ctx.Done():
+			fmt.Print("\r\nContextTimeout\r\n")
+			break ConsumeMessages
+		case notice := <-publisher.Notifications():
+			if !notice.Success {
+				messagesFailedToPublish++
+			}
+		case <-consumer.Errors():
+			consumerErrors++
+		case <-consumer.Messages():
+			messagesReceived++
+		case <-channelPool.Errors():
+			channelPoolErrors++
+		default:
+			time.Sleep(100 * time.Millisecond)
+			break
+		}
+
+		if messagesReceived+messagesFailedToPublish == messageCount {
+			break ConsumeMessages
+		}
+	}
+
+	assert.Equal(t, messageCount, messagesReceived+messagesFailedToPublish)
+	fmt.Printf("Channel Pool Errors: %d\r\n", channelPoolErrors)
+	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
+	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+	consumer.StopConsuming(true)
+	consumer.FlushMessages()
+	publisher.StopAutoPublish()
+	channelPool.Shutdown()
+	cancel()
+}
+
+func TestPublishAndManyConsumers(t *testing.T) {
+	/* 	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+		messageCount := 1000
+		channelPool1, _ := pools.NewChannelPool(Seasoning, nil, true)
+		channelPool2, _ := pools.NewChannelPool(Seasoning, nil, true)
+		publisher, _ := publisher.NewPublisher(Seasoning, channelPool1, nil, 1)
+
+		channelPool1.FlushErrors()
+		channelPool2.FlushErrors()
+
+		publisher.StartAutoPublish(false)
+
+		consumers := make([]*consumer.Consumer, 10)
+		for i := 0; i < 10; i++ {
+			consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+			consumerConfig.QueueName += fmt.Sprint("-%d", i)
+			consumer, ok := consumer.NewConsumerFromConfig(consumerConfig, channelPool2)
+			if ok {
+				consumers[i] = consumer
+			}
+		}
+
+		letters := make([]*models.Letter, messageCount)
+		for i := 0; i < messageCount; i++ {
+			letters[i] = utils.CreateLetter("", fmt.Sprintf("ConsumerTestQueue-", i%10), nil)
+		}
+
+		go func() {
+			for _, letter := range letters {
+				publisher.QueueLetter(letter)
+			}
+		}()
+
+		consumer.StartConsuming()
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(10*time.Second))
+		messagesReceived := 0
+		messagesFailedToPublish := 0
+		consumerErrors := 0
+		channelPoolErrors := 0
+
+	ConsumeMessages:
+		for {
+			select {
+			case <-ctx.Done():
+				fmt.Print("\r\nContextTimeout\r\n")
+				break ConsumeMessages
+			case notice := <-publisher.Notifications():
+				if !notice.Success {
+					messagesFailedToPublish++
+				}
+			case <-consumers.Errors():
+				consumerErrors++
+			case <-consumer.Messages():
+				messagesReceived++
+			case <-channelPool1.Errors():
+				channelPoolErrors++
+			case <-channelPool2.Errors():
+				channelPoolErrors++
+			default:
+				time.Sleep(100 * time.Millisecond)
+				break
+			}
+		}
+
+		assert.Equal(t, messageCount, messagesReceived+messagesFailedToPublish)
+		fmt.Printf("Channel Pool Errors: %d\r\n", channelPoolErrors)
+		fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
+		fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+		fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+		consumer.StopConsuming(false)
+		publisher.StopAutoPublish()
+		channelPool1.Shutdown()
+		channelPool2.Shutdown()
+		cancel() */
+}
