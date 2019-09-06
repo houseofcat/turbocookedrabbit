@@ -12,3 +12,8 @@ It was programmed against the following:
 If you see any issues with more advanced setups, I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
 
 I also don't have the kind of free time I used to, I apologize in advance but hey that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship.
+
+### In Progress
+ * Solidify Consumers
+ * A solid Demo Client + Docs
+ * Chaos Engineer + More Tests
