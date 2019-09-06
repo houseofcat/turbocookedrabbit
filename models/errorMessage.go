@@ -1,6 +1,10 @@
 package models
 
-import "github.com/streadway/amqp"
+import (
+	"fmt"
+
+	"github.com/streadway/amqp"
+)
 
 // ErrorMessage allow for you to replay a message that was returned.
 type ErrorMessage struct {
@@ -19,4 +23,9 @@ func NewErrorMessage(amqpError *amqp.Error) *ErrorMessage {
 		Server:  amqpError.Server,
 		Recover: amqpError.Recover,
 	}
+}
+
+// ToString allows you to quickly log the ErrorMessage struct as a string.
+func (em *ErrorMessage) ToString() string {
+	return fmt.Sprintf("[ErrorCode: %d] Reason: %s \r\nServer Initiated: %v \r\nRecoverable: %v\r\n", em.Code, em.Reason, em.Server, em.Recover)
 }
