@@ -151,7 +151,15 @@ GetChannelLoop:
 		}
 
 		// Get Channel
-		chanHost, err := con.ChannelPool.GetChannel()
+		var chanHost *models.ChannelHost
+		var err error
+
+		if con.autoAck {
+			chanHost, err = con.ChannelPool.GetChannel()
+		} else {
+			chanHost, err = con.ChannelPool.GetAckableChannel(con.noWait)
+		}
+
 		if err != nil {
 			go func() { con.errors <- err }()
 			time.Sleep(1 * time.Second)

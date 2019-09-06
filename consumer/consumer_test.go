@@ -32,7 +32,7 @@ func TestCreateConsumerAndPublisher(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -46,12 +46,13 @@ func TestCreateConsumerAndPublisher(t *testing.T) {
 
 func TestCreateConsumerAndShutdown(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 

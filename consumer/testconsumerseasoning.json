@@ -20,7 +20,7 @@
 		"TurboCookedRabbitConsumer-Ackable": {
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
-			"AutoAck": true,
+			"AutoAck": false,
 			"Exclusive": false,
 			"NoWait": true,
 			"QosCountOverride": 5,
