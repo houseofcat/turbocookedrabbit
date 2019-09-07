@@ -34,7 +34,7 @@ func TestCreateConsumerAndPublisher(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -54,7 +54,7 @@ func TestCreateConsumerAndUncleanShutdown(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -89,7 +89,7 @@ func TestPublishAndConsume(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -157,7 +157,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	messageCount := 1000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
 
@@ -228,7 +228,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	messageCount := 1000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
 

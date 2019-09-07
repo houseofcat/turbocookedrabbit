@@ -14,30 +14,29 @@ import (
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
-	Config           *models.RabbitSeasoning
-	ChannelPool      *pools.ChannelPool
-	QueueName        string
-	ConsumerName     string
-	QOS              uint32
-	errors           chan error
-	messageGroup     *sync.WaitGroup
-	messages         chan *models.Message
-	consumeStop      chan bool
-	stopImmediate    bool
-	started          bool
-	autoAck          bool
-	exclusive        bool
-	noLocal          bool
-	noWait           bool
-	args             map[string]interface{}
-	qosCountOverride int
-	qosSizeOverride  int
-	conLock          *sync.Mutex
+	Config               *models.RabbitSeasoning
+	channelPool          *pools.ChannelPool
+	QueueName            string
+	ConsumerName         string
+	errors               chan error
+	sleepOnErrorInterval time.Duration
+	messageGroup         *sync.WaitGroup
+	messages             chan *models.Message
+	consumeStop          chan bool
+	stopImmediate        bool
+	started              bool
+	autoAck              bool
+	exclusive            bool
+	noLocal              bool
+	noWait               bool
+	args                 map[string]interface{}
+	qosCountOverride     int
+	conLock              *sync.Mutex
 }
 
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
 func NewConsumerFromConfig(
-	consumerConfig *models.ConsumerConfig,
+	config *models.ConsumerConfig,
 	channelPool *pools.ChannelPool) (*Consumer, error) {
 
 	if channelPool == nil {
@@ -46,28 +45,26 @@ func NewConsumerFromConfig(
 		channelPool.Initialize()
 	}
 
-	if consumerConfig.MessageBuffer == 0 || consumerConfig.ErrorBuffer == 0 {
+	if config.MessageBuffer == 0 || config.ErrorBuffer == 0 {
 		return nil, errors.New("message and/or error buffer in config can't be 0")
 	}
 
 	return &Consumer{
-		Config:           nil,
-		ChannelPool:      channelPool,
-		QueueName:        consumerConfig.QueueName,
-		ConsumerName:     consumerConfig.ConsumerName,
-		errors:           make(chan error, consumerConfig.ErrorBuffer),
-		messageGroup:     &sync.WaitGroup{},
-		messages:         make(chan *models.Message, consumerConfig.MessageBuffer),
-		consumeStop:      make(chan bool, 1),
-		stopImmediate:    false,
-		started:          false,
-		autoAck:          consumerConfig.AutoAck,
-		exclusive:        consumerConfig.Exclusive,
-		noWait:           consumerConfig.NoWait,
-		args:             consumerConfig.Args,
-		qosCountOverride: consumerConfig.QosCountOverride,
-		qosSizeOverride:  consumerConfig.QosSizeOverride,
-		conLock:          &sync.Mutex{},
+		Config:               nil,
+		channelPool:          channelPool,
+		QueueName:            config.QueueName,
+		ConsumerName:         config.ConsumerName,
+		errors:               make(chan error, config.ErrorBuffer),
+		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		messageGroup:         &sync.WaitGroup{},
+		messages:             make(chan *models.Message, config.MessageBuffer),
+		consumeStop:          make(chan bool, 1),
+		autoAck:              config.AutoAck,
+		exclusive:            config.Exclusive,
+		noWait:               config.NoWait,
+		args:                 config.Args,
+		qosCountOverride:     config.QosCountOverride,
+		conLock:              &sync.Mutex{},
 	}, nil
 }
 
@@ -83,7 +80,8 @@ func NewConsumer(
 	args map[string]interface{},
 	qosCountOverride int, // if zero ignored
 	messageBuffer uint32,
-	errorBuffer uint32) (*Consumer, error) {
+	errorBuffer uint32,
+	sleepOnErrorInterval uint32) (*Consumer, error) {
 
 	var err error
 	if channelPool == nil {
@@ -98,22 +96,23 @@ func NewConsumer(
 	}
 
 	return &Consumer{
-		Config:           config,
-		ChannelPool:      channelPool,
-		QueueName:        queuename,
-		ConsumerName:     consumerName,
-		errors:           make(chan error, errorBuffer),
-		messageGroup:     &sync.WaitGroup{},
-		messages:         make(chan *models.Message, messageBuffer),
-		consumeStop:      make(chan bool, 1),
-		stopImmediate:    false,
-		started:          false,
-		autoAck:          autoAck,
-		exclusive:        exclusive,
-		noWait:           noWait,
-		args:             args,
-		qosCountOverride: qosCountOverride,
-		conLock:          &sync.Mutex{},
+		Config:               config,
+		channelPool:          channelPool,
+		QueueName:            queuename,
+		ConsumerName:         consumerName,
+		errors:               make(chan error, errorBuffer),
+		sleepOnErrorInterval: time.Duration(sleepOnErrorInterval) * time.Millisecond,
+		messageGroup:         &sync.WaitGroup{},
+		messages:             make(chan *models.Message, messageBuffer),
+		consumeStop:          make(chan bool, 1),
+		stopImmediate:        false,
+		started:              false,
+		autoAck:              autoAck,
+		exclusive:            exclusive,
+		noWait:               noWait,
+		args:                 args,
+		qosCountOverride:     qosCountOverride,
+		conLock:              &sync.Mutex{},
 	}, nil
 }
 
@@ -136,13 +135,13 @@ func (con *Consumer) StartConsuming() error {
 
 func (con *Consumer) startConsuming() {
 
-GetChannelLoop:
+GetChannelOuterLoop:
 	for {
 		// Detect if we should stop.
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
-				break GetChannelLoop
+				break GetChannelOuterLoop
 			}
 		default:
 			break
@@ -153,14 +152,13 @@ GetChannelLoop:
 		var err error
 
 		if con.autoAck {
-			chanHost, err = con.ChannelPool.GetChannel()
+			chanHost, err = con.channelPool.GetChannel()
 		} else {
-			chanHost, err = con.ChannelPool.GetAckableChannel(con.noWait)
+			chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
 		}
 
 		if err != nil {
-			go func() { con.errors <- err }()
-			time.Sleep(1 * time.Second)
+			con.handleError(err)
 			continue // Retry
 		}
 
@@ -172,12 +170,11 @@ GetChannelLoop:
 		// Start Consuming
 		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
 		if err != nil {
-			go func() { con.errors <- err }()
-			time.Sleep(1 * time.Second)
+			con.handleErrorAndFlagChannel(err, chanHost.ChannelID)
 			continue // Retry
 		}
 
-	GetDeliveriesLoop:
+	GetDeliveriesInnerLoop:
 		for {
 			ctx, cancel := context.WithCancel(context.Background())
 
@@ -186,12 +183,11 @@ GetChannelLoop:
 			select {
 			case errorMessage := <-chanHost.CloseErrors():
 				if errorMessage != nil {
-					go func() {
-						con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
-					}()
+					con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
+					con.channelPool.FlagChannel(chanHost.ChannelID)
 
 					cancel()
-					break GetDeliveriesLoop
+					break GetDeliveriesInnerLoop
 				}
 			default:
 				break
@@ -211,7 +207,7 @@ GetChannelLoop:
 			case stop := <-con.consumeStop:
 				if stop {
 					cancel()
-					break GetChannelLoop
+					break GetChannelOuterLoop
 				}
 			default:
 				break
@@ -260,6 +256,19 @@ func (con *Consumer) StopConsuming(immediate bool) error {
 // Messages yields all the internal messages ready for consuming.
 func (con *Consumer) Messages() <-chan *models.Message {
 	return con.messages
+}
+
+func (con *Consumer) handleErrorAndFlagChannel(err error, channelID uint64) {
+	con.channelPool.FlagChannel(channelID)
+	con.handleError(err)
+}
+
+func (con *Consumer) handleError(err error) {
+	go func() { con.errors <- err }()
+
+	if con.sleepOnErrorInterval > 0 {
+		time.Sleep(con.sleepOnErrorInterval * time.Millisecond)
+	}
 }
 
 // Errors yields all the internal errs for consuming messages.

@@ -39,7 +39,7 @@ func TestCreateConnectionPool(t *testing.T) {
 
 	elapsed := time.Since(timeStart)
 	fmt.Printf("Created %d connection(s) finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	connectionPool.FlushErrors()
 
@@ -59,7 +59,7 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	timeStart = time.Now()
 	connectionPool.Shutdown()
@@ -83,7 +83,7 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	connectionPool.FlushErrors()
 
@@ -120,8 +120,8 @@ func TestCreateChannelPool(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, channelPool.ChannelCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -145,8 +145,8 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, channelPool.ChannelCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -180,8 +180,8 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, channelPool.ChannelCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -221,8 +221,8 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, connectionPool.ConnectionCount())
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, channelPool.ChannelCount())
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()

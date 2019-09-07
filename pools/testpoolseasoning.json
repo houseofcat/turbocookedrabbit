@@ -36,7 +36,8 @@
 			"QosCountOverride": 5,
 			"QosSizeOverride": 65535,
 			"MessageBuffer": 10,
-			"ErrorBuffer": 1
+			"ErrorBuffer": 1,
+			"SleepOnErrorInterval": 1000
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
 			"QueueName": "ConsumerTestQueue",
@@ -47,7 +48,13 @@
 			"QosCountOverride": 5,
 			"QosSizeOverride": 65535,
 			"MessageBuffer": 10,
-			"ErrorBuffer": 1
+			"ErrorBuffer": 1,
+			"SleepOnErrorInterval": 1000
 		}
+	},
+	"PublisherConfig":{
+		"SleepOnIdleInterval": 1000,
+		"LetterBuffer": 10,
+		"NotificationBuffer": 10
 	}
 }

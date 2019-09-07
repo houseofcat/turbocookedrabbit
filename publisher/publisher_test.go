@@ -32,7 +32,7 @@ func TestCreatePublisher(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 }
@@ -45,7 +45,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 0)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
 
@@ -95,7 +95,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
 	letter := utils.CreateLetter("", "TestQueue", nil)
@@ -137,7 +137,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
 	// Pre-create test messages
@@ -219,10 +219,10 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
 
-	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p2Err)
 
 	// Pre-create test messages
@@ -321,16 +321,16 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
 
-	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p2Err)
 
-	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p3Err)
 
-	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
+	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p4Err)
 
 	// Pre-create test messages
@@ -472,16 +472,16 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 
 	channelPool1.FlushErrors()
 
-	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool1, nil, 1)
+	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool1, nil)
 	assert.NoError(t, p1Err)
 
-	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool2, nil, 1)
+	publisher2, p2Err := publisher.NewPublisher(Seasoning, channelPool2, nil)
 	assert.NoError(t, p2Err)
 
-	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool3, nil, 1)
+	publisher3, p3Err := publisher.NewPublisher(Seasoning, channelPool3, nil)
 	assert.NoError(t, p3Err)
 
-	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool4, nil, 1)
+	publisher4, p4Err := publisher.NewPublisher(Seasoning, channelPool4, nil)
 	assert.NoError(t, p4Err)
 
 	// Pre-create test messages

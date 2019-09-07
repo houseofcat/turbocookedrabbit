@@ -29,7 +29,7 @@ type ConnectionPool struct {
 	connectionLock             int32
 	flaggedConnections         map[uint64]bool
 	createConnectionRetryCount uint16
-	sleepOnError               time.Duration
+	sleepOnErrorInterval       time.Duration
 	breakOnInitializeError     bool
 	maxInitializeErrorCount    uint16
 }
@@ -71,7 +71,7 @@ func NewConnectionPool(
 		poolLock:                   &sync.Mutex{},
 		flaggedConnections:         make(map[uint64]bool),
 		createConnectionRetryCount: config.CreateConnectionRetryCount,
-		sleepOnError:               time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		sleepOnErrorInterval:       time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		breakOnInitializeError:     config.BreakOnInitializeError,
 		maxInitializeErrorCount:    config.MaxInitializeErrorCount,
 	}
@@ -106,14 +106,13 @@ func (cp *ConnectionPool) initialize() {
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHost(cp.connectionID)
 		if err != nil {
-			go func() { cp.errors <- err }()
+			cp.handleError(err)
 			errCount++
 
 			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -128,14 +127,13 @@ func (cp *ConnectionPool) initializeWithTLS() {
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHostWithTLS(cp.connectionID)
 		if err != nil {
-			go func() { cp.errors <- err }()
+			cp.handleError(err)
 			errCount++
 
 			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -153,9 +151,7 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.Dial(cp.uri)
 		if err != nil {
-			go func() { cp.errors <- err }()
-
-			time.Sleep(cp.sleepOnError)
+			cp.handleError(err)
 			continue
 		}
 
@@ -186,9 +182,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
 		if err != nil {
-			go func() { cp.errors <- err }()
-
-			time.Sleep(cp.sleepOnError)
+			cp.handleError(err)
 			continue
 		}
 
@@ -207,6 +201,14 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 	cp.connectionID++
 
 	return connectionHost, nil
+}
+
+func (cp *ConnectionPool) handleError(err error) {
+	go func() { cp.errors <- err }()
+
+	if cp.sleepOnErrorInterval > 0 {
+		time.Sleep(cp.sleepOnErrorInterval)
+	}
 }
 
 // Errors yields all the internal errs for creating connections.

@@ -4,6 +4,7 @@ package models
 type RabbitSeasoning struct {
 	PoolConfig      *PoolConfig                `json:"PoolConfig"`
 	ConsumerConfigs map[string]*ConsumerConfig `json:"ConsumerConfigs"`
+	PublisherConfig *PublisherConfig           `json:"PublisherConfig"`
 }
 
 // PoolConfig represents settings for creating/configuring pools.
@@ -46,16 +47,23 @@ type TLSConfig struct {
 
 // ConsumerConfig represents settings for configuring a consumer with ease.
 type ConsumerConfig struct {
-	QueueName        string                 `json:"QueueName"`
-	ConsumerName     string                 `json:"ConsumerName"`
-	AutoAck          bool                   `json:"AutoAck"`
-	Exclusive        bool                   `json:"Exclusive"`
-	NoWait           bool                   `json:"NoWait"`
-	Args             map[string]interface{} `json:"Args"`
-	QosCountOverride int                    `json:"QosCountOverride"` // if zero ignored
-	QosSizeOverride  int                    `json:"QosSizeOverride"`  // if zero ignored
-	MessageBuffer    uint32                 `json:"MessageBuffer"`
-	ErrorBuffer      uint32                 `json:"ErrorBuffer"`
+	QueueName            string                 `json:"QueueName"`
+	ConsumerName         string                 `json:"ConsumerName"`
+	AutoAck              bool                   `json:"AutoAck"`
+	Exclusive            bool                   `json:"Exclusive"`
+	NoWait               bool                   `json:"NoWait"`
+	Args                 map[string]interface{} `json:"Args"`
+	QosCountOverride     int                    `json:"QosCountOverride"` // if zero ignored
+	MessageBuffer        uint32                 `json:"MessageBuffer"`
+	ErrorBuffer          uint32                 `json:"ErrorBuffer"`
+	SleepOnErrorInterval uint32                 `json:"SleepOnErrorInterval"`
+}
+
+// PublisherConfig represents settings for configuring global settings for all Publishers with ease.
+type PublisherConfig struct {
+	SleepOnIdleInterval uint32 `json:"SleepOnIdleInterval"`
+	LetterBuffer        uint32 `json:"LetterBuffer"`
+	NotificationBuffer  uint32 `json:"NotificationBuffer"`
 }
 
 // TopologyConfig allows you to build a simple toplogy from Json.

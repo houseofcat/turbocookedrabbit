@@ -29,7 +29,7 @@ type ChannelPool struct {
 	flaggedChannels         map[uint64]bool
 	createChannelRetryCount uint16
 	breakOnInitializeError  bool
-	sleepOnError            time.Duration
+	sleepOnErrorInterval    time.Duration
 	maxInitializeErrorCount uint16
 	globalQosCount          int
 }
@@ -59,7 +59,7 @@ func NewChannelPool(
 		poolLock:                &sync.Mutex{},
 		flaggedChannels:         make(map[uint64]bool),
 		createChannelRetryCount: config.ChannelPoolConfig.CreateChannelRetryCount,
-		sleepOnError:            time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
+		sleepOnErrorInterval:    time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
 		breakOnInitializeError:  config.ChannelPoolConfig.BreakOnInitializeError,
 		maxInitializeErrorCount: config.ChannelPoolConfig.MaxInitializeErrorCount,
 		globalQosCount:          config.ChannelPoolConfig.GlobalQosCount,
@@ -97,14 +97,13 @@ func (cp *ChannelPool) initialize() {
 
 		channelHost, err := cp.createChannelHost(cp.channelID)
 		if err != nil {
-			go func() { cp.errors <- err }()
+			cp.handleError(err)
 			errCount++
 
 			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -119,14 +118,13 @@ func (cp *ChannelPool) initialize() {
 
 		channelHost, err := cp.createChannelHost(cp.channelID)
 		if err != nil {
-			go func() { cp.errors <- err }()
+			cp.handleError(err)
 			errCount++
 
 			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -186,8 +184,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 func (cp *ChannelPool) handleError(err error) {
 	go func() { cp.errors <- err }()
 
-	if cp.sleepOnError > 0 {
-		time.Sleep(cp.sleepOnError)
+	if cp.sleepOnErrorInterval > 0 {
+		time.Sleep(cp.sleepOnErrorInterval)
 	}
 }
 
