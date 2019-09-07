@@ -232,7 +232,7 @@ func (top *Topologer) ExchangeDelete(
 // CreateQueue builds a Queue topology.
 func (top *Topologer) CreateQueue(
 	queueName string,
-	declarePassive bool,
+	passiveDeclare bool,
 	durable bool,
 	autoDelete bool,
 	exclusive bool,
@@ -244,7 +244,7 @@ func (top *Topologer) CreateQueue(
 		return err
 	}
 
-	if declarePassive {
+	if passiveDeclare {
 		_, err = chanHost.Channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, args)
 		if err != nil {
 			top.channelPool.FlagChannel(chanHost.ChannelID)
