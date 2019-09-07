@@ -10,6 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/topology"
 	"github.com/houseofcat/turbocookedrabbit/utils"
 )
 
@@ -32,14 +34,11 @@ func TestReadConfig(t *testing.T) {
 	config, err := utils.ConvertJSONFileToConfig(fileNamePath)
 
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", config.PoolConfig.URI, "RabbitMQ URI should not be blank.")
+	assert.NotEqual(t, "", config.PoolConfig.ConnectionPoolConfig.URI, "RabbitMQ URI should not be blank.")
 }
 
 func TestBasicPublish(t *testing.T) {
 	//defer leaktest.Check(t)() // Fail on leaked goroutines.
-	Seasoning.PoolConfig.ConnectionCount = 3
-	Seasoning.PoolConfig.ChannelCount = 12
-
 	messageCount := 100000
 
 	// Pre-create test messages
@@ -55,7 +54,7 @@ func TestBasicPublish(t *testing.T) {
 
 	// Test
 	timeStart = time.Now()
-	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
+	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.ConnectionPoolConfig.URI)
 	if err != nil {
 		return
 	}
@@ -164,4 +163,36 @@ func TestTLSConnection(t *testing.T) {
 	   	conn, err := amqp.DialTLS("amqps://server-name-from-certificate/", cfg)
 
 	   	log.Printf("conn: %v, err: %v", conn, err) */
+}
+
+func TestReadTopologyConfig(t *testing.T) {
+	fileNamePath := "testtopology.json"
+
+	assert.FileExists(t, fileNamePath)
+
+	config, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
+
+	assert.Nil(t, err)
+	assert.NotEqual(t, 0, len(config.Exchanges))
+	assert.NotEqual(t, 0, len(config.Queues))
+	assert.NotEqual(t, 0, len(config.QueueBindings))
+	assert.NotEqual(t, 0, len(config.ExchangeBindings))
+}
+
+func TestCreateTopologyFromTopologyConfig(t *testing.T) {
+	fileNamePath := "testtopology.json"
+
+	assert.FileExists(t, fileNamePath)
+
+	topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
+	assert.NoError(t, err)
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	assert.NoError(t, err)
+
+	topologer := topology.NewTopologer(channelPool)
+	assert.NoError(t, err)
+
+	err = topologer.BuildToplogy(topologyConfig, false)
+	assert.NoError(t, err)
 }

@@ -15,11 +15,17 @@ I also don't have the kind of free time I used to. I apologize in advance but, h
 
 Also if you see something syntactically wrong, speak up! I am, relatively speaking, an idiot. Also, I am still new to the golang ecosystem. My background is in infrastructure development, C#, and the .NET/NetCore ecosystem, so if any `golang wizards` want to provide advice, please do.
 
-### Work In Progress
+
+### Work Recently Finished
  * Solidify Connections/Pools
  * Solidify Consumers
- * A solid Demo Client + Docs
- * Chaos Engineer + More Tests
+ * Topology Support
+
+### Work In Progress
+ * Documentation
+ * Streamline error propagations to the surface (end-user).
+ * A solid Demo Client
+ * Chaos Engineering / More Tests
 
 ## The Seasoning/Config
 
@@ -396,10 +402,146 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 
 ## The Pools
 
+### ChannelPools
+
 <details><summary>ChannelPools, how do they even work?!</summary>
 <p>
 
 ComingSoon™
+
+</p>
+</details>
+
+## The Topologer
+
+<details><summary>How do I create/delete/bind queues and exchanges?</summary>
+<p>
+
+Coming from plain `streadway/amqp` there isn't too much to it. Call the right method with the right parameters.
+
+I have however integrated those relatively painless methods now with a ChannelPool and added a TopologyConfig.json style of support for batch topology creation.
+
+Creating an Exchange with a `models.Exchange`
+
+```golang
+err := top.CreateExchangeFromConfig(exchange) // models.Exchange
+if err != nil {
+    return err
+}
+```
+
+Or if you prefer it more manual:
+
+```golang
+exchangeName := "FancyName"
+exchangeType := "fanout"
+passiveDeclare, durable, autoDelete, internal, noWait := false, false, false, false, false
+
+err := top.CreateExchange(exchangeName, exchangeType, passiveDeclare, durable, autoDelete, internal, noWait, nil)
+if err != nil {
+    return err
+}
+```
+
+Creating an Queue with a `models.Queue`
+
+```golang
+err := top.CreateQueueFromConfigeateQueue(queue) // models.Queue
+if err != nil {
+    return err
+}
+```
+
+Or, again, if you prefer it more manual:
+
+```golang
+queueName := "FancyQueueName"
+passiveDeclare, durable, autoDelete, exclusive, noWait := false, false, false, false, false
+
+err := top.CreateQueue(queueName, passiveDeclare, durable, autoDelete, exclusive, noWait, nil)
+if err != nil {
+    return err
+}
+```
+
+</p>
+</details>
+
+<details><summary>How do I do this in bulk?</summary>
+<p>
+
+Here I demonstrate the Topology as JSON (full sample is checked in as `testtopology.json`)
+
+```javascript
+{
+	"Exchanges": [
+		{
+			"Name": "MyTestExchangeRoot",
+			"Type": "direct",
+			"PassiveDeclare": true,
+			"Durable": true,
+			"AutoDelete": false,
+			"InternalOnly": false,
+			"NoWait": true
+		}
+	],
+	"Queues": [
+		{
+			"Name": "QueueAttachedToRoot",
+			"PassiveDeclare": true,
+			"Durable": true,
+			"AutoDelete": false,
+			"Exclusive": false,
+			"NoWait": true
+		}
+	],
+	"QueueBindings": [
+		{
+			"QueueName": "QueueAttachedToRoot",
+			"ExchangeName": "MyTestExchangeRoot",
+			"RoutingKey": "RoutingKeyRoot",
+			"NoWait": true
+		}
+	],
+	"ExchangeBindings":[
+		{
+			"ExchangeName": "MyTestExchange.Child01",
+			"ParentExchangeName": "MyTestExchangeRoot",
+			"RoutingKey": "ExchangeKey1",
+			"NoWait": true
+		}
+	]
+}
+```
+
+I have provided a helper method for turning it into a TopologyConfig.
+
+```golang
+topologyConfig, err := utils.ConvertJSONFileToTopologyConfig("testtopology.json")
+```
+
+Creating a simple and shareable ChannelPool.
+
+```golang
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+```
+
+Using the ChannelPool to create our Topologer.
+
+```golang
+topologer := topology.NewTopologer(channelPool)
+```
+
+Assuming you have a blank slate RabbitMQ server, this shouldn't error out as long as you can connect to it.
+
+```golang
+ignoreErrors := false
+err = topologer.BuildToplogy(topologyConfig, ignoreErrors)
+```
+
+Fin.
+
+That's it really. In the future I will have more features. Just know that I think you can export your current Server configuration from the Server itself.
 
 </p>
 </details>

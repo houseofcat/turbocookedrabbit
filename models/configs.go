@@ -66,6 +66,10 @@ type PublisherConfig struct {
 	NotificationBuffer  uint32 `json:"NotificationBuffer"`
 }
 
-// TopologyConfig allows you to build a simple toplogy from Json.
+// TopologyConfig allows you to build simple toplogies from a JSON file.
 type TopologyConfig struct {
+	Exchanges        []*Exchange        `json:"Exchanges"`
+	Queues           []*Queue           `json:"Queues"`
+	QueueBindings    []*QueueBinding    `json:"QueueBindings"`
+	ExchangeBindings []*ExchangeBinding `json:"ExchangeBindings"`
 }
