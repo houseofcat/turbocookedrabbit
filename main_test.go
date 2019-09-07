@@ -25,7 +25,7 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 }
 
 func TestReadConfig(t *testing.T) {
-	fileNamePath := "seasoning.json"
+	fileNamePath := "testseasoning.json"
 
 	assert.FileExists(t, fileNamePath)
 
