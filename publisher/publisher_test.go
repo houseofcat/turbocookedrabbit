@@ -27,7 +27,7 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 }
 
 func TestCreatePublisher(t *testing.T) {
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -39,7 +39,8 @@ func TestCreatePublisher(t *testing.T) {
 
 func TestCreatePublisherAndPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -88,7 +89,8 @@ AssertLoop:
 }
 
 func TestAutoPublishSingleMessage(t *testing.T) {
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -126,10 +128,11 @@ AssertLoop:
 }
 
 func TestAutoPublishManyMessages(t *testing.T) {
+
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 	messageCount := 100000
 
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -207,10 +210,11 @@ ListeningForNotificationsLoop:
 
 func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	messageCount := 50000
 	publisherMultiple := 2
 
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -308,10 +312,11 @@ ListeningForNotificationsLoop:
 
 func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 	messageCount := 50000
 	publisherMultiple := 4
 
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -449,21 +454,20 @@ ListeningForNotificationsLoop:
 
 func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
-	Seasoning.PoolConfig.ConnectionCount = 3
-	Seasoning.PoolConfig.ChannelCount = 12
+
 	messageCount := 50000
 	publisherMultiple := 4
 
-	channelPool1, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool1, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool2, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool2, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool3, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool3, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool4, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool4, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool1.FlushErrors()

@@ -34,7 +34,7 @@ func NewPublisher(
 	// If nil, create your own isolated ChannelPool based on configuration settings.
 	if chanPool == nil {
 		var err error
-		chanPool, err = pools.NewChannelPool(config, connPool, true)
+		chanPool, err = pools.NewChannelPool(config.PoolConfig, connPool, true)
 		if err != nil {
 			return nil, err
 		}

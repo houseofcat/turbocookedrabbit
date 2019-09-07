@@ -1,18 +1,53 @@
 {
-    "PoolConfig": {
-        "URI": "amqp://guest:guest@localhost:5672/",
-        "BreakOnError": false,
-        "ConnectionRetryCount": 5,
-        "ConnectionCount": 3,
-        "ChannelRetryCount": 5,
-        "ChannelCount": 12,
-        "AckChannelCount": 12,
-        "GlobalQosCount": 2
-    },
-    "TLSConfig": {
-        "EnableTLS": false,
-        "PEMCertLocation": "test/catest.pem",
-        "LocalCertLocation": "client/cert.ca",
-        "CertServerName": "hostname-in-cert"
-    }
+	"PoolConfig": {
+		"ChannelPoolConfig": {
+			"ErrorBuffer": 10,
+			"BreakOnInitializeError": false,
+			"MaxInitializeErrorCount": 5,
+			"SleepOnErrorInterval": 50,
+			"CreateChannelRetryCount": 5,
+			"ChannelCount": 25,
+			"AckChannelCount": 25,
+			"GlobalQosCount": 4
+		},
+		"ConnectionPoolConfig": {
+			"URI": "amqp://guest:guest@localhost:5672/",
+			"ErrorBuffer": 1,
+			"BreakOnInitializeError": false,
+			"MaxInitializeErrorCount": 5,
+			"SleepOnErrorInterval": 50,
+			"CreateConnectionRetryCount": 5,
+			"ConnectionCount": 5,
+			"TLSConfig": {
+				"EnableTLS": false,
+				"PEMCertLocation": "test/catest.pem",
+				"LocalCertLocation": "client/cert.ca",
+				"CertServerName": "hostname-in-cert"
+			}
+		}
+	},
+	"ConsumerConfigs": {
+		"TurboCookedRabbitConsumer-Ackable": {
+			"QueueName": "ConsumerTestQueue",
+			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
+			"AutoAck": false,
+			"Exclusive": false,
+			"NoWait": true,
+			"QosCountOverride": 5,
+			"QosSizeOverride": 65535,
+			"MessageBuffer": 10,
+			"ErrorBuffer": 1
+		},
+		"TurboCookedRabbitConsumer-AutoAck": {
+			"QueueName": "ConsumerTestQueue",
+			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
+			"AutoAck": true,
+			"Exclusive": false,
+			"NoWait": true,
+			"QosCountOverride": 5,
+			"QosSizeOverride": 65535,
+			"MessageBuffer": 10,
+			"ErrorBuffer": 1
+		}
+	}
 }

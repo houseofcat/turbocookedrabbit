@@ -3,26 +3,42 @@ package models
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
 	PoolConfig      *PoolConfig                `json:"PoolConfig"`
-	TLSConfig       *TLSConfig                 `json:"TLSConfig"`
 	ConsumerConfigs map[string]*ConsumerConfig `json:"ConsumerConfigs"`
 }
 
-// PoolConfig represents settings for creating/configuring the ConnectionPool.
+// PoolConfig represents settings for creating/configuring pools.
 type PoolConfig struct {
-	URI                  string `json:"URI"`
-	ConnectionRetryCount uint32 `json:"ConnectionRetryCount"`
-	ConnectionCount      int64  `json:"ConnectionCount"`
-	ChannelRetryCount    uint32 `json:"ChannelRetryCount"`
-	ChannelCount         int64  `json:"ChannelCount"`
-	AckChannelCount      int64  `json:"AckChannelCount"`
-	BreakOnError         bool   `json:"BreakOnError"`
-	GlobalQosCount       int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
-	GlobalQosSize        int    `json:"GlobalQosSize"`  // Leave at 0 if you want to ignore them.
+	ChannelPoolConfig    *ChannelPoolConfig    `json:"ChannelPoolConfig"`
+	ConnectionPoolConfig *ConnectionPoolConfig `json:"ConnectionPoolConfig"`
+}
+
+// ChannelPoolConfig represents settings for creating channel pools.
+type ChannelPoolConfig struct {
+	ErrorBuffer             uint16 `json:"ErrorBuffer"`
+	BreakOnInitializeError  bool   `json:"BreakOnInitializeError"`  // error out on first error during Initialize.
+	MaxInitializeErrorCount uint16 `json:"MaxInitializeErrorCount"` // error out after n errors during Initialize.
+	SleepOnErrorInterval    uint32 `json:"SleepOnErrorInterval"`    // sleep length on errors
+	CreateChannelRetryCount uint16 `json:"CreateChannelRetryCount"`
+	ChannelCount            uint64 `json:"ChannelCount"`
+	AckChannelCount         uint64 `json:"AckChannelCount"`
+	GlobalQosCount          int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
+}
+
+// ConnectionPoolConfig represents settings for creating connection pools.
+type ConnectionPoolConfig struct {
+	URI                        string     `json:"URI"`
+	ErrorBuffer                uint16     `json:"ErrorBuffer"`
+	BreakOnInitializeError     bool       `json:"BreakOnInitializeError"`     // error out on first error during Initialize.
+	MaxInitializeErrorCount    uint16     `json:"MaxInitializeErrorCount"`    // error out after n errors during Initialize.
+	SleepOnErrorInterval       uint32     `json:"SleepOnErrorInterval"`       // sleep length on errors
+	EnableTLS                  bool       `json:"EnableTLS"`                  // Use TLSConfig to create connections with AMQPS uri.
+	CreateConnectionRetryCount uint16     `json:"CreateConnectionRetryCount"` // when creating connections, add a retry, ignored when 0
+	ConnectionCount            uint64     `json:"ConnectionCount"`            // number of connections to create in the pool
+	TLSConfig                  *TLSConfig `json:"TLSConfig"`                  // TLS settings for connection with AMQPS.
 }
 
 // TLSConfig represents settings for configuring TLS.
 type TLSConfig struct {
-	EnableTLS         bool   `json:"EnableTLS"`
 	PEMCertLocation   string `json:"PEMCertLocation"`
 	LocalCertLocation string `json:"LocalCertLocation"`
 	CertServerName    string `json:"CertServerName"`

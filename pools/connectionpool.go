@@ -16,29 +16,38 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	Config                  *models.RabbitSeasoning
-	Initialized             bool
-	tlsConfig               *tls.Config
-	errors                  chan error
-	connections             *queue.Queue
-	connectionCount         uint64
-	poolLock                *sync.Mutex
-	connectionLock          int32
-	flaggedConnections      map[uint64]bool
-	smallSleep              time.Duration
-	initializeErrorCountMax int
+	Config                     models.ConnectionPoolConfig
+	Initialized                bool
+	uri                        string
+	enableTLS                  bool
+	tlsConfig                  *tls.Config
+	errors                     chan error
+	connections                *queue.Queue
+	maxConnections             uint64
+	connectionID               uint64
+	poolLock                   *sync.Mutex
+	connectionLock             int32
+	flaggedConnections         map[uint64]bool
+	createConnectionRetryCount uint16
+	sleepOnError               time.Duration
+	breakOnInitializeError     bool
+	maxInitializeErrorCount    uint16
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 // Needs to be Initialize() afterwards.
 func NewConnectionPool(
-	config *models.RabbitSeasoning,
+	config *models.ConnectionPoolConfig,
 	initializeNow bool) (*ConnectionPool, error) {
 
 	var tlsConfig *tls.Config
 	var err error
 
-	if config.TLSConfig.EnableTLS {
+	if config.EnableTLS {
+		if config.TLSConfig == nil {
+			return nil, errors.New("can't enable TLS when TLS config is nil")
+		}
+
 		tlsConfig, err = utils.CreateTLSConfig(
 			config.TLSConfig.PEMCertLocation,
 			config.TLSConfig.LocalCertLocation)
@@ -47,15 +56,24 @@ func NewConnectionPool(
 		}
 	}
 
+	if config.ErrorBuffer == 0 {
+		return nil, errors.New("can't create a ConnectionPool when the ErrorBuffer value is 0")
+	}
+
 	cp := &ConnectionPool{
-		Config:                  config,
-		tlsConfig:               tlsConfig,
-		errors:                  make(chan error, 1),
-		connections:             queue.New(config.PoolConfig.ConnectionCount),
-		poolLock:                &sync.Mutex{},
-		flaggedConnections:      make(map[uint64]bool),
-		smallSleep:              time.Duration(50) * time.Millisecond,
-		initializeErrorCountMax: 5,
+		Config:                     *config,
+		uri:                        config.URI,
+		enableTLS:                  config.EnableTLS,
+		tlsConfig:                  tlsConfig,
+		errors:                     make(chan error, config.ErrorBuffer),
+		maxConnections:             config.ConnectionCount,
+		connections:                queue.New(int64(config.ConnectionCount)), // possible overflow error
+		poolLock:                   &sync.Mutex{},
+		flaggedConnections:         make(map[uint64]bool),
+		createConnectionRetryCount: config.CreateConnectionRetryCount,
+		sleepOnError:               time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		breakOnInitializeError:     config.BreakOnInitializeError,
+		maxInitializeErrorCount:    config.MaxInitializeErrorCount,
 	}
 
 	if initializeNow {
@@ -72,7 +90,7 @@ func (cp *ConnectionPool) Initialize() {
 	defer cp.poolLock.Unlock()
 
 	if !cp.Initialized {
-		if cp.Config.TLSConfig.EnableTLS {
+		if cp.Config.EnableTLS {
 			cp.initializeWithTLS()
 		} else {
 			cp.initialize()
@@ -83,43 +101,45 @@ func (cp *ConnectionPool) Initialize() {
 }
 
 func (cp *ConnectionPool) initialize() {
-	errCount := 0
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ConnectionCount); i++ {
-		connectionHost, err := cp.createConnectionHost(atomic.LoadUint64(&cp.connectionCount))
+
+	errCount := uint16(0)
+	for i := uint64(0); i < cp.maxConnections; i++ {
+		connectionHost, err := cp.createConnectionHost(cp.connectionID)
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
-		atomic.AddUint64(&cp.connectionCount, 1)
+		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
 }
 
 func (cp *ConnectionPool) initializeWithTLS() {
-	errCount := 0
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ConnectionCount); i++ {
-		connectionHost, err := cp.createConnectionHostWithTLS(atomic.LoadUint64(&cp.connectionCount))
+
+	errCount := uint16(0)
+	for i := uint64(0); i < cp.maxConnections; i++ {
+		connectionHost, err := cp.createConnectionHostWithTLS(cp.connectionID)
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
-		atomic.AddUint64(&cp.connectionCount, 1)
+		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
 }
@@ -129,18 +149,13 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ConnectionRetryCount)
 
-	for i := retryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.Dial(cp.Config.PoolConfig.URI)
+	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
+		amqpConn, err = amqp.Dial(cp.uri)
 		if err != nil {
 			go func() { cp.errors <- err }()
 
-			if cp.Config.PoolConfig.BreakOnError {
-				break
-			}
-
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -167,19 +182,13 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 	var amqpConn *amqp.Connection
 	var err error
-	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ConnectionRetryCount)
 
-	for i := retryCount + 1; i > 0; i-- {
+	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
 		amqpConn, err = amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
 		if err != nil {
-
 			go func() { cp.errors <- err }()
 
-			if cp.Config.PoolConfig.BreakOnError {
-				break
-			}
-
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
@@ -192,10 +201,10 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 	connectionHost := &models.ConnectionHost{
 		Connection:   amqpConn,
-		ConnectionID: atomic.LoadUint64(&cp.connectionCount),
+		ConnectionID: cp.connectionID,
 	}
 
-	atomic.AddUint64(&cp.connectionCount, 1)
+	cp.connectionID++
 
 	return connectionHost, nil
 }
@@ -241,7 +250,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 
 		var err error
 
-		if cp.Config.TLSConfig.EnableTLS { // Replacement Connection
+		if cp.enableTLS { // Replacement Connection
 			connectionHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
 			if err != nil {
 				return nil, err
@@ -263,7 +272,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	return connectionHost, nil
 }
 
-// ConnectionCount flags that connection as usable in the future.
+// ConnectionCount flags that connection as usable in the future. Careful, locking call.
 func (cp *ConnectionPool) ConnectionCount() int64 {
 	return cp.connections.Len() // Locking
 }
@@ -304,9 +313,9 @@ func (cp *ConnectionPool) Shutdown() {
 	if cp.Initialized {
 		cp.shutdownConnections()
 
-		cp.connections = queue.New(cp.Config.PoolConfig.ConnectionCount)
+		cp.connections = queue.New(int64(cp.maxConnections))
 		cp.flaggedConnections = make(map[uint64]bool)
-		atomic.StoreUint64(&cp.connectionCount, uint64(0))
+		cp.connectionID = 0
 		cp.Initialized = false
 	}
 

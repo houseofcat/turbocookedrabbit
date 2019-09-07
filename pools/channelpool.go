@@ -15,44 +15,54 @@ import (
 
 // ChannelPool houses the pool of RabbitMQ channels.
 type ChannelPool struct {
-	Config                  *models.RabbitSeasoning
-	ConnectionPool          *ConnectionPool
+	Config                  models.PoolConfig
+	connectionPool          *ConnectionPool
 	Initialized             bool
 	errors                  chan error
 	channels                *queue.Queue
 	ackChannels             *queue.Queue
-	channelCount            uint64
+	maxChannels             uint64
+	maxAckChannels          uint64
+	channelID               uint64
 	poolLock                *sync.Mutex
 	channelLock             int32
 	flaggedChannels         map[uint64]bool
-	smallSleep              time.Duration
-	initializeErrorCountMax int
+	createChannelRetryCount uint16
+	breakOnInitializeError  bool
+	sleepOnError            time.Duration
+	maxInitializeErrorCount uint16
+	globalQosCount          int
 }
 
 // NewChannelPool creates hosting structure for the ChannelPool.
 func NewChannelPool(
-	config *models.RabbitSeasoning,
+	config *models.PoolConfig,
 	connPool *ConnectionPool,
 	initializeNow bool) (*ChannelPool, error) {
 
 	if connPool == nil {
 		var err error // If connPool is nil, create one here.
-		connPool, err = NewConnectionPool(config, true)
+		connPool, err = NewConnectionPool(config.ConnectionPoolConfig, true)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	cp := &ChannelPool{
-		Config:                  config,
-		ConnectionPool:          connPool,
-		errors:                  make(chan error, 10),
-		channels:                queue.New(config.PoolConfig.ChannelCount),
-		ackChannels:             queue.New(config.PoolConfig.AckChannelCount),
+		Config:                  *config,
+		connectionPool:          connPool,
+		errors:                  make(chan error, config.ChannelPoolConfig.ErrorBuffer),
+		maxChannels:             config.ChannelPoolConfig.ChannelCount,
+		maxAckChannels:          config.ChannelPoolConfig.AckChannelCount,
+		channels:                queue.New(int64(config.ChannelPoolConfig.ChannelCount)),
+		ackChannels:             queue.New(int64(config.ChannelPoolConfig.AckChannelCount)),
 		poolLock:                &sync.Mutex{},
 		flaggedChannels:         make(map[uint64]bool),
-		smallSleep:              time.Duration(50) * time.Millisecond,
-		initializeErrorCountMax: 5,
+		createChannelRetryCount: config.ChannelPoolConfig.CreateChannelRetryCount,
+		sleepOnError:            time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
+		breakOnInitializeError:  config.ChannelPoolConfig.BreakOnInitializeError,
+		maxInitializeErrorCount: config.ChannelPoolConfig.MaxInitializeErrorCount,
+		globalQosCount:          config.ChannelPoolConfig.GlobalQosCount,
 	}
 
 	if initializeNow {
@@ -68,8 +78,8 @@ func (cp *ChannelPool) Initialize() {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
 
-	if !cp.ConnectionPool.Initialized {
-		cp.ConnectionPool.Initialize()
+	if !cp.connectionPool.Initialized {
+		cp.connectionPool.Initialize()
 	}
 
 	if !cp.Initialized {
@@ -79,43 +89,48 @@ func (cp *ChannelPool) Initialize() {
 }
 
 func (cp *ChannelPool) initialize() {
-	errCount := 0
+
+	errCount := uint16(0)
 
 	// Create Channel queue.
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.ChannelCount); i++ {
-		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
+	for i := uint64(0); i < cp.maxChannels; i++ {
+
+		channelHost, err := cp.createChannelHost(cp.channelID)
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
-		atomic.AddUint64(&cp.channelCount, 1)
+		cp.channelID++
 		cp.channels.Put(channelHost)
 	}
 
+	errCount = 0
+
 	// Create AckChannel queue.
-	for i := int64(0); i < atomic.LoadInt64(&cp.Config.PoolConfig.AckChannelCount); i++ {
-		channelHost, err := cp.createChannelHost(atomic.LoadUint64(&cp.channelCount))
+	for i := uint64(0); i < cp.maxAckChannels; i++ {
+
+		channelHost, err := cp.createChannelHost(cp.channelID)
 		if err != nil {
 			go func() { cp.errors <- err }()
 			errCount++
 
-			if cp.Config.PoolConfig.BreakOnError || errCount >= cp.initializeErrorCountMax {
+			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
 				break
 			}
 
-			time.Sleep(cp.smallSleep)
+			time.Sleep(cp.sleepOnError)
 			continue
 		}
 
-		atomic.AddUint64(&cp.channelCount, 1)
+		cp.channelID++
 		cp.ackChannels.Put(channelHost)
 	}
 }
@@ -127,25 +142,24 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	var connHost *models.ConnectionHost
 	var err error
 
-	retryCount := atomic.LoadUint32(&cp.Config.PoolConfig.ChannelRetryCount)
-	connHost, err = cp.ConnectionPool.GetConnection()
-	if err != nil {
-		return nil, err
-	}
+	for i := cp.createChannelRetryCount + 1; i > 0; i-- {
 
-	if connHost == nil {
-		return nil, fmt.Errorf("opening channel failed - could not get connection [last err: %s]", err)
-	}
+		connHost, err = cp.connectionPool.GetConnection()
+		if err != nil {
+			cp.handleError(fmt.Errorf("opening channel failed - could not get connection [err: %s]", err))
+			continue
+		}
 
-	for i := retryCount + 1; i > 0; i-- {
+		if connHost.Connection.IsClosed() {
+			cp.connectionPool.FlagConnection(connHost.ConnectionID)
+			cp.handleError(fmt.Errorf("opening channel failed - connection %q was marked as closed [err: %s]", connHost.ConnectionID, err))
+			continue
+		}
+
 		amqpChan, err = connHost.Connection.Channel()
 		if err != nil {
-			if cp.Config.PoolConfig.BreakOnError {
-				break
-			}
-
-			go func() { cp.errors <- err }()
-			time.Sleep(cp.smallSleep)
+			cp.connectionPool.FlagConnection(connHost.ConnectionID)
+			cp.handleError(err)
 			continue
 		}
 
@@ -156,8 +170,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 		return nil, errors.New("opening channel retries exhausted")
 	}
 
-	if cp.Config.PoolConfig.GlobalQosCount > 0 {
-		amqpChan.Qos(cp.Config.PoolConfig.GlobalQosCount, 0, true)
+	if cp.globalQosCount > 0 {
+		amqpChan.Qos(cp.globalQosCount, 0, true)
 	}
 
 	channelHost := &models.ChannelHost{
@@ -167,6 +181,14 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	}
 
 	return channelHost, nil
+}
+
+func (cp *ChannelPool) handleError(err error) {
+	go func() { cp.errors <- err }()
+
+	if cp.sleepOnError > 0 {
+		time.Sleep(cp.sleepOnError)
+	}
 }
 
 // Errors yields all the internal errs for creating connections.
@@ -327,13 +349,13 @@ func (cp *ChannelPool) Shutdown() {
 		<-done1
 		<-done2
 
-		cp.channels = queue.New(cp.Config.PoolConfig.ChannelCount)
-		cp.channels = queue.New(cp.Config.PoolConfig.AckChannelCount)
+		cp.channels = queue.New(int64(cp.maxChannels))
+		cp.channels = queue.New(int64(cp.maxAckChannels))
 		cp.flaggedChannels = make(map[uint64]bool)
-		atomic.StoreUint64(&cp.channelCount, uint64(0))
+		cp.channelID = 0
 		cp.Initialized = false
 
-		cp.ConnectionPool.Shutdown()
+		cp.connectionPool.Shutdown()
 	}
 
 	// Release channel lock (0)

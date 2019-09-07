@@ -87,7 +87,7 @@ func NewConsumer(
 
 	var err error
 	if channelPool == nil {
-		channelPool, err = pools.NewChannelPool(config, nil, true)
+		channelPool, err = pools.NewChannelPool(config.PoolConfig, nil, true)
 		if err != nil {
 			return nil, err
 		}
@@ -219,9 +219,9 @@ GetChannelLoop:
 		}
 
 		// Quality of Service channel overrides reset
-		if con.Config.PoolConfig.GlobalQosCount > 0 {
+		if con.Config.PoolConfig.ChannelPoolConfig.GlobalQosCount > 0 {
 			chanHost.Channel.Qos(
-				con.Config.PoolConfig.GlobalQosCount,
+				con.Config.PoolConfig.ChannelPoolConfig.GlobalQosCount,
 				0,
 				false)
 		}

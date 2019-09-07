@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/houseofcat/turbocookedrabbit/consumer"
@@ -27,9 +28,8 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 	os.Exit(m.Run())
 }
 
-/*
 func TestCreateConsumerAndPublisher(t *testing.T) {
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -49,7 +49,7 @@ func TestCreateConsumerAndPublisher(t *testing.T) {
 func TestCreateConsumerAndUncleanShutdown(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -84,7 +84,7 @@ ErrorLoop:
 func TestPublishAndConsume(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	channelPool, err := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
@@ -156,7 +156,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	messageCount := 1000
-	channelPool, _ := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
@@ -222,12 +222,12 @@ ConsumeMessages:
 	channelPool.Shutdown()
 	cancel()
 }
-*/
+
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
 	b.ReportAllocs()
 
 	messageCount := 1000
-	channelPool, _ := pools.NewChannelPool(Seasoning, nil, true)
+	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil, 1)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
