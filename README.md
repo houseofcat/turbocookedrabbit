@@ -29,68 +29,68 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 
 <details><summary>Click to a sample config.json!</summary>
 <p>
-```
-{
-    "PoolConfig": {
-        "ChannelPoolConfig": {
-            "ErrorBuffer": 10,
-            "BreakOnInitializeError": false,
-            "MaxInitializeErrorCount": 5,
-            "SleepOnErrorInterval": 50,
-            "CreateChannelRetryCount": 5,
-            "ChannelCount": 25,
-            "AckChannelCount": 25,
-            "GlobalQosCount": 4
-        },
-        "ConnectionPoolConfig": {
-            "URI": "amqp://guest:guest@localhost:5672/",
-            "ErrorBuffer": 1,
-            "BreakOnInitializeError": false,
-            "MaxInitializeErrorCount": 5,
-            "SleepOnErrorInterval": 50,
-            "CreateConnectionRetryCount": 5,
-            "ConnectionCount": 5,
-            "TLSConfig": {
-                "EnableTLS": false,
-                "PEMCertLocation": "test/catest.pem",
-                "LocalCertLocation": "client/cert.ca",
-                "CertServerName": "hostname-in-cert"
+
+    {
+        "PoolConfig": {
+            "ChannelPoolConfig": {
+                "ErrorBuffer": 10,
+                "BreakOnInitializeError": false,
+                "MaxInitializeErrorCount": 5,
+                "SleepOnErrorInterval": 50,
+                "CreateChannelRetryCount": 5,
+                "ChannelCount": 25,
+                "AckChannelCount": 25,
+                "GlobalQosCount": 4
+            },
+            "ConnectionPoolConfig": {
+                "URI": "amqp://guest:guest@localhost:5672/",
+                "ErrorBuffer": 1,
+                "BreakOnInitializeError": false,
+                "MaxInitializeErrorCount": 5,
+                "SleepOnErrorInterval": 50,
+                "CreateConnectionRetryCount": 5,
+                "ConnectionCount": 5,
+                "TLSConfig": {
+                    "EnableTLS": false,
+                    "PEMCertLocation": "test/catest.pem",
+                    "LocalCertLocation": "client/cert.ca",
+                    "CertServerName": "hostname-in-cert"
+                }
             }
-        }
-    },
-    "ConsumerConfigs": {
-        "TurboCookedRabbitConsumer-Ackable": {
-            "QueueName": "ConsumerTestQueue",
-            "ConsumerName": "TurboCookedRabbitConsumer-Ackable",
-            "AutoAck": false,
-            "Exclusive": false,
-            "NoWait": true,
-            "QosCountOverride": 5,
-            "QosSizeOverride": 65535,
-            "MessageBuffer": 10,
-            "ErrorBuffer": 1,
-            "SleepOnErrorInterval": 1000
         },
-        "TurboCookedRabbitConsumer-AutoAck": {
-            "QueueName": "ConsumerTestQueue",
-            "ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-            "AutoAck": true,
-            "Exclusive": false,
-            "NoWait": true,
-            "QosCountOverride": 5,
-            "QosSizeOverride": 65535,
-            "MessageBuffer": 10,
-            "ErrorBuffer": 1,
-            "SleepOnErrorInterval": 1000
+        "ConsumerConfigs": {
+            "TurboCookedRabbitConsumer-Ackable": {
+                "QueueName": "ConsumerTestQueue",
+                "ConsumerName": "TurboCookedRabbitConsumer-Ackable",
+                "AutoAck": false,
+                "Exclusive": false,
+                "NoWait": true,
+                "QosCountOverride": 5,
+                "QosSizeOverride": 65535,
+                "MessageBuffer": 10,
+                "ErrorBuffer": 1,
+                "SleepOnErrorInterval": 1000
+            },
+            "TurboCookedRabbitConsumer-AutoAck": {
+                "QueueName": "ConsumerTestQueue",
+                "ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
+                "AutoAck": true,
+                "Exclusive": false,
+                "NoWait": true,
+                "QosCountOverride": 5,
+                "QosSizeOverride": 65535,
+                "MessageBuffer": 10,
+                "ErrorBuffer": 1,
+                "SleepOnErrorInterval": 1000
+            }
+        },
+        "PublisherConfig":{
+            "SleepOnIdleInterval": 1000,
+            "LetterBuffer": 10,
+            "NotificationBuffer": 10
         }
-    },
-    "PublisherConfig":{
-        "SleepOnIdleInterval": 1000,
-        "LetterBuffer": 10,
-        "NotificationBuffer": 10
     }
-}
-```
+
 </p>
 </details>
 
@@ -353,5 +353,18 @@ I have provided some tools that can be used to help with this. You will see them
     consumer.FlushMessages() // lets say the ackable messages you have can't be acked and you just need to flush them all out of memory
 
 Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAble messages, this is safe. You will merely **wipe them from your memory** and ***they are still in the original queue***.
+
+</p>
+</details>
+
+---
+
+## The Pools
+
+<details><summary>ChannelPools, how do they even work?!</summary>
+<p>
+
+CommingSoon™
+
 </p>
 </details>
