@@ -11,7 +11,9 @@ It was programmed against the following:
 
 If you see any issues with more advanced setups, I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
 
-I also don't have the kind of free time I used to, I apologize in advance but hey that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship.
+I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship.
+
+Also if you see something syntactically wrong, speak up! I am, relatively speaking, an idiot. Also, I am still new to the golang ecosystem. My background is in infrastructure development, C#, and the .NET/NetCore ecosystem, so if any `golang wizards` want to provide advice, please do.
 
 ### Work In Progress
  * Solidify Connections/Pools
@@ -148,7 +150,7 @@ Once you have a publisher, you can perform **StartAutoPublish**!
 
 ```golang
 allowInternalRetry := false
-publisher.StartAutoPublish(allowInternalRetryMechanism)
+publisher.StartAutoPublish(allowInternalRetry)
 
 ListeningForNotificationsLoop:
 for {
@@ -201,7 +203,7 @@ Let's say the above example was too simple for you... ...let's up it a notch on 
 ```golang
 
 allowInternalRetry := true
-publisher.StartAutoPublish(allowInternalRetryMechanism) // this will retry based on the Letter.RetryCount passed in.
+publisher.StartAutoPublish(allowInternalRetry) // this will retry based on the Letter.RetryCount passed in.
 
 timer := time.NewTimer(1 * time.Minute) // Stop Listening to notifications after 1 minute.
 
@@ -243,8 +245,8 @@ ListeningForNotificationsLoop:
 We have finished our work, we **succeeded** or **failed** to publish **1000** messages. So now we want to shutdown everything!
 
 ```golang
-	publisher.StopAutoPublish()
-    // channelPool.Shutdown() // if you have a pointer to your channel pool nearby!
+publisher.StopAutoPublish()
+// channelPool.Shutdown() // if you have a pointer to your channel pool nearby!
 ```
 
 </p>
@@ -260,7 +262,6 @@ We have finished our work, we **succeeded** or **failed** to publish **1000** me
 Again, the ConsumerConfig is just a **quality of life** feature. You don't have to use it.
 
 ```javascript
-...
 "ConsumerConfigs": {
     "TurboCookedRabbitConsumer-Ackable": {
         "QueueName": "ConsumerTestQueue",
@@ -286,8 +287,7 @@ Again, the ConsumerConfig is just a **quality of life** feature. You don't have 
         "ErrorBuffer": 1,
         "SleepOnErrorInterval": 1000
     }
-},
-...
+}
 ```
 
 And finding this object after it was loaded from a JSON file.
@@ -332,7 +332,7 @@ ConsumeMessages:
 <details><summary>Wait! What the hell is coming out of <-Messages()</summary>
 <p>
 
-Great question. I toyed with the idea of retruning Letters (and I may still at some point) but for now you receive a `models.Message`.
+Great question. I toyed with the idea of returning Letters (and I may still at some point) but for now you receive a `models.Message`.
 
 Why? Because the payload/data/message body is here but more importantly contains the means of acking the message! It didn't feel right being merged with a `models.Letter`.
 
@@ -347,28 +347,28 @@ What I have attempted to do is to make your life blissful by not forcing you to 
 That being said, there is only so much I can hide in my library, which is why I have exposed .Errors(), so that you can code accordingly.
 
 ```golang
-	err := consumer.StartConsuming()
-	// Handle failure to start.
+err := consumer.StartConsuming()
+// Handle failure to start.
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1)*time.Minute) // Timeouts
+ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1)*time.Minute) // Timeouts
 
-    ConsumeMessages:
-	for {
-		select {
-		case <-ctx.Done():
-			fmt.Print("\r\nContextTimeout\r\n")
-			break ConsumeMessages
-		case message := <-consumer.Messages(): // View Messages
-			fmt.Printf("Message Received: %s\r\n", string(message.Body))
-		case err := <-consumer.Errors(): // View Consumer errors
-			/* Handle */
-		case err := <-channelPool.Errors(): // View ChannelPool errors
-			/* Handle */
-		default:
-			time.Sleep(100 * time.Millisecond)
-			break
-		}
+ConsumeMessages:
+for {
+    select {
+    case <-ctx.Done():
+        fmt.Print("\r\nContextTimeout\r\n")
+        break ConsumeMessages
+    case message := <-consumer.Messages(): // View Messages
+        fmt.Printf("Message Received: %s\r\n", string(message.Body))
+    case err := <-consumer.Errors(): // View Consumer errors
+        /* Handle */
+    case err := <-channelPool.Errors(): // View ChannelPool errors
+        /* Handle */
+    default:
+        time.Sleep(100 * time.Millisecond)
+        break
     }
+}
 ```
 
 Here you may trigger StopConsuming with this
@@ -399,7 +399,7 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 <details><summary>ChannelPools, how do they even work?!</summary>
 <p>
 
-CommingSoon™
+ComingSoon™
 
 </p>
 </details>
