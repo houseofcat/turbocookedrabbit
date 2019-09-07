@@ -181,7 +181,7 @@ That could be simple like this...
 publisher.QueueLetter(letter) // How simple is that!
 ```
 
-...or more complex like such
+...or more complex such as...
 
 ```golang
 for _, letter := range letters {
@@ -402,12 +402,68 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 
 ## The Pools
 
-### ChannelPools
-
-<details><summary>ChannelPools, how do they even work?!</summary>
+<details><summary>Rabbit Pools, how do they even work?!</summary>
 <p>
 
-ComingSoon™
+ChannelPools are built on top of ConnectionPools and unfortunately, there is a bit of complexity here. Suffice to say I recommend (when creating both pools) to think 1:5 ratio. If you have one Connection, I recommend around 5 Channels to be built on top of it.
+
+Ex.) ConnectionCount: 5 => ChannelPool: 25
+
+I allow most of this to be configured now inside the ChannelPoolConfig and ConnectionPoolConfig. I had previously been hard coding some base variables but that's wrong.
+
+```javascript
+"PoolConfig": {
+    "ChannelPoolConfig": {
+        "ErrorBuffer": 10,
+        "BreakOnInitializeError": false,
+        "MaxInitializeErrorCount": 5,
+        "SleepOnErrorInterval": 50,
+        "CreateChannelRetryCount": 5,
+        "ChannelCount": 25,
+        "AckChannelCount": 25,
+        "GlobalQosCount": 4
+    },
+    "ConnectionPoolConfig": {
+        "URI": "amqp://guest:guest@localhost:5672/",
+        "ErrorBuffer": 1,
+        "BreakOnInitializeError": false,
+        "MaxInitializeErrorCount": 5,
+        "SleepOnErrorInterval": 50,
+        "CreateConnectionRetryCount": 5,
+        "ConnectionCount": 5,
+        "TLSConfig": {
+            "EnableTLS": false,
+            "PEMCertLocation": "test/catest.pem",
+            "LocalCertLocation": "client/cert.ca",
+            "CertServerName": "hostname-in-cert"
+        }
+    }
+},
+```
+
+Feel free to test out what works for yourself. Suffice to say though, there is a chance for a pause/delay/lag when there are no Channels available. High performance on your system may require fine tuning and benchmarking. The thing is though, you can't just add Connections and Channels evenly. First off Connections, server side are not infinite. You can't keep just adding those.
+
+Every sequential Channel you get from the ChannelPool, was made with a different Connection. They are both backed by a Queue data structure, so this means you can't get the same Connection twice in sequence* (*with the exception of probability and concurrency/parallelism). There is a significant chance for greater throughput/performance by essentially load balancing Connections (which boils down to basically TCP sockets). All this means, layman's terms is that each ChannelPool is built off a Round Robin ConnectionPool (TCP Sockets). The ChannelPool itself adds another distribution of load balancing by ensuring every ChannelPool.GetChannel() is also non-sequential (Queue-structure). It's a double layer of Round Robin.
+
+Why am I sharing any of this? Because the ChannelPool / ConnectionPool can be used 100% independently of everything else. You can implement your own fancy RabbitService using just my ConnectionPool and it won't hurt my feelings. Also - it looks complicated. There is a lot going on under the covers that can be confusing without explaining what I was trying to do. Hell you may even see my mistakes! (Submit PR!)
+
+The following code demonstrates one super important part with ChannelPools: **flag erred Channels**. RabbitMQ server closes Channels on error, meaning this guy is dead. You normally won't know it's dead until the next time you use it - and that can mean messages lost. By flagging the channel as dead properly, on the next GetChannel() call - if we get the channel that was just flagged - we discard it and in place make a new fresh Channel for caller to receive.
+
+```golang
+chanHost, err := pub.ChannelPool.GetChannel()
+if err != nil {
+    pub.sendToNotifications(letter.LetterID, err)
+    continue // can't get a channel
+}
+
+pubErr := pub.simplePublish(chanHost.Channel, letter)
+if pubErr != nil {
+    pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
+    continue // flag channel and try again
+}
+```
+
+Unfortunately, there are still times when GetChannel() will fail, which is why we still produce errors and I do return those to you.
 
 </p>
 </details>
@@ -419,7 +475,7 @@ ComingSoon™
 
 Coming from plain `streadway/amqp` there isn't too much to it. Call the right method with the right parameters.
 
-I have however integrated those relatively painless methods now with a ChannelPool and added a TopologyConfig.json style of support for batch topology creation.
+I have however integrated those relatively painless methods now with a ChannelPool and added a `TopologyConfig` for a JSON style of batch topology creation/binding.
 
 Creating an Exchange with a `models.Exchange`
 
