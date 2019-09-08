@@ -2,6 +2,8 @@
  A user friendly RabbitMQ written in Golang.  
  Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
+[![Go Report Card](https://goreportcard.com/badge/github.com/houseofcat/turbocookedrabbit)](https://goreportcard.com/report/github.com/houseofcat/turbocookedrabbit)
+
 ### Developer's Notes
 It was programmed against the following:
 
