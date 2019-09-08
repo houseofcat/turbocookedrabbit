@@ -28,6 +28,80 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 	os.Exit(m.Run())
 }
 
+func TestCreateConsumer(t *testing.T) {
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	assert.True(t, ok)
+
+	con1, err1 := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+	assert.NoError(t, err1)
+	assert.NotNil(t, con1)
+
+	con2, err2 := consumer.NewConsumer(
+		Seasoning,
+		channelPool,
+		"ConsumerTestQueue",
+		"MyConsumerName",
+		false,
+		false,
+		false,
+		nil,
+		0,
+		10,
+		2,
+		0,
+	)
+	assert.NoError(t, err2)
+	assert.NotNil(t, con2)
+}
+
+func TestCreateConsumerAndGet(t *testing.T) {
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	assert.True(t, ok)
+
+	consumer, err := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	_, err = consumer.Get("ConsumerTestQueue", true)
+	assert.NoError(t, err)
+
+	_, err = consumer.Get("ConsumerTestQueue", false)
+	assert.NoError(t, err)
+}
+
+func TestCreateConsumerAndGetBatch(t *testing.T) {
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	assert.True(t, ok)
+
+	consumer, err := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	_, err = consumer.GetBatch("ConsumerTestQueue", 10, true)
+	assert.NoError(t, err)
+
+	_, err = consumer.GetBatch("ConsumerTestQueue", 10, false)
+	assert.NoError(t, err)
+
+	_, err = consumer.GetBatch("ConsumerTestQueue", -1, false)
+	assert.Error(t, err)
+}
+
 func TestCreateConsumerAndPublisher(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)

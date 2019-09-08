@@ -13,6 +13,8 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/models"
 )
 
+// TODO: Investigate the value of Sync.Map instead of map + lock for FlaggedChannels.
+
 // ChannelPool houses the pool of RabbitMQ channels.
 type ChannelPool struct {
 	Config                  models.PoolConfig

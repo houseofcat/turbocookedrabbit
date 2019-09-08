@@ -29,7 +29,7 @@ type Consumer struct {
 	exclusive            bool
 	noLocal              bool
 	noWait               bool
-	args                 map[string]interface{}
+	args                 amqp.Table
 	qosCountOverride     int
 	conLock              *sync.Mutex
 }
@@ -62,7 +62,7 @@ func NewConsumerFromConfig(
 		autoAck:              config.AutoAck,
 		exclusive:            config.Exclusive,
 		noWait:               config.NoWait,
-		args:                 config.Args,
+		args:                 amqp.Table(config.Args),
 		qosCountOverride:     config.QosCountOverride,
 		conLock:              &sync.Mutex{},
 	}, nil
@@ -110,10 +110,95 @@ func NewConsumer(
 		autoAck:              autoAck,
 		exclusive:            exclusive,
 		noWait:               noWait,
-		args:                 args,
+		args:                 amqp.Table(args),
 		qosCountOverride:     qosCountOverride,
 		conLock:              &sync.Mutex{},
 	}, nil
+}
+
+// Get gets a single message from any queue.
+func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error) {
+
+	// Get Channel
+	var chanHost *models.ChannelHost
+	var err error
+
+	if autoAck {
+		chanHost, err = con.channelPool.GetChannel()
+	} else {
+		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Get Single Message
+	amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
+	if getErr != nil {
+		con.channelPool.FlagChannel(chanHost.ChannelID)
+		return nil, getErr
+	}
+
+	if ok {
+		return models.NewMessage(
+			!autoAck,
+			amqpDelivery.Body,
+			amqpDelivery.DeliveryTag,
+			chanHost.Channel), nil
+	}
+
+	return nil, nil
+}
+
+// GetBatch gets a group of messages from any queue.
+func (con *Consumer) GetBatch(queueName string, batchSize int, autoAck bool) ([]*models.Message, error) {
+
+	if batchSize < 1 {
+		return nil, errors.New("can't get a batch of messages whose size is less than 1")
+	}
+
+	// Get Channel
+	var chanHost *models.ChannelHost
+	var err error
+
+	if autoAck {
+		chanHost, err = con.channelPool.GetChannel()
+	} else {
+		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	messages := make([]*models.Message, 0)
+
+	// Get A Batch of Messages
+GetBatchLoop:
+	for {
+		if len(messages) == batchSize {
+			break GetBatchLoop
+		}
+
+		amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
+		if getErr != nil {
+			con.channelPool.FlagChannel(chanHost.ChannelID)
+			return nil, getErr
+		}
+
+		if !ok {
+			break GetBatchLoop
+		}
+
+		messages = append(messages, models.NewMessage(
+			!autoAck,
+			amqpDelivery.Body,
+			amqpDelivery.DeliveryTag,
+			chanHost.Channel))
+	}
+
+	return messages, nil
 }
 
 // StartConsuming starts the Consumer.
