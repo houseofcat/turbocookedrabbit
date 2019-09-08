@@ -276,9 +276,9 @@ message, err = consumer.Get("ConsumerTestQueue", autoAck)
 
 Exit Conditions:
 
- * On Error, Error Return, Nil Message Return
- * On Not Ok, Nil Error Return, Nil Message Return
- * On OK, Nil Error Return, Message Returned
+ * On Error: Error Return, Nil Message Return
+ * On Not Ok: Nil Error Return, Nil Message Return
+ * On OK: Nil Error Return, Message Returned
 
 We also provide a simple Batch version of this call.
 
@@ -294,7 +294,9 @@ Exit Conditions:
  * On Not Ok: Nil Error Return, Available Messages Return (0 upto (nth - 1) message)
  * When BatchSize is Reached: Nil Error Return, All Messages Return (n messages)
 
-Since `autoAck=false` is an option will want to have some post processing **ack/nack/rejects**.
+Since `autoAck=false` is an option you will want to have some post processing **ack/nack/rejects**.
+
+Here is what that may look like:
 
 ```golang
 requeueError := true
@@ -377,9 +379,20 @@ ConsumeMessages:
     for {
         select {
         case message := <-consumer.Messages():
+
+            requeueError := false
+            var err error
             /* Do something with the message! */
+            if message.IsAckable { // Message might be Ackable - be sure to check!
+                if err != nil {
+                    message.Nack(requeueError)
+                }
+
+                message.Acknowledge()
+            }
+
         default:
-            time.Sleep(100 * time.Millisecond)
+            time.Sleep(100 * time.Millisecond) // No messages == optional nap time.
         }
     }
 ```
