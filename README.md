@@ -264,10 +264,62 @@ publisher.StopAutoPublish()
 
 ## The Consumer
 
-<details><summary>Click for a Consumer example!</summary>
+<details><summary>Click for simple Consumer usage example!</summary>
 <p>
 
-Again, the ConsumerConfig is just a **quality of life** feature. You don't have to use it.
+Consumer provides a simple Get and GetBatch much like the Publisher has a simple Publish.
+
+```golang
+autoAck := true
+message, err = consumer.Get("ConsumerTestQueue", autoAck)
+```
+
+Exit Conditions:
+
+ * On Error, Error Return, Nil Message Return
+ * On Not Ok, Nil Error Return, Nil Message Return
+ * On OK, Nil Error Return, Message Returned
+
+We also provide a simple Batch version of this call.
+
+
+```golang
+autoAck := false
+messages, err = consumer.GetBatch("ConsumerTestQueue", 10, autoAck)
+```
+
+Exit Conditions:
+
+ * On Error: Error Return, Nil Messages Return
+ * On Not Ok: Nil Error Return, Available Messages Return (0 upto (nth - 1) message)
+ * When BatchSize is Reached: Nil Error Return, All Messages Return (n messages)
+
+Since `autoAck=false` is an option will want to have some post processing **ack/nack/rejects**.
+
+```golang
+requeueError := true
+for _, message := range messages {
+    /* Do some processing with message */
+
+    if err != nil {
+        message.Nack(requeueError)
+    }
+
+    message.Acknowledge()
+}
+```
+
+</p>
+</details>
+
+---
+
+<details><summary>Click for an actual Consumer consuming example!</summary>
+<p>
+
+Let's start with the ConsumerConfig, and again, the config is just a **quality of life** feature. You don't have to use it.
+
+Here is a **JSON map/dictionary** wrapped in a **ConsumerConfigs**.
 
 ```javascript
 "ConsumerConfigs": {
@@ -318,7 +370,7 @@ consumer.StartConsuming()
 
 Thats it! Wait where our my messages?! MY QUEUE IS DRAINING!
 
-Oh, right! That's over here, keeping with the *out of process design*.
+Oh, right! That's over here, keeping with the ***out of process design***...
 
 ```golang
 ConsumeMessages:
@@ -340,9 +392,9 @@ ConsumeMessages:
 <details><summary>Wait! What the hell is coming out of <-Messages()</summary>
 <p>
 
-Great question. I toyed with the idea of returning Letters (and I may still at some point) but for now you receive a `models.Message`.
+Great question. I toyed with the idea of returning Letters like Publisher uses (and I may still at some point) but for now you receive a `models.Message`.
 
-Why? Because the payload/data/message body is here but more importantly contains the means of acking the message! It didn't feel right being merged with a `models.Letter`.
+***But... why***? Because the payload/data/message body is in there but, more importantly, it contains the means of quickly acking the message! It didn't feel right being merged with a `models.Letter`. I may revert and use the base `amqp.Delivery` which does all this and more... I just didn't want users to have to also pull in `streadway/amqp` to simplify their imports. If you were already using it wouldn't be an issue. This design is still being code reviewed in my head.
 
 One of the complexities of RabbitMQ is that you need to Acknowledge off the same Channel that it was received on. That makes out of process designs like mine prone to two things: hackery and/or memory leaks (passing the channels around everywhere WITH messages).
 
@@ -352,7 +404,7 @@ There are two things I **hate** about RabbitMQ
 
 What I have attempted to do is to make your life blissful by not forcing you to deal with it. The rules are still there, but hopefully, I give you the tools to not stress out about it and to simplify **out of process** acknowledgements.
 
-That being said, there is only so much I can hide in my library, which is why I have exposed .Errors(), so that you can code accordingly.
+That being said, there is only so much I can hide in my library, which is why I have exposed .Errors(), so that you can code and log accordingly.
 
 ```golang
 err := consumer.StartConsuming()

@@ -77,6 +77,9 @@ func TestCreateConsumerAndGet(t *testing.T) {
 
 	_, err = consumer.Get("ConsumerTestQueue", false)
 	assert.NoError(t, err)
+
+	_, err = consumer.Get("ConsumerTestQueue2", false)
+	assert.Error(t, err)
 }
 
 func TestCreateConsumerAndGetBatch(t *testing.T) {
