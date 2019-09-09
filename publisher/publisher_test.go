@@ -12,6 +12,7 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/publisher"
+	"github.com/houseofcat/turbocookedrabbit/topology"
 	"github.com/houseofcat/turbocookedrabbit/utils"
 )
 
@@ -44,6 +45,9 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
+
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool)
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -95,6 +99,9 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	channelPool.FlushErrors()
 
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool)
+
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
@@ -136,6 +143,9 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
+
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool)
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -203,6 +213,9 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
 	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
 
+	// Purge all queues.
+	purgeAllPublisherTestQueues(channelPool)
+
 	// Shut down everything.
 	publisher.StopAutoPublish()
 	channelPool.Shutdown()
@@ -217,7 +230,8 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
@@ -255,6 +269,7 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
+	var notification *models.Notification
 ListeningForNotificationsLoop:
 	for {
 		select {
@@ -265,33 +280,25 @@ ListeningForNotificationsLoop:
 				failureCount++
 			}
 			break
-		case notification := <-publisher1.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher2.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
+		case notification = <-publisher1.Notifications():
+		case notification = <-publisher2.Notifications():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
+		}
+
+		if notification != nil {
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			notification = nil
+		}
+
+		if successCount+failureCount == publisherMultiple*messageCount {
+			break ListeningForNotificationsLoop
 		}
 	}
 
@@ -303,6 +310,9 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Failure Count: %d\r\n", failureCount)
 	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
+
+	// Purge all queues.
+	purgeAllPublisherTestQueues(channelPool)
 
 	// Shut down everything.
 	publisher1.StopAutoPublish()
@@ -320,6 +330,9 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
+
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
@@ -371,67 +384,39 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
+	var notification *models.Notification
 ListeningForNotificationsLoop:
 	for {
 		select {
 		case <-timer.C:
+			fmt.Printf(" == Timeout Occurred == ")
 			break ListeningForNotificationsLoop
 		case chanErr := <-channelPool.Errors():
 			if chanErr != nil {
 				failureCount++
 			}
 			break
-		case notification := <-publisher1.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher2.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher3.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher4.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
+		case notification = <-publisher1.Notifications():
+		case notification = <-publisher2.Notifications():
+		case notification = <-publisher3.Notifications():
+		case notification = <-publisher4.Notifications():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
+		}
+
+		if notification != nil {
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			notification = nil
+		}
+
+		if successCount+failureCount == publisherMultiple*messageCount {
+			break ListeningForNotificationsLoop
 		}
 	}
 
@@ -443,6 +428,9 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Failure Count: %d\r\n", failureCount)
 	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
+
+	// Purge all queues.
+	purgeAllPublisherTestQueues(channelPool)
 
 	// Shut down everything.
 	publisher1.StopAutoPublish()
@@ -471,6 +459,12 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	assert.NoError(t, err)
 
 	channelPool1.FlushErrors()
+	channelPool2.FlushErrors()
+	channelPool3.FlushErrors()
+	channelPool4.FlushErrors()
+
+	// Purge all queues first.
+	purgeAllPublisherTestQueues(channelPool1)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool1, nil)
 	assert.NoError(t, p1Err)
@@ -522,62 +516,33 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
+	var notification *models.Notification
 ListeningForNotificationsLoop:
 	for {
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case notification := <-publisher1.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher2.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher3.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
-		case notification := <-publisher4.Notifications():
-			if notification.Success {
-				successCount++
-			} else {
-				failureCount++
-			}
-
-			if successCount+failureCount == publisherMultiple*messageCount {
-				break ListeningForNotificationsLoop
-			}
-
-			break
+		case notification = <-publisher1.Notifications():
+		case notification = <-publisher2.Notifications():
+		case notification = <-publisher3.Notifications():
+		case notification = <-publisher4.Notifications():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
+		}
+
+		if notification != nil {
+			if notification.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+
+			notification = nil
+		}
+
+		if successCount+failureCount == publisherMultiple*messageCount {
+			break ListeningForNotificationsLoop
 		}
 	}
 
@@ -590,6 +555,9 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Time Elapsed: %s\r\n", elapsed)
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
+	// Purge all queues.
+	purgeAllPublisherTestQueues(channelPool1)
+
 	// Shut down everything.
 	publisher1.StopAutoPublish()
 	publisher2.StopAutoPublish()
@@ -599,4 +567,11 @@ ListeningForNotificationsLoop:
 	channelPool2.Shutdown()
 	channelPool3.Shutdown()
 	channelPool4.Shutdown()
+}
+
+func purgeAllPublisherTestQueues(channelPool *pools.ChannelPool) {
+	topologer := topology.NewTopologer(channelPool)
+	for i := 0; i < 10; i++ {
+		topologer.PurgeQueue(fmt.Sprintf("TestQueue-%d", i), false)
+	}
 }

@@ -232,31 +232,9 @@ GetChannelOuterLoop:
 			break
 		}
 
-		// Get Channel
-		var chanHost *models.ChannelHost
-		var err error
-
-		if con.autoAck {
-			chanHost, err = con.channelPool.GetChannel()
-		} else {
-			chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
-		}
-
+		deliveryChan, chanHost, err := con.getDeliveryChannel()
 		if err != nil {
-			con.handleError(err)
-			continue // Retry
-		}
-
-		// Quality of Service channel overrides
-		if con.qosCountOverride > 0 {
-			chanHost.Channel.Qos(con.qosCountOverride, 0, false)
-		}
-
-		// Start Consuming
-		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
-		if err != nil {
-			con.handleErrorAndFlagChannel(err, chanHost.ChannelID)
-			continue // Retry
+			continue // retry
 		}
 
 	GetDeliveriesInnerLoop:
@@ -269,7 +247,6 @@ GetChannelOuterLoop:
 			case errorMessage := <-chanHost.CloseErrors():
 				if errorMessage != nil {
 					con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
-					con.channelPool.FlagChannel(chanHost.ChannelID)
 
 					cancel()
 					break GetDeliveriesInnerLoop
@@ -322,6 +299,39 @@ GetChannelOuterLoop:
 	con.conLock.Unlock()
 }
 
+// GetDeliveryChannel attempts to get the amqp.Delivery chan and a viable ChannelHost from the ChannelPool.
+func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.ChannelHost, error) {
+
+	// Get Channel
+	var chanHost *models.ChannelHost
+	var err error
+
+	if con.autoAck {
+		chanHost, err = con.channelPool.GetChannel()
+	} else {
+		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+	}
+
+	if err != nil {
+		con.handleError(err)
+		return nil, nil, err
+	}
+
+	// Quality of Service channel overrides
+	if con.qosCountOverride > 0 {
+		chanHost.Channel.Qos(con.qosCountOverride, 0, false)
+	}
+
+	// Start Consuming
+	deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
+	if err != nil {
+		con.handleErrorAndFlagChannel(err, chanHost.ChannelID)
+		return nil, nil, err // Retry
+	}
+
+	return deliveryChan, chanHost, nil
+}
+
 // StopConsuming allows you to signal stop to the consumer.
 // Will stop on the consumer channelclose or responding to signal after getting all remaining deviveries.
 func (con *Consumer) StopConsuming(immediate bool) error {
@@ -366,8 +376,7 @@ func (con *Consumer) convertDelivery(ctx context.Context, amqpChan *amqp.Channel
 		isAckable,
 		delivery.Body,
 		delivery.DeliveryTag,
-		amqpChan,
-	)
+		amqpChan)
 
 	go func() {
 		defer con.messageGroup.Done() // finished after getting the message in the channel

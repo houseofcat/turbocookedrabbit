@@ -180,8 +180,8 @@ func TestReadTopologyConfig(t *testing.T) {
 }
 
 func TestCreateTopologyFromTopologyConfig(t *testing.T) {
-	fileNamePath := "testtopology.json"
 
+	fileNamePath := "testtopology.json"
 	assert.FileExists(t, fileNamePath)
 
 	topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
@@ -193,6 +193,18 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	topologer := topology.NewTopologer(channelPool)
 	assert.NoError(t, err)
 
-	err = topologer.BuildToplogy(topologyConfig, false)
+	err = topologer.BuildToplogy(topologyConfig, true)
+	assert.NoError(t, err)
+}
+
+func TestUnbindQueue(t *testing.T) {
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	assert.NoError(t, err)
+
+	topologer := topology.NewTopologer(channelPool)
+	assert.NoError(t, err)
+
+	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
 	assert.NoError(t, err)
 }

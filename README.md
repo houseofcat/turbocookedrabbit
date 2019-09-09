@@ -294,7 +294,7 @@ Exit Conditions:
  * On Not Ok: Nil Error Return, Available Messages Return (0 upto (nth - 1) message)
  * When BatchSize is Reached: Nil Error Return, All Messages Return (n messages)
 
-Since `autoAck=false` is an option you will want to have some post processing **ack/nack/rejects**.
+Since `autoAck=false` is an option so you will want to have some post processing **ack/nack/rejects**.
 
 Here is what that may look like:
 
