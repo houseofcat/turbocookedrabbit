@@ -220,13 +220,13 @@ func (con *Consumer) StartConsuming() error {
 
 func (con *Consumer) startConsuming() {
 
-GetChannelOuterLoop:
+ConsumerOuterLoop:
 	for {
 		// Detect if we should stop.
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
-				break GetChannelOuterLoop
+				break ConsumerOuterLoop
 			}
 		default:
 			break
@@ -237,43 +237,9 @@ GetChannelOuterLoop:
 			continue // retry
 		}
 
-	GetDeliveriesInnerLoop:
-		for {
-			ctx, cancel := context.WithCancel(context.Background())
-
-			// Listen for channel closure (close errors).
-			// Highest priority so separated to it's own select.
-			select {
-			case errorMessage := <-chanHost.CloseErrors():
-				if errorMessage != nil {
-					con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
-
-					cancel()
-					break GetDeliveriesInnerLoop
-				}
-			default:
-				break
-			}
-
-			// Convert amqp.Delivery into our internal struct for later use.
-			select {
-			case delivery := <-deliveryChan: // all buffered deliveries are wipe on a channel close error
-				con.messageGroup.Add(1)
-				con.convertDelivery(ctx, chanHost.Channel, &delivery, !con.autoAck)
-			default:
-				break
-			}
-
-			// Detect if we should stop.
-			select {
-			case stop := <-con.consumeStop:
-				if stop {
-					cancel()
-					break GetChannelOuterLoop
-				}
-			default:
-				break
-			}
+		//ProcessDeliveries InnerLoop - Returns true when consumer stop is called.
+		if con.processDeliveries(deliveryChan, chanHost) {
+			break ConsumerOuterLoop
 		}
 
 		// Quality of Service channel overrides reset
@@ -330,6 +296,51 @@ func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.Channel
 	}
 
 	return deliveryChan, chanHost, nil
+}
+
+// ProcessDeliveries is the inner loop for processing the deliveries and returns true to break outer loop.
+func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *models.ChannelHost) bool {
+
+ProcessDeliveriesInnerLoop:
+	for {
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Listen for channel closure (close errors).
+		// Highest priority so separated to it's own select.
+		select {
+		case errorMessage := <-chanHost.CloseErrors():
+			if errorMessage != nil {
+				con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
+
+				cancel()
+				break ProcessDeliveriesInnerLoop
+			}
+		default:
+			break
+		}
+
+		// Convert amqp.Delivery into our internal struct for later use.
+		select {
+		case delivery := <-deliveryChan: // all buffered deliveries are wipe on a channel close error
+			con.messageGroup.Add(1)
+			con.convertDelivery(ctx, chanHost.Channel, &delivery, !con.autoAck)
+		default:
+			break
+		}
+
+		// Detect if we should stop.
+		select {
+		case stop := <-con.consumeStop:
+			if stop {
+				cancel()
+				return true
+			}
+		default:
+			break
+		}
+	}
+
+	return false
 }
 
 // StopConsuming allows you to signal stop to the consumer.
