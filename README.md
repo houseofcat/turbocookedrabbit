@@ -17,7 +17,6 @@ I also don't have the kind of free time I used to. I apologize in advance but, h
 
 Also if you see something syntactically wrong, speak up! I am, relatively speaking, an idiot. Also, I am still new to the golang ecosystem. My background is in infrastructure development, C#, and the .NET/NetCore ecosystem, so if any `golang wizards` want to provide advice, please do.
 
-
 ### Work Recently Finished
  * Solidify Connections/Pools
  * Solidify Consumers
@@ -531,6 +530,59 @@ if pubErr != nil {
 ```
 
 Unfortunately, there are still times when GetChannel() will fail, which is why we still produce errors and I do return those to you.
+
+</p>
+</details>
+
+--
+
+<details><summary>Click here to see how to build a Connection and Channel Pool!</summary>
+<p>
+
+Um... this is all you have to do:
+
+```golang
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
+```
+
+Then you want to Initiate the Pools (this builds your Connections and Channels)
+
+```golang
+connectionPool.Initialize()
+channelPool.Initialize()
+```
+
+I saw this as rather cumbersome... so I provided some short-cuts. The following instantiates a ConnectionPool internally to the ChannelPool. The only thing you lose here is the ability to share or use the ConnectionPool independently of the ChannelPool.
+
+```golang
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+channelPool.Initialize()
+```
+
+So now you will more than likely want to directly use the ChannelPool.
+
+```golang
+channelHost, err := channelPool.GetChannel()
+```
+
+This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer. You can use the channels for yourself if you just like the idea of backing your code behind a ChannelPool/ConnectionPool.
+
+```golang
+channelHost, err := channelPool.GetChannel()
+channelHost.Channel.Publish(
+		exchangeName,
+		routingKey,
+		mandatory,
+		immediate,
+		amqp.Publishing{
+			ContentType: contentType,
+			Body:        body,
+		},
+	)
+```
+
+I am working on streamlining the ChannelHost integration with ChannelPool. I want to allow communication between the two by flowing Channel errors up to pool/group. It's a bit clunky currently but I am still thinking how best to do such a thing. Ideally all Channel errors (CloseErrors) would be subscribed to and perhaps AutoFlag the channels as dead and I can consolidate my code if that's determine reliable.
 
 </p>
 </details>
