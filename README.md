@@ -534,12 +534,12 @@ Unfortunately, there are still times when GetChannel() will fail, which is why w
 </p>
 </details>
 
---
+---
 
 <details><summary>Click here to see how to build a Connection and Channel Pool!</summary>
 <p>
 
-Um... this is all you have to do:
+Um... this is the easy way to do is with the Configs.
 
 ```golang
 connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
@@ -549,6 +549,8 @@ channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, f
 Then you want to Initiate the Pools (this builds your Connections and Channels)
 
 ```golang
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
 connectionPool.Initialize()
 channelPool.Initialize()
 ```
@@ -556,17 +558,34 @@ channelPool.Initialize()
 I saw this as rather cumbersome... so I provided some short-cuts. The following instantiates a ConnectionPool internally to the ChannelPool. The only thing you lose here is the ability to share or use the ConnectionPool independently of the ChannelPool.
 
 ```golang
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
+channelPool.Initialize() // auto-initializes the ConnectionPool...
+```
+But I am still pretty lazy.
+
+```golang
 channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
 channelPool.Initialize()
 ```
 
-So now you will more than likely want to directly use the ChannelPool.
+</p>
+</details>
+
+---
+
+<details><summary>Click here to see how to get and use a Channel!</summary>
+<p>
+
+So now you will more than likely want to use your ChannelPool.
 
 ```golang
 channelHost, err := channelPool.GetChannel()
 ```
 
-This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer. You can use the channels for yourself if you just like the idea of backing your code behind a ChannelPool/ConnectionPool.
+This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer. You can use the ChannelPools yourself if you just like the idea of backing your already existing code behind a ChannelPool/ConnectionPool.
+
+The Publisher/Consumer/Topologer all use code similar to this!
 
 ```golang
 channelHost, err := channelPool.GetChannel()
