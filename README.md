@@ -465,18 +465,17 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 </details>
 
 ---
+
 <details><summary>Click for CPU & MEM Profiling!</summary>
 <p>
 
 I have no idea what any of this means!
 
-![CPU Profile](./consumer/cpu.svg)
-<img src="./consumer/cpu.svg">
+![CPU Profile](./consumer/cpu.svg=800x1200)
 
 I eat crayons!
 
-![MEM Profile](./consumer/mem.svg)
-<img src="./consumer/mem.svg">
+![MEM Profile](./consumer/mem.svg=800x1200)
 
 </p>
 </details>
