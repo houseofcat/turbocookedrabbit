@@ -471,14 +471,16 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 
 I have no idea what any of this means!
 
-![CPU Profile](./consumer/cpu.svg=800x1200)
+![CPU Profile](./consumer/cpu.svg =800x1200)
 
 I eat crayons!
 
-![MEM Profile](./consumer/mem.svg=800x1200)
+![MEM Profile](./consumer/mem.svg =800x1200)
 
 </p>
 </details>
+
+---
 
 ## The Pools
 
@@ -620,6 +622,8 @@ I am working on streamlining the ChannelHost integration with ChannelPool. I wan
 </p>
 </details>
 
+---
+
 ## The Topologer
 
 <details><summary>How do I create/delete/bind queues and exchanges?</summary>
@@ -674,6 +678,8 @@ if err != nil {
 
 </p>
 </details>
+
+---
 
 <details><summary>How do I do this in bulk?</summary>
 <p>
@@ -753,3 +759,5 @@ That's it really. In the future I will have more features. Just know that I thin
 
 </p>
 </details>
+
+---
