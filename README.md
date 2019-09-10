@@ -471,11 +471,11 @@ Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAb
 
 I have no idea what any of this means!
 
-![CPU Profile](./consumer/cpu.svg =800x1200)
+<img src="./consumer/cpu.svg" width=600 height=1200 >
 
 I eat crayons!
 
-![MEM Profile](./consumer/mem.svg =800x1200)
+<img src="./consumer/mem.svg" width=800 height=600 >
 
 </p>
 </details>
