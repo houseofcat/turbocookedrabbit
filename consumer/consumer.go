@@ -1,7 +1,6 @@
 package consumer
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"sync"
@@ -303,8 +302,6 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 
 ProcessDeliveriesInnerLoop:
 	for {
-		ctx, cancel := context.WithCancel(context.Background())
-
 		// Listen for channel closure (close errors).
 		// Highest priority so separated to it's own select.
 		select {
@@ -312,7 +309,6 @@ ProcessDeliveriesInnerLoop:
 			if errorMessage != nil {
 				con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
 
-				cancel()
 				break ProcessDeliveriesInnerLoop
 			}
 		default:
@@ -323,7 +319,7 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case delivery := <-deliveryChan: // all buffered deliveries are wipe on a channel close error
 			con.messageGroup.Add(1)
-			con.convertDelivery(ctx, chanHost.Channel, &delivery, !con.autoAck)
+			con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 		default:
 			break
 		}
@@ -332,7 +328,6 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
-				cancel()
 				return true
 			}
 		default:
@@ -345,7 +340,9 @@ ProcessDeliveriesInnerLoop:
 
 // StopConsuming allows you to signal stop to the consumer.
 // Will stop on the consumer channelclose or responding to signal after getting all remaining deviveries.
-func (con *Consumer) StopConsuming(immediate bool) error {
+// FlushMessages empties the internal buffer of messages received by queue. Ackable messages are still in
+// RabbitMQ queue, while noAck messages will unfortunately be lost. Use wisely.
+func (con *Consumer) StopConsuming(immediate bool, flushMessages bool) error {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
@@ -353,9 +350,14 @@ func (con *Consumer) StopConsuming(immediate bool) error {
 		return errors.New("can't stop a stopped consumer")
 	}
 
-	con.stopImmediate = true
+	con.stopImmediate = immediate
+	con.consumeStop <- true
 
-	go func() { con.consumeStop <- true }()
+	// This helps terminate all goroutines trying to add messages too.
+	if flushMessages {
+		con.FlushMessages()
+	}
+
 	return nil
 }
 
@@ -382,7 +384,7 @@ func (con *Consumer) Errors() <-chan error {
 	return con.errors
 }
 
-func (con *Consumer) convertDelivery(ctx context.Context, amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
+func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
 	msg := models.NewMessage(
 		isAckable,
 		delivery.Body,
@@ -392,13 +394,7 @@ func (con *Consumer) convertDelivery(ctx context.Context, amqpChan *amqp.Channel
 	go func() {
 		defer con.messageGroup.Done() // finished after getting the message in the channel
 
-		select {
-		case <-ctx.Done():
-			break
-		default:
-			con.messages <- msg
-		}
-
+		con.messages <- msg
 	}()
 }
 

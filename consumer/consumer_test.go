@@ -197,7 +197,7 @@ ConsumeMessages:
 			fmt.Printf("UpperLoop: %s\r\n", notice.ToString())
 		case message := <-consumer.Messages():
 			fmt.Printf("Message Received: %s\r\n", string(message.Body))
-			consumer.StopConsuming(false)
+			consumer.StopConsuming(false, true)
 			break ConsumeMessages
 		case err := <-consumer.Errors():
 			assert.NoError(t, err)
@@ -293,8 +293,7 @@ ConsumeMessages:
 	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
 	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
 
-	consumer.StopConsuming(true)
-	consumer.FlushMessages()
+	consumer.StopConsuming(false, true)
 	publisher.StopAutoPublish()
 	channelPool.Shutdown()
 	cancel()
@@ -349,7 +348,7 @@ ConsumeMessages:
 		case <-channelPool.Errors():
 			channelPoolErrors++
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 			break
 		}
 
@@ -364,8 +363,7 @@ ConsumeMessages:
 	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
 	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
 
-	consumer.StopConsuming(true)
-	consumer.FlushMessages()
+	consumer.StopConsuming(true, true)
 	publisher.StopAutoPublish()
 	channelPool.Shutdown()
 	cancel()
