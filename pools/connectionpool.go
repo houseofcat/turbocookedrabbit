@@ -252,15 +252,22 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 
 		var err error
 
-		if cp.enableTLS { // Replacement Connection
-			connectionHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
-			if err != nil {
-				return nil, err
+		// Do not leave without a good Connection.
+		for connectionHost == nil {
+			if cp.enableTLS { // Replacement Connection
+				connectionHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
+				if err != nil {
+					continue
+				}
+			} else { // Replacement Connection
+				connectionHost, err = cp.createConnectionHost(connectionHost.ConnectionID)
+				if err != nil {
+					continue
+				}
 			}
-		} else { // Replacement Connection
-			connectionHost, err = cp.createConnectionHost(connectionHost.ConnectionID)
-			if err != nil {
-				return nil, err
+
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
 			}
 		}
 
