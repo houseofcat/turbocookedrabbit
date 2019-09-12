@@ -1,7 +1,6 @@
 package publisher
 
 import (
-	"errors"
 	"sync"
 	"time"
 
@@ -65,7 +64,11 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 	}
 
 	pubErr := pub.simplePublish(chanHost.Channel, letter)
-	pub.sendToNotifications(letter.LetterID, pubErr)
+	if pubErr != nil {
+		pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
+	} else {
+		pub.sendToNotifications(letter.LetterID, pubErr)
+	}
 }
 
 // PublishWithRetry sends a single message to the address on the letter with retry capabilities.
@@ -154,13 +157,9 @@ func (pub *Publisher) StopAutoPublish() {
 }
 
 // QueueLetter queues up a letter that will be consumed by AutoPublish.
-// Error signals that the AutoPublish hasn't started yet.
+// Blocks on the Letter Buffer being full.
 func (pub *Publisher) QueueLetter(letter *models.Letter) error {
-	if !pub.AutoPublishStarted() {
-		return errors.New("can't add letters to the internal queue if AutoPublish has not been started")
-	}
-
-	go func() { pub.letters <- letter }()
+	pub.letters <- letter
 	return nil
 }
 

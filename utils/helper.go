@@ -1,6 +1,11 @@
 package utils
 
-import "github.com/houseofcat/turbocookedrabbit/models"
+import (
+	"math/rand"
+	"unsafe"
+
+	"github.com/houseofcat/turbocookedrabbit/models"
+)
 
 // CreateLetter creates a mock letter for publishing.
 func CreateLetter(exchangeName string, queueName string, body []byte) *models.Letter {
@@ -24,4 +29,33 @@ func CreateLetter(exchangeName string, queueName string, body []byte) *models.Le
 		Body:       body,
 		Envelope:   envelope,
 	}
+}
+
+const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+const (
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
+)
+
+// RandomString generates a Random string.
+// var src = rand.NewSource(time.Now().UnixNano())
+//https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go
+func RandomString(size int, src rand.Source) string {
+
+	b := make([]byte, size)
+	// A src.Int63() generates 63 random bits, enough for letterIdxMax characters!
+	for i, cache, remain := size-1, src.Int63(), letterIdxMax; i >= 0; {
+		if remain == 0 {
+			cache, remain = src.Int63(), letterIdxMax
+		}
+		if idx := int(cache & letterIdxMask); idx < len(letterBytes) {
+			b[i] = letterBytes[idx]
+			i--
+		}
+		cache >>= letterIdxBits
+		remain--
+	}
+
+	return *(*string)(unsafe.Pointer(&b))
 }

@@ -21,12 +21,20 @@ Also if you see something syntactically wrong, speak up! I am, relatively speaki
  * Solidify Connections/Pools
  * Solidify Consumers
  * Topology Support
+ * Started Profiling and including Benchmark/Profile .svgs.
+
+### Current Known Issues
+ * CPU/MEM spin up on a total server outage even after adjusting config.
+   * Channels in ChannelPool aren't redistributing evenly over Connections.
+ * Consumer stops working after server outage restore.
+   * Publisher is still working though.
 
 ### Work In Progress
+ * Fixing CPU/MEM spin up on server outage.
+ * Streamline error handling.
  * Documentation
- * Streamline error propagations to the surface (end-user).
  * A solid Demo Client
- * Chaos Engineering / More Tests
+ * More Chaos Engineering / More Tests
 
 ## The Seasoning/Config
 

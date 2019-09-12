@@ -18,6 +18,8 @@ import (
 )
 
 var Seasoning *models.RabbitSeasoning
+var ConnectionPool *pools.ConnectionPool
+var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
@@ -25,6 +27,9 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 	if err != nil {
 		return
 	}
+	ConnectionPool, _ = pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, true)
+	ChannelPool, _ = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+
 	os.Exit(m.Run())
 }
 
@@ -367,4 +372,96 @@ ConsumeMessages:
 	publisher.StopAutoPublish()
 	channelPool.Shutdown()
 	cancel()
+}
+
+func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
+	b.ReportAllocs()
+
+	timeDuration := time.Duration(5 * time.Minute)
+	timeOut := time.After(timeDuration)
+	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
+	fmt.Printf("Est. Becnhmark End: %s\r\n", time.Now().Add(timeDuration))
+
+	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+
+	publisher.StartAutoPublish(false)
+
+	letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+
+	go func() {
+	PublishLoop:
+		for {
+			select {
+			case <-timeOut:
+				break PublishLoop
+			default:
+				publisher.QueueLetter(&(*letter))
+				time.Sleep(1 * time.Millisecond)
+			}
+		}
+	}()
+
+	consumer.StartConsuming()
+
+	messagesReceived := 0
+	messagesPublished := 0
+	messagesFailedToPublish := 0
+	messagesAcked := 0
+	messagesFailedToAck := 0
+	consumerErrors := 0
+	channelPoolErrors := 0
+	connectionPoolErrors := 0
+
+ConsumeLoop:
+	for {
+		select {
+		case <-timeOut:
+			break ConsumeLoop
+		case notice := <-publisher.Notifications():
+			if notice.Success {
+				messagesPublished++
+				notice = nil
+			} else {
+				messagesFailedToPublish++
+				notice = nil
+			}
+		case <-ChannelPool.Errors():
+			channelPoolErrors++
+		case <-ConnectionPool.Errors():
+			connectionPoolErrors++
+		case <-consumer.Errors():
+			consumerErrors++
+		case message := <-consumer.Messages():
+			messagesReceived++
+			go func(msg *models.Message) {
+				err := msg.Acknowledge()
+				if err != nil {
+					messagesFailedToAck++
+				} else {
+					messagesAcked++
+				}
+				msg = nil
+			}(message)
+			message = nil
+		}
+	}
+
+	fmt.Printf("ChannelPool Errors: %d\r\n", channelPoolErrors)
+	fmt.Printf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
+
+	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
+	fmt.Printf("Messages Acked: %d\r\n", messagesAcked)
+	fmt.Printf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
+	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+
+	fmt.Printf("Messages Published: %d\r\n", messagesPublished)
+	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+	publisher.StopAutoPublish()
+
+	consumer.StopConsuming(false, true)
+
+	ChannelPool.Shutdown()
 }
