@@ -100,6 +100,7 @@ func (cp *ChannelPool) initialize() bool {
 			return false
 		}
 
+		cp.channelID++
 		cp.channels.Put(channelHost)
 	}
 
@@ -111,6 +112,7 @@ func (cp *ChannelPool) initialize() bool {
 			return false
 		}
 
+		cp.channelID++
 		cp.ackChannels.Put(channelHost)
 	}
 
@@ -125,33 +127,18 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 		return nil, err
 	}
 
-	if connHost.Connection.IsClosed() {
-		cp.connectionPool.FlagConnection(connHost.ConnectionID)
-		return nil, err
-	}
-
-	amqpChan, err := connHost.Connection.Channel()
+	channelHost, err := models.NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID)
 	if err != nil {
-		cp.connectionPool.FlagConnection(connHost.ConnectionID)
 		return nil, err
 	}
 
 	if cp.globalQosCount > 0 {
-		amqpChan.Qos(cp.globalQosCount, 0, true)
-	}
-
-	channelHost := &models.ChannelHost{
-		Channel:          amqpChan,
-		ChannelID:        channelID,
-		ConnectionID:     connHost.ConnectionID,
-		ConnectionClosed: connHost.Connection.IsClosed,
+		channelHost.Channel.Qos(cp.globalQosCount, 0, true)
 	}
 
 	if ackable {
 		channelHost.Channel.Confirm(cp.ackNoWait)
 	}
-
-	cp.channelID++
 
 	return channelHost, nil
 }
@@ -201,13 +188,9 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 		break
 	}
 
-	// Between these three states we do our best to determine that a channel is dead in the various
+	// Between these two states we do our best to determine that a channel is dead in the various
 	// lifecycles.
-	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
-
-		if channelHost.ConnectionClosed() {
-			cp.connectionPool.FlagConnection(channelHost.ConnectionID)
-		}
+	if notifiedClosed || cp.IsChannelFlagged(channelHost.ChannelID) {
 
 		replacementChannelID := channelHost.ChannelID
 		channelHost = nil
@@ -267,11 +250,9 @@ func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 
 	// Between these two states we do our best to determine that a channel is dead in the various
 	// lifecycles.
-	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
+	if notifiedClosed || cp.IsChannelFlagged(channelHost.ChannelID) {
 
-		if channelHost.ConnectionClosed() {
-			cp.connectionPool.FlagConnection(channelHost.ConnectionID)
-		}
+		cp.connectionPool.FlagConnection(channelHost.ConnectionID)
 
 		replacementChannelID := channelHost.ChannelID
 		channelHost = nil
@@ -308,25 +289,25 @@ func (cp *ChannelPool) AckChannelCount() int64 {
 	return cp.ackChannels.Len() // Locking
 }
 
-// UnflagChannel flags that connection as usable in the future.
-func (cp *ChannelPool) UnflagChannel(connectionID uint64) {
+// UnflagChannel flags that channel as usable in the future.
+func (cp *ChannelPool) UnflagChannel(channelID uint64) {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
-	cp.flaggedChannels[connectionID] = false
+	cp.flaggedChannels[channelID] = false
 }
 
-// FlagChannel flags that connection as non-usable in the future.
-func (cp *ChannelPool) FlagChannel(connectionID uint64) {
+// FlagChannel flags that channel as non-usable in the future.
+func (cp *ChannelPool) FlagChannel(channelID uint64) {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
-	cp.flaggedChannels[connectionID] = true
+	cp.flaggedChannels[channelID] = true
 }
 
-// IsChannelFlagged checks to see if the connection has been flagged for removal.
-func (cp *ChannelPool) IsChannelFlagged(connectionID uint64) bool {
+// IsChannelFlagged checks to see if the channel has been flagged for removal.
+func (cp *ChannelPool) IsChannelFlagged(channelID uint64) bool {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
-	if flagged, ok := cp.flaggedChannels[connectionID]; ok {
+	if flagged, ok := cp.flaggedChannels[channelID]; ok {
 		return flagged
 	}
 

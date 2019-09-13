@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
-	"github.com/streadway/amqp"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/utils"
@@ -16,22 +15,19 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	Config                     models.ConnectionPoolConfig
-	Initialized                bool
-	uri                        string
-	enableTLS                  bool
-	tlsConfig                  *tls.Config
-	errors                     chan error
-	connections                *queue.Queue
-	maxConnections             uint64
-	connectionID               uint64
-	poolLock                   *sync.Mutex
-	connectionLock             int32
-	flaggedConnections         map[uint64]bool
-	createConnectionRetryCount uint16
-	sleepOnErrorInterval       time.Duration
-	breakOnInitializeError     bool
-	maxInitializeErrorCount    uint16
+	Config               models.ConnectionPoolConfig
+	Initialized          bool
+	uri                  string
+	enableTLS            bool
+	tlsConfig            *tls.Config
+	errors               chan error
+	connections          *queue.Queue
+	maxConnections       uint64
+	connectionID         uint64
+	poolLock             *sync.Mutex
+	connectionLock       int32
+	flaggedConnections   map[uint64]bool
+	sleepOnErrorInterval time.Duration
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
@@ -113,6 +109,7 @@ func (cp *ConnectionPool) initialize() bool {
 			return false
 		}
 
+		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
 
@@ -127,6 +124,7 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 			return false
 		}
 
+		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
 
@@ -136,19 +134,7 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 // CreateConnectionHost creates the Connection with RabbitMQ server.
 func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.ConnectionHost, error) {
 
-	amqpConn, err := amqp.Dial(cp.uri)
-	if err != nil {
-		return nil, err
-	}
-
-	connectionHost := &models.ConnectionHost{
-		Connection:   amqpConn,
-		ConnectionID: connectionID,
-	}
-
-	cp.connectionID++
-
-	return connectionHost, nil
+	return models.NewConnectionHost(cp.uri, connectionID)
 }
 
 // CreateConnectionHostWithTLS creates the Connection with RabbitMQ server.
@@ -157,28 +143,8 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 		return nil, errors.New("tls enabled but tlsConfig has not been created")
 	}
 
-	amqpConn, err := amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
-	if err != nil {
-		return nil, err
-	}
-
-	connectionHost := &models.ConnectionHost{
-		Connection:   amqpConn,
-		ConnectionID: cp.connectionID,
-	}
-
-	cp.connectionID++
-
-	return connectionHost, nil
+	return models.NewConnectionHostWithTLS(cp.uri, connectionID, cp.tlsConfig)
 }
-
-/* func (cp *ConnectionPool) handleError(err error) {
-	go func() { cp.errors <- err }()
-
-	if cp.sleepOnErrorInterval > 0 {
-		time.Sleep(cp.sleepOnErrorInterval)
-	}
-} */
 
 // Errors yields all the internal errs for creating connections.
 func (cp *ConnectionPool) Errors() <-chan error {
@@ -217,13 +183,15 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 		break
 	}
 
+	// Makes debugging easier
+	connectionClosed := connectionHost.Connection.IsClosed()
+	connectionFlagged := cp.IsConnectionFlagged(connectionHost.ConnectionID)
+
 	// Between these three states we do our best to determine that a connection is dead in the various
 	// lifecycles.
-	if notifiedClosed || connectionHost.Connection.IsClosed() || cp.IsConnectionFlagged(connectionHost.ConnectionID) {
+	if notifiedClosed || connectionClosed || connectionFlagged {
 
-		if connectionHost.Connection.IsClosed() {
-			cp.FlagConnection(connectionHost.ConnectionID)
-		}
+		cp.FlagConnection(connectionHost.ConnectionID)
 
 		var err error
 		replacementConnectionID := connectionHost.ConnectionID

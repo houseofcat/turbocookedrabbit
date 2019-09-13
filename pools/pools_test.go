@@ -12,6 +12,8 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/utils"
+
+	"github.com/streadway/amqp"
 )
 
 var Seasoning *models.RabbitSeasoning
@@ -269,4 +271,100 @@ func TestGetChannelAfterKillingChannelPool(t *testing.T) {
 	chanHost, err := channelPool.GetChannel()
 	assert.Nil(t, chanHost)
 	assert.Error(t, err)
+}
+
+func TestGetConnectionDuringOutage(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, true)
+	assert.NoError(t, err)
+
+	iterations := 0
+	maxIterationCount := 120
+
+	// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
+	for iterations < maxIterationCount {
+		connHost, err := connectionPool.GetConnection()
+		if err != nil {
+			fmt.Printf("%s: Error - GetConnectionHost: %s\r\n", time.Now(), err)
+		} else {
+			fmt.Printf("%s: GotConnectionHost\r\n", time.Now())
+			amqpChan, err := connHost.Connection.Channel()
+			if err != nil {
+				fmt.Printf("%s: Error - CreateChannel: %s\r\n", time.Now(), err)
+			} else {
+
+				fmt.Printf("%s: ChannelCreated\r\n", time.Now())
+				time.Sleep(250 * time.Millisecond)
+
+				err = amqpChan.Close()
+				if err != nil {
+					fmt.Printf("%s: Error - CloseChannel: %s\r\n", time.Now(), err)
+				} else {
+					fmt.Printf("%s: ChannelClosed\r\n", time.Now())
+				}
+			}
+		}
+
+		iterations++
+		time.Sleep(1 * time.Second)
+	}
+
+	assert.Equal(t, iterations, maxIterationCount)
+	connectionPool.Shutdown()
+}
+
+func TestGetChannelDuringOutage(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	iterations := 0
+	maxIterationCount := 120
+
+	// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
+	for iterations < maxIterationCount {
+
+		chanHost, err := channelPool.GetChannel()
+
+		if err != nil {
+			fmt.Printf("%s: Error - GetChannelHost: %s\r\n", time.Now(), err)
+		} else {
+			fmt.Printf("%s: GotChannelHost\r\n", time.Now())
+
+			select {
+			case <-chanHost.CloseErrors():
+				fmt.Printf("%s: Error - ChannelClose: %s\r\n", time.Now(), err)
+			default:
+				break
+			}
+
+			letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+			err := chanHost.Channel.Publish(
+				letter.Envelope.Exchange,
+				letter.Envelope.RoutingKey,
+				letter.Envelope.Mandatory, // publish doesn't appear to work when true
+				letter.Envelope.Immediate, // publish doesn't appear to work when true
+				amqp.Publishing{
+					ContentType: letter.Envelope.ContentType,
+					Body:        letter.Body,
+				},
+			)
+
+			if err != nil {
+				fmt.Printf("%s: Error - ChannelPublish: %s\r\n", time.Now(), err)
+				channelPool.FlagChannel(chanHost.ChannelID)
+				fmt.Printf("%s: ChannelFlaggedForRemoval\r\n", time.Now())
+			} else {
+				fmt.Printf("%s: ChannelPublishSuccess\r\n", time.Now())
+			}
+		}
+
+		iterations++
+		time.Sleep(1 * time.Second)
+	}
+
+	assert.Equal(t, iterations, maxIterationCount)
+	channelPool.Shutdown()
 }

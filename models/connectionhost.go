@@ -2,8 +2,6 @@ package models
 
 import (
 	"crypto/tls"
-	"fmt"
-	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -16,23 +14,16 @@ type ConnectionHost struct {
 }
 
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.
-func (ch *ConnectionHost) NewConnectionHost(
+func NewConnectionHost(
 	uri string,
-	connectionID uint64,
-	retryCount uint32) (*ConnectionHost, error) {
+	connectionID uint64) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var err error
 
-	for i := retryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.Dial(uri)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	if amqpConn == nil {
-		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
+	amqpConn, err = amqp.Dial(uri)
+	if err != nil {
+		return nil, err
 	}
 
 	connectionHost := &ConnectionHost{
@@ -41,30 +32,23 @@ func (ch *ConnectionHost) NewConnectionHost(
 		closeErrors:  make(chan *amqp.Error, 1),
 	}
 
-	amqpConn.NotifyClose(ch.closeErrors)
+	connectionHost.Connection.NotifyClose(connectionHost.closeErrors)
 
 	return connectionHost, nil
 }
 
 // NewConnectionHostWithTLS creates a simple ConnectionHost wrapper for management by end-user developer.
-func (ch *ConnectionHost) NewConnectionHostWithTLS(
+func NewConnectionHostWithTLS(
 	certServerName string,
 	connectionID uint64,
-	tlsConfig *tls.Config,
-	retryCount uint32) (*ConnectionHost, error) {
+	tlsConfig *tls.Config) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var err error
 
-	for i := retryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.DialTLS("amqps://"+certServerName, tlsConfig)
-		if err != nil {
-			time.Sleep(1 * time.Second)
-		}
-	}
-
-	if amqpConn == nil {
-		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
+	amqpConn, err = amqp.DialTLS("amqps://"+certServerName, tlsConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	connectionHost := &ConnectionHost{
@@ -72,7 +56,7 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 		ConnectionID: connectionID,
 	}
 
-	amqpConn.NotifyClose(ch.closeErrors)
+	connectionHost.Connection.NotifyClose(connectionHost.closeErrors)
 
 	return connectionHost, nil
 }

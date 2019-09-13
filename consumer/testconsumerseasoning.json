@@ -5,6 +5,7 @@
 			"SleepOnErrorInterval": 1000,
 			"ChannelCount": 50,
 			"AckChannelCount": 50,
+			"AckNoWait": false,
 			"GlobalQosCount": 5
 		},
 		"ConnectionPoolConfig": {
