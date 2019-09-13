@@ -506,26 +506,26 @@ I allow most of this to be configured now inside the ChannelPoolConfig and Conne
 
 ```javascript
 "PoolConfig": {
-	"ChannelPoolConfig": {
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 1000,
-		"ChannelCount": 50,
-		"AckChannelCount": 50,
-		"AckNoWait": false,
-		"GlobalQosCount": 5
-	},
-	"ConnectionPoolConfig": {
-		"URI": "amqp://guest:guest@localhost:5672/",
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 5000,
-		"MaxConnectionCount": 10,
-		"TLSConfig": {
-			"EnableTLS": false,
-			"PEMCertLocation": "test/catest.pem",
-			"LocalCertLocation": "client/cert.ca",
-			"CertServerName": "hostname-in-cert"
-		}
-	}
+    "ChannelPoolConfig": {
+        "ErrorBuffer": 10,
+        "SleepOnErrorInterval": 1000,
+        "MaxChannelCount": 50,
+        "MaxAckChannelCount": 50,
+        "AckNoWait": false,
+        "GlobalQosCount": 5
+    },
+    "ConnectionPoolConfig": {
+        "URI": "amqp://guest:guest@localhost:5672/",
+        "ErrorBuffer": 10,
+        "SleepOnErrorInterval": 5000,
+        "MaxConnectionCount": 10,
+        "TLSConfig": {
+            "EnableTLS": false,
+            "PEMCertLocation": "test/catest.pem",
+            "LocalCertLocation": "client/cert.ca",
+            "CertServerName": "hostname-in-cert"
+        }
+    }
 },
 ```
 
