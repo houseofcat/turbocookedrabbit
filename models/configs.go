@@ -17,8 +17,8 @@ type PoolConfig struct {
 type ChannelPoolConfig struct {
 	ErrorBuffer          uint16 `json:"ErrorBuffer"`
 	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"` // sleep length on errors
-	ChannelCount         uint64 `json:"ChannelCount"`
-	AckChannelCount      uint64 `json:"AckChannelCount"`
+	MaxChannelCount      uint64 `json:"MaxChannelCount"`
+	MaxAckChannelCount   uint64 `json:"MaxAckChannelCount"`
 	AckNoWait            bool   `json:"AckNoWait"`
 	GlobalQosCount       int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
 }
@@ -29,7 +29,7 @@ type ConnectionPoolConfig struct {
 	ErrorBuffer          uint16     `json:"ErrorBuffer"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
 	EnableTLS            bool       `json:"EnableTLS"`            // Use TLSConfig to create connections with AMQPS uri.
-	ConnectionCount      uint64     `json:"ConnectionCount"`      // number of connections to create in the pool
+	MaxConnectionCount   uint64     `json:"MaxConnectionCount"`   // number of connections to create in the pool
 	TLSConfig            *TLSConfig `json:"TLSConfig"`            // TLS settings for connection with AMQPS.
 }
 

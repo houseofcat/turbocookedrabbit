@@ -15,58 +15,62 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	Config               models.ConnectionPoolConfig
-	Initialized          bool
-	uri                  string
-	enableTLS            bool
-	tlsConfig            *tls.Config
-	errors               chan error
-	connections          *queue.Queue
-	maxConnections       uint64
-	connectionID         uint64
-	poolLock             *sync.Mutex
-	connectionLock       int32
-	flaggedConnections   map[uint64]bool
-	sleepOnErrorInterval time.Duration
+	Config                     models.PoolConfig
+	Initialized                bool
+	uri                        string
+	enableTLS                  bool
+	tlsConfig                  *tls.Config
+	errors                     chan error
+	connections                *queue.Queue
+	maxConnections             uint64
+	maxChannelPerConnection    uint64
+	maxAckChannelPerConnection uint64
+	connectionID               uint64
+	poolLock                   *sync.Mutex
+	connectionLock             int32
+	flaggedConnections         map[uint64]bool
+	sleepOnErrorInterval       time.Duration
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 // Needs to be Initialize() afterwards.
 func NewConnectionPool(
-	config *models.ConnectionPoolConfig,
+	config *models.PoolConfig,
 	initializeNow bool) (*ConnectionPool, error) {
 
 	var tlsConfig *tls.Config
 	var err error
 
-	if config.EnableTLS {
-		if config.TLSConfig == nil {
+	if config.ConnectionPoolConfig.EnableTLS {
+		if config.ConnectionPoolConfig.TLSConfig == nil {
 			return nil, errors.New("can't enable TLS when TLS config is nil")
 		}
 
 		tlsConfig, err = utils.CreateTLSConfig(
-			config.TLSConfig.PEMCertLocation,
-			config.TLSConfig.LocalCertLocation)
+			config.ConnectionPoolConfig.TLSConfig.PEMCertLocation,
+			config.ConnectionPoolConfig.TLSConfig.LocalCertLocation)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if config.ErrorBuffer == 0 {
+	if config.ConnectionPoolConfig.ErrorBuffer == 0 {
 		return nil, errors.New("can't create a ConnectionPool when the ErrorBuffer value is 0")
 	}
 
 	cp := &ConnectionPool{
-		Config:               *config,
-		uri:                  config.URI,
-		enableTLS:            config.EnableTLS,
-		tlsConfig:            tlsConfig,
-		errors:               make(chan error, config.ErrorBuffer),
-		maxConnections:       config.ConnectionCount,
-		connections:          queue.New(int64(config.ConnectionCount)), // possible overflow error
-		poolLock:             &sync.Mutex{},
-		flaggedConnections:   make(map[uint64]bool),
-		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		Config:                     *config,
+		uri:                        config.ConnectionPoolConfig.URI,
+		enableTLS:                  config.ConnectionPoolConfig.EnableTLS,
+		tlsConfig:                  tlsConfig,
+		errors:                     make(chan error, config.ConnectionPoolConfig.ErrorBuffer),
+		maxConnections:             config.ConnectionPoolConfig.MaxConnectionCount,
+		maxChannelPerConnection:    config.ChannelPoolConfig.MaxChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
+		maxAckChannelPerConnection: config.ChannelPoolConfig.MaxAckChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
+		connections:                queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
+		poolLock:                   &sync.Mutex{},
+		flaggedConnections:         make(map[uint64]bool),
+		sleepOnErrorInterval:       time.Duration(config.ConnectionPoolConfig.SleepOnErrorInterval) * time.Millisecond,
 	}
 
 	if initializeNow {
@@ -85,7 +89,7 @@ func (cp *ConnectionPool) Initialize() error {
 	if !cp.Initialized {
 		ok := false
 
-		if cp.Config.EnableTLS {
+		if cp.Config.ConnectionPoolConfig.EnableTLS {
 			ok = cp.initializeWithTLS()
 		} else {
 			ok = cp.initialize()
@@ -94,7 +98,7 @@ func (cp *ConnectionPool) Initialize() error {
 		if ok {
 			cp.Initialized = true
 		} else {
-			return errors.New("initialization failed during creating connections")
+			return errors.New("initialization failed during connection creation")
 		}
 	}
 
@@ -134,7 +138,7 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 // CreateConnectionHost creates the Connection with RabbitMQ server.
 func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.ConnectionHost, error) {
 
-	return models.NewConnectionHost(cp.uri, connectionID)
+	return models.NewConnectionHost(cp.uri, connectionID, cp.maxChannelPerConnection, cp.maxAckChannelPerConnection)
 }
 
 // CreateConnectionHostWithTLS creates the Connection with RabbitMQ server.
@@ -143,7 +147,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 		return nil, errors.New("tls enabled but tlsConfig has not been created")
 	}
 
-	return models.NewConnectionHostWithTLS(cp.uri, connectionID, cp.tlsConfig)
+	return models.NewConnectionHostWithTLS(cp.uri, connectionID, cp.maxChannelPerConnection, cp.maxAckChannelPerConnection, cp.tlsConfig)
 }
 
 // Errors yields all the internal errs for creating connections.

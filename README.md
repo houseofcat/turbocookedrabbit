@@ -503,31 +503,26 @@ I allow most of this to be configured now inside the ChannelPoolConfig and Conne
 
 ```javascript
 "PoolConfig": {
-    "ChannelPoolConfig": {
-        "ErrorBuffer": 10,
-        "BreakOnInitializeError": false,
-        "MaxInitializeErrorCount": 5,
-        "SleepOnErrorInterval": 50,
-        "CreateChannelRetryCount": 5,
-        "ChannelCount": 25,
-        "AckChannelCount": 25,
-        "GlobalQosCount": 4
-    },
-    "ConnectionPoolConfig": {
-        "URI": "amqp://guest:guest@localhost:5672/",
-        "ErrorBuffer": 1,
-        "BreakOnInitializeError": false,
-        "MaxInitializeErrorCount": 5,
-        "SleepOnErrorInterval": 50,
-        "CreateConnectionRetryCount": 5,
-        "ConnectionCount": 5,
-        "TLSConfig": {
-            "EnableTLS": false,
-            "PEMCertLocation": "test/catest.pem",
-            "LocalCertLocation": "client/cert.ca",
-            "CertServerName": "hostname-in-cert"
-        }
-    }
+	"ChannelPoolConfig": {
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 1000,
+		"ChannelCount": 50,
+		"AckChannelCount": 50,
+		"AckNoWait": false,
+		"GlobalQosCount": 5
+	},
+	"ConnectionPoolConfig": {
+		"URI": "amqp://guest:guest@localhost:5672/",
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 5000,
+		"MaxConnectionCount": 10,
+		"TLSConfig": {
+			"EnableTLS": false,
+			"PEMCertLocation": "test/catest.pem",
+			"LocalCertLocation": "client/cert.ca",
+			"CertServerName": "hostname-in-cert"
+		}
+	}
 },
 ```
 
@@ -568,14 +563,14 @@ Unfortunately, there are still times when GetChannel() will fail, which is why w
 Um... this is the easy way to do is with the Configs.
 
 ```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
 ```
 
 Then you want to Initiate the Pools (this builds your Connections and Channels)
 
 ```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
 connectionPool.Initialize()
 channelPool.Initialize()
@@ -584,7 +579,7 @@ channelPool.Initialize()
 I saw this as rather cumbersome... so I provided some short-cuts. The following instantiates a ConnectionPool internally to the ChannelPool. The only thing you lose here is the ability to share or use the ConnectionPool independently of the ChannelPool.
 
 ```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
 channelPool.Initialize() // auto-initializes the ConnectionPool...
 ```

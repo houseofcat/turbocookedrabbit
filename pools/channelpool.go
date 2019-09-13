@@ -40,7 +40,7 @@ func NewChannelPool(
 
 	if connPool == nil {
 		var err error // If connPool is nil, create one here.
-		connPool, err = NewConnectionPool(config.ConnectionPoolConfig, true)
+		connPool, err = NewConnectionPool(config, true)
 		if err != nil {
 			return nil, err
 		}
@@ -50,10 +50,10 @@ func NewChannelPool(
 		Config:               *config,
 		connectionPool:       connPool,
 		errors:               make(chan error, config.ChannelPoolConfig.ErrorBuffer),
-		maxChannels:          config.ChannelPoolConfig.ChannelCount,
-		maxAckChannels:       config.ChannelPoolConfig.AckChannelCount,
-		channels:             queue.New(int64(config.ChannelPoolConfig.ChannelCount)),
-		ackChannels:          queue.New(int64(config.ChannelPoolConfig.AckChannelCount)),
+		maxChannels:          config.ChannelPoolConfig.MaxChannelCount,
+		maxAckChannels:       config.ChannelPoolConfig.MaxAckChannelCount,
+		channels:             queue.New(int64(config.ChannelPoolConfig.MaxChannelCount)),
+		ackChannels:          queue.New(int64(config.ChannelPoolConfig.MaxAckChannelCount)),
 		poolLock:             &sync.Mutex{},
 		flaggedChannels:      make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
@@ -126,11 +126,24 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 	if err != nil {
 		return nil, err
 	}
+
 	defer cp.connectionPool.ReturnConnection(connHost)
+
+	if ackable && !connHost.CanAddAckChannel() {
+		return nil, errors.New("can't add more ackable channels to this connection")
+	} else if !connHost.CanAddChannel() {
+		return nil, errors.New("can't add more channels to this connection")
+	}
 
 	channelHost, err := models.NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
 	if err != nil {
 		return nil, err
+	}
+
+	if ackable {
+		connHost.AddAckChannel()
+	} else {
+		connHost.AddChannel()
 	}
 
 	if cp.globalQosCount > 0 {
@@ -146,10 +159,6 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 
 func (cp *ChannelPool) handleError(err error) {
 	go func() { cp.errors <- err }()
-
-	if cp.sleepOnErrorInterval > 0 {
-		time.Sleep(cp.sleepOnErrorInterval)
-	}
 }
 
 // Errors yields all the internal errs for creating connections.
