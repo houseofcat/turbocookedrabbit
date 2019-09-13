@@ -446,9 +446,7 @@ ConsumeLoop:
 				} else {
 					messagesAcked++
 				}
-				msg = nil
 			}(message)
-			message = nil
 		}
 	}
 
