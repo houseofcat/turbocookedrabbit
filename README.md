@@ -20,19 +20,22 @@ Also if you see something syntactically wrong, speak up! I am, relatively speaki
 ### Work Recently Finished
  * Solidify Connections/Pools
  * Solidify Consumers
- * Topology Support
+ * Properly handle total outages server side.
+ * Refactor the reconnection logic.
+   * Now everything stops/pauses until connectivity is restored.
+ * RabbitMQ Topology Creation/Destruction Support
  * Started Profiling and including Benchmark/Profile .svgs.
 
 ### Current Known Issues
- * CPU/MEM spin up on a total server outage even after adjusting config.
-   * Channels in ChannelPool aren't redistributing evenly over Connections.
- * Consumer stops working after server outage restore.
+ * ~CPU/MEM spin up on a total server outage even after adjusting config.~
+   * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
+ * ~Consumer stops working after server outage restore.~
    * Publisher is still working though.
+ * README.md needs comments/updates related to new work (9/13/2019 - 7:10 PM EST)
 
 ### Work In Progress
- * Fixing CPU/MEM spin up on server outage.
  * Streamline error handling.
- * Documentation
+ * More Documentation
  * A solid Demo Client
  * More Chaos Engineering / More Tests
 
