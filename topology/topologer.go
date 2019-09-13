@@ -126,6 +126,8 @@ func (top *Topologer) CreateExchange(
 		return err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	if passiveDeclare {
 		err = chanHost.Channel.ExchangeDeclarePassive(exchangeName, exchangeType, durable, autoDelete, internal, noWait, amqp.Table(args))
 		if err != nil {
@@ -152,6 +154,8 @@ func (top *Topologer) CreateExchangeFromConfig(exchange *models.Exchange) error 
 	if err != nil {
 		return err
 	}
+
+	defer top.channelPool.ReturnChannel(chanHost)
 
 	if exchange.PassiveDeclare {
 		err = chanHost.Channel.ExchangeDeclarePassive(
@@ -196,6 +200,8 @@ func (top *Topologer) ExchangeBind(exchangeBinding *models.ExchangeBinding) erro
 		return err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	err = chanHost.Channel.ExchangeBind(
 		exchangeBinding.ExchangeName,
 		exchangeBinding.RoutingKey,
@@ -221,6 +227,8 @@ func (top *Topologer) ExchangeDelete(
 		return err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	err = chanHost.Channel.ExchangeDelete(exchangeName, ifUnused, noWait)
 	if err != nil {
 		top.channelPool.FlagChannel(chanHost.ChannelID)
@@ -237,6 +245,8 @@ func (top *Topologer) ExchangeUnbind(exchangeName, routingKey, parentExchangeNam
 	if err != nil {
 		return err
 	}
+
+	defer top.channelPool.ReturnChannel(chanHost)
 
 	err = chanHost.Channel.ExchangeUnbind(
 		exchangeName,
@@ -268,6 +278,8 @@ func (top *Topologer) CreateQueue(
 		return err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	if passiveDeclare {
 		_, err = chanHost.Channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
 		if err != nil {
@@ -294,6 +306,8 @@ func (top *Topologer) CreateQueueFromConfig(queue *models.Queue) error {
 	if err != nil {
 		return err
 	}
+
+	defer top.channelPool.ReturnChannel(chanHost)
 
 	if queue.PassiveDeclare {
 		_, err = chanHost.Channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
@@ -322,6 +336,8 @@ func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (
 		return 0, err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	count, err := chanHost.Channel.QueueDelete(name, ifUnused, ifEmpty, noWait)
 	if err != nil {
 		top.channelPool.FlagChannel(chanHost.ChannelID)
@@ -338,6 +354,8 @@ func (top *Topologer) QueueBind(queueBinding *models.QueueBinding) error {
 	if err != nil {
 		return err
 	}
+
+	defer top.channelPool.ReturnChannel(chanHost)
 
 	err = chanHost.Channel.QueueBind(
 		queueBinding.QueueName,
@@ -356,6 +374,7 @@ func (top *Topologer) QueueBind(queueBinding *models.QueueBinding) error {
 
 // PurgeQueues purges each Queue provided.
 func (top *Topologer) PurgeQueues(queueNames []string, noWait bool) (int, error) {
+
 	if queueNames == nil || len(queueNames) == 0 {
 		return 0, errors.New("can't purge an empty array of queues")
 	}
@@ -381,6 +400,8 @@ func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 		return 0, err
 	}
 
+	defer top.channelPool.ReturnChannel(chanHost)
+
 	count, err := chanHost.Channel.QueuePurge(
 		queueName,
 		noWait)
@@ -400,6 +421,8 @@ func (top *Topologer) UnbindQueue(queueName, routingKey, exchangeName string, ar
 	if err != nil {
 		return err
 	}
+
+	defer top.channelPool.ReturnChannel(chanHost)
 
 	err = chanHost.Channel.QueueUnbind(
 		queueName,

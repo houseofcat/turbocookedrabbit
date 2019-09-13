@@ -11,6 +11,7 @@ type ChannelHost struct {
 	Channel        *amqp.Channel
 	ChannelID      uint64
 	ConnectionID   uint64
+	ackable        bool
 	ErrorMessages  chan *ErrorMessage
 	ReturnMessages chan *ReturnMessage
 	closeErrors    chan *amqp.Error
@@ -21,7 +22,8 @@ type ChannelHost struct {
 func NewChannelHost(
 	amqpConn *amqp.Connection,
 	channelID uint64,
-	connectionID uint64) (*ChannelHost, error) {
+	connectionID uint64,
+	ackable bool) (*ChannelHost, error) {
 
 	if amqpConn.IsClosed() {
 		return nil, errors.New("can't open a channel - connection is already closed")
@@ -36,6 +38,7 @@ func NewChannelHost(
 		Channel:        amqpChan,
 		ChannelID:      channelID,
 		ConnectionID:   connectionID,
+		ackable:        ackable,
 		ErrorMessages:  make(chan *ErrorMessage, 1),
 		ReturnMessages: make(chan *ReturnMessage, 1),
 		closeErrors:    make(chan *amqp.Error, 1),
@@ -72,4 +75,9 @@ func (ch *ChannelHost) Returns() <-chan *ReturnMessage {
 	}
 
 	return ch.ReturnMessages
+}
+
+// IsAckable determines if this host contains an ackable channel.
+func (ch *ChannelHost) IsAckable() bool {
+	return ch.ackable
 }

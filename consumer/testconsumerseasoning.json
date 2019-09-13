@@ -32,7 +32,7 @@
 			"MessageBuffer": 100,
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
-			"SleepOnIdleInterval": 5
+			"SleepOnIdleInterval": 1000
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
 			"QueueName": "ConsumerTestQueue",
@@ -44,12 +44,12 @@
 			"MessageBuffer": 100,
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
-			"SleepOnIdleInterval": 5
+			"SleepOnIdleInterval": 1000
 		}
 	},
 	"PublisherConfig":{
 		"SleepOnIdleInterval": 100,
-		"LetterBuffer": 100,
-		"NotificationBuffer": 100
+		"LetterBuffer": 1,
+		"NotificationBuffer": 1
 	}
 }

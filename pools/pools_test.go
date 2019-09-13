@@ -305,6 +305,7 @@ func TestGetConnectionDuringOutage(t *testing.T) {
 				}
 			}
 		}
+		connectionPool.ReturnConnection(connHost)
 
 		iterations++
 		time.Sleep(1 * time.Second)
@@ -327,7 +328,6 @@ func TestGetChannelDuringOutage(t *testing.T) {
 	for iterations < maxIterationCount {
 
 		chanHost, err := channelPool.GetChannel()
-
 		if err != nil {
 			fmt.Printf("%s: Error - GetChannelHost: %s\r\n", time.Now(), err)
 		} else {
@@ -360,7 +360,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 				fmt.Printf("%s: ChannelPublishSuccess\r\n", time.Now())
 			}
 		}
-
+		channelPool.ReturnChannel(chanHost)
 		iterations++
 		time.Sleep(1 * time.Second)
 	}

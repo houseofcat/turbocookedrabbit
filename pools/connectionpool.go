@@ -156,7 +156,7 @@ func (cp *ConnectionPool) Errors() <-chan error {
 // Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	if atomic.LoadInt32(&cp.connectionLock) > 0 {
-		return nil, errors.New("can't get connection - connection pool is being shutdown")
+		return nil, errors.New("can't get connection - connection pool has been shutdown")
 	}
 
 	if !cp.Initialized {
@@ -203,28 +203,32 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 			if cp.enableTLS { // Replacement Connection
 				connectionHost, err = cp.createConnectionHostWithTLS(replacementConnectionID)
 				if err != nil {
+					if cp.sleepOnErrorInterval > 0 {
+						time.Sleep(cp.sleepOnErrorInterval)
+					}
 					continue
 				}
 			} else { // Replacement Connection
 				connectionHost, err = cp.createConnectionHost(replacementConnectionID)
 				if err != nil {
+					if cp.sleepOnErrorInterval > 0 {
+						time.Sleep(cp.sleepOnErrorInterval)
+					}
 					continue
 				}
-			}
-
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
 			}
 		}
 
 		cp.UnflagConnection(replacementConnectionID)
 	}
 
-	// Puts the connection back in the queue while also returning a pointer to the caller.
-	// This creates a Round Robin on Connections and their resources.
-	cp.connections.Put(connectionHost)
-
 	return connectionHost, nil
+}
+
+// ReturnConnection puts the connection back in the queue.
+// This helps maintain a Round Robin on Connections and their resources.
+func (cp *ConnectionPool) ReturnConnection(connHost *models.ConnectionHost) {
+	cp.connections.Put(connHost)
 }
 
 // ConnectionCount flags that connection as usable in the future. Careful, locking call.
@@ -272,6 +276,8 @@ func (cp *ConnectionPool) Shutdown() {
 		cp.flaggedConnections = make(map[uint64]bool)
 		cp.connectionID = 0
 		cp.Initialized = false
+
+		cp.FlushErrors()
 	}
 
 	// Release connection lock (0)

@@ -136,10 +136,13 @@ func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error
 		return nil, err
 	}
 
+	defer con.channelPool.ReturnChannel(chanHost)
+
 	// Get Single Message
 	amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
 	if getErr != nil {
 		con.channelPool.FlagChannel(chanHost.ChannelID)
+		con.channelPool.ReturnChannel(chanHost)
 		return nil, getErr
 	}
 
@@ -187,6 +190,7 @@ GetBatchLoop:
 		amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
 		if getErr != nil {
 			con.channelPool.FlagChannel(chanHost.ChannelID)
+			con.channelPool.ReturnChannel(chanHost)
 			return nil, getErr
 		}
 
@@ -304,7 +308,7 @@ ProcessDeliveriesInnerLoop:
 		case errorMessage := <-chanHost.CloseErrors():
 			if errorMessage != nil {
 				con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
-
+				con.channelPool.ReturnChannel(chanHost)
 				break ProcessDeliveriesInnerLoop
 			}
 		default:
@@ -318,12 +322,14 @@ ProcessDeliveriesInnerLoop:
 			con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 		default:
 			time.Sleep(con.sleepOnIdleInterval)
+			break
 		}
 
 		// Detect if we should stop.
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
+				con.channelPool.ReturnChannel(chanHost)
 				return true
 			}
 		default:
@@ -369,10 +375,6 @@ func (con *Consumer) handleErrorAndFlagChannel(err error, channelID uint64) {
 
 func (con *Consumer) handleError(err error) {
 	go func() { con.errors <- err }()
-
-	if con.sleepOnErrorInterval > 0 {
-		time.Sleep(con.sleepOnErrorInterval * time.Millisecond)
-	}
 }
 
 // Errors yields all the internal errs for consuming messages.

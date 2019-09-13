@@ -126,8 +126,9 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 	if err != nil {
 		return nil, err
 	}
+	defer cp.connectionPool.ReturnConnection(connHost)
 
-	channelHost, err := models.NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID)
+	channelHost, err := models.NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
 	if err != nil {
 		return nil, err
 	}
@@ -211,11 +212,17 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 		cp.UnflagChannel(replacementChannelID)
 	}
 
-	// Puts the connection back in the queue while also returning a pointer to the caller.
-	// This creates a Round Robin on Connections and their resources.
-	cp.channels.Put(channelHost)
-
 	return channelHost, nil
+}
+
+// ReturnChannel puts the connection back in the queue while also returning a pointer to the caller.
+// Developer has to manually return the Channel and helps maintain a Round Robin on Channels and their resources.
+func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost) {
+	if chanHost.IsAckable() {
+		cp.ackChannels.Put(chanHost)
+	} else {
+		cp.channels.Put(chanHost)
+	}
 }
 
 // GetAckableChannel gets an ackable channel based on whats available in AckChannelPool queue.
@@ -261,11 +268,10 @@ func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 
 			channelHost, err = cp.createChannelHost(replacementChannelID, true)
 			if err != nil {
+				if cp.sleepOnErrorInterval > 0 {
+					time.Sleep(cp.sleepOnErrorInterval)
+				}
 				continue
-			}
-
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
 			}
 		}
 

@@ -543,12 +543,14 @@ The following code demonstrates one super important part with ChannelPools: **fl
 chanHost, err := pub.ChannelPool.GetChannel()
 if err != nil {
     pub.sendToNotifications(letter.LetterID, err)
+    pub.ChannelPool.ReturnChannel(chanHost)
     continue // can't get a channel
 }
 
 pubErr := pub.simplePublish(chanHost.Channel, letter)
 if pubErr != nil {
     pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
+    pub.ChannelPool.ReturnChannel(chanHost)
     continue // flag channel and try again
 }
 ```
@@ -605,6 +607,8 @@ So now you will more than likely want to use your ChannelPool.
 
 ```golang
 channelHost, err := channelPool.GetChannel()
+
+channelPool.ReturnChannel(chanHost)
 ```
 
 This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer. You can use the ChannelPools yourself if you just like the idea of backing your already existing code behind a ChannelPool/ConnectionPool.
@@ -622,7 +626,8 @@ channelHost.Channel.Publish(
 			ContentType: contentType,
 			Body:        body,
 		},
-	)
+    )
+channelPool.ReturnChannel(chanHost)
 ```
 
 I am working on streamlining the ChannelHost integration with ChannelPool. I want to allow communication between the two by flowing Channel errors up to pool/group. It's a bit clunky currently but I am still thinking how best to do such a thing. Ideally all Channel errors (CloseErrors) would be subscribed to and perhaps AutoFlag the channels as dead and I can consolidate my code if that's determine reliable.

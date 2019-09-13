@@ -62,6 +62,7 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 		pub.sendToNotifications(letter.LetterID, err)
 		return // exit out if you can't get a channel
 	}
+	defer pub.ChannelPool.ReturnChannel(chanHost)
 
 	pubErr := pub.simplePublish(chanHost.Channel, letter)
 	if pubErr != nil {
@@ -82,18 +83,22 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 		chanHost, err := pub.ChannelPool.GetChannel()
 		if err != nil {
 			pub.sendToNotifications(letter.LetterID, err)
+			pub.ChannelPool.ReturnChannel(chanHost)
 			continue // can't get a channel
 		}
 
 		pubErr := pub.simplePublish(chanHost.Channel, letter)
 		if pubErr != nil {
 			pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
+			pub.ChannelPool.ReturnChannel(chanHost)
 			continue // flag channel and try again
 		}
 
 		pub.sendToNotifications(letter.LetterID, pubErr)
+		pub.ChannelPool.ReturnChannel(chanHost)
 		break // finished
 	}
+
 }
 
 func (pub *Publisher) handleErrorAndFlagChannel(err error, letterID uint64, channelID uint64) {

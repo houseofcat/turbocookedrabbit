@@ -381,7 +381,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	timeDuration := time.Duration(5 * time.Minute)
 	timeOut := time.After(timeDuration)
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	fmt.Printf("Est. Becnhmark End: %s\r\n", time.Now().Add(timeDuration))
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
 	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
@@ -475,7 +475,7 @@ func TestPublishConsumeAckForDuration(t *testing.T) {
 	timeDuration := time.Duration(5 * time.Minute)
 	timeOut := time.After(timeDuration)
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	fmt.Printf("Est. Becnhmark End: %s\r\n", time.Now().Add(timeDuration))
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
 	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
@@ -492,7 +492,10 @@ func TestPublishConsumeAckForDuration(t *testing.T) {
 			case <-timeOut:
 				break PublishLoop
 			default:
-				publisher.QueueLetter(&(*letter))
+				newLetter := models.Letter(*letter)
+				publisher.QueueLetter(&newLetter)
+				fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
+				letter.LetterID++
 				time.Sleep(1 * time.Second)
 			}
 		}
@@ -509,6 +512,7 @@ func TestPublishConsumeAckForDuration(t *testing.T) {
 	channelPoolErrors := 0
 	connectionPoolErrors := 0
 
+	// Stop RabbitMQ server after entering loop, then start it again, to test reconnectivity.
 ConsumeLoop:
 	for {
 		select {
@@ -516,35 +520,38 @@ ConsumeLoop:
 			break ConsumeLoop
 		case notice := <-publisher.Notifications():
 			if notice.Success {
+				fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesPublished++
-				notice = nil
 			} else {
+				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesFailedToPublish++
-				notice = nil
 			}
 		case err := <-ChannelPool.Errors():
-			fmt.Printf("%s: %s\r\n", time.Now(), err)
+			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
 			channelPoolErrors++
 		case err := <-ConnectionPool.Errors():
-			fmt.Printf("%s: %s\r\n", time.Now(), err)
+			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
 			connectionPoolErrors++
 		case err := <-consumer.Errors():
-			fmt.Printf("%s: %s\r\n", time.Now(), err)
+			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
 		case message := <-consumer.Messages():
 			messagesReceived++
+			fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
 			go func(msg *models.Message) {
 				err := msg.Acknowledge()
 				if err != nil {
+					fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
 					messagesFailedToAck++
 				} else {
+					fmt.Printf("%s: AckMessaged\r\n", time.Now())
 					messagesAcked++
 				}
 				msg = nil
 			}(message)
 			message = nil
 		default:
-			time.Sleep(1 * time.Second)
+			time.Sleep(100 * time.Millisecond)
 		}
 	}
 
