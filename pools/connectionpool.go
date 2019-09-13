@@ -87,7 +87,7 @@ func (cp *ConnectionPool) Initialize() error {
 	defer cp.poolLock.Unlock()
 
 	if !cp.Initialized {
-		ok := false
+		var ok bool
 
 		if cp.Config.ConnectionPoolConfig.EnableTLS {
 			ok = cp.initializeWithTLS()
@@ -204,20 +204,18 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 		// Do not leave without a good Connection.
 		for connectionHost == nil {
 
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+
 			if cp.enableTLS { // Replacement Connection
 				connectionHost, err = cp.createConnectionHostWithTLS(replacementConnectionID)
 				if err != nil {
-					if cp.sleepOnErrorInterval > 0 {
-						time.Sleep(cp.sleepOnErrorInterval)
-					}
 					continue
 				}
 			} else { // Replacement Connection
 				connectionHost, err = cp.createConnectionHost(replacementConnectionID)
 				if err != nil {
-					if cp.sleepOnErrorInterval > 0 {
-						time.Sleep(cp.sleepOnErrorInterval)
-					}
 					continue
 				}
 			}

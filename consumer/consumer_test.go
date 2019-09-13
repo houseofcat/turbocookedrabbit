@@ -547,9 +547,7 @@ ConsumeLoop:
 					fmt.Printf("%s: AckMessaged\r\n", time.Now())
 					messagesAcked++
 				}
-				msg = nil
 			}(message)
-			message = nil
 		default:
 			time.Sleep(100 * time.Millisecond)
 		}
