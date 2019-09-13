@@ -61,19 +61,16 @@ func NewConnectionPool(
 	}
 
 	cp := &ConnectionPool{
-		Config:                     *config,
-		uri:                        config.URI,
-		enableTLS:                  config.EnableTLS,
-		tlsConfig:                  tlsConfig,
-		errors:                     make(chan error, config.ErrorBuffer),
-		maxConnections:             config.ConnectionCount,
-		connections:                queue.New(int64(config.ConnectionCount)), // possible overflow error
-		poolLock:                   &sync.Mutex{},
-		flaggedConnections:         make(map[uint64]bool),
-		createConnectionRetryCount: config.CreateConnectionRetryCount,
-		sleepOnErrorInterval:       time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
-		breakOnInitializeError:     config.BreakOnInitializeError,
-		maxInitializeErrorCount:    config.MaxInitializeErrorCount,
+		Config:               *config,
+		uri:                  config.URI,
+		enableTLS:            config.EnableTLS,
+		tlsConfig:            tlsConfig,
+		errors:               make(chan error, config.ErrorBuffer),
+		maxConnections:       config.ConnectionCount,
+		connections:          queue.New(int64(config.ConnectionCount)), // possible overflow error
+		poolLock:             &sync.Mutex{},
+		flaggedConnections:   make(map[uint64]bool),
+		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 	}
 
 	if initializeNow {
@@ -85,87 +82,71 @@ func NewConnectionPool(
 
 // Initialize creates the ConnectionPool based on the config details.
 // Blocks on network/communication issues unless overridden by config.
-func (cp *ConnectionPool) Initialize() {
+func (cp *ConnectionPool) Initialize() error {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
 
 	if !cp.Initialized {
+		ok := false
+
 		if cp.Config.EnableTLS {
-			cp.initializeWithTLS()
+			ok = cp.initializeWithTLS()
 		} else {
-			cp.initialize()
+			ok = cp.initialize()
 		}
 
-		cp.Initialized = true
+		if ok {
+			cp.Initialized = true
+		} else {
+			return errors.New("initialization failed during creating connections")
+		}
 	}
+
+	return nil
 }
 
-func (cp *ConnectionPool) initialize() {
+func (cp *ConnectionPool) initialize() bool {
 
-	errCount := uint16(0)
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHost(cp.connectionID)
 		if err != nil {
-			cp.handleError(err)
-			errCount++
-
-			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
-				break
-			}
-
-			continue
+			return false
 		}
 
-		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
+
+	return true
 }
 
-func (cp *ConnectionPool) initializeWithTLS() {
+func (cp *ConnectionPool) initializeWithTLS() bool {
 
-	errCount := uint16(0)
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHostWithTLS(cp.connectionID)
 		if err != nil {
-			cp.handleError(err)
-			errCount++
-
-			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
-				break
-			}
-
-			continue
+			return false
 		}
 
-		cp.connectionID++
 		cp.connections.Put(connectionHost)
 	}
+
+	return true
 }
 
 // CreateConnectionHost creates the Connection with RabbitMQ server.
 func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.ConnectionHost, error) {
 
-	var amqpConn *amqp.Connection
-	var err error
-
-	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.Dial(cp.uri)
-		if err != nil {
-			cp.handleError(err)
-			continue
-		}
-
-		break
-	}
-
-	if amqpConn == nil {
-		return nil, errors.New("opening connections retries exhausted")
+	amqpConn, err := amqp.Dial(cp.uri)
+	if err != nil {
+		return nil, err
 	}
 
 	connectionHost := &models.ConnectionHost{
 		Connection:   amqpConn,
 		ConnectionID: connectionID,
 	}
+
+	cp.connectionID++
 
 	return connectionHost, nil
 }
@@ -176,21 +157,9 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 		return nil, errors.New("tls enabled but tlsConfig has not been created")
 	}
 
-	var amqpConn *amqp.Connection
-	var err error
-
-	for i := cp.createConnectionRetryCount + 1; i > 0; i-- {
-		amqpConn, err = amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
-		if err != nil {
-			cp.handleError(err)
-			continue
-		}
-
-		break
-	}
-
-	if amqpConn == nil {
-		return nil, errors.New("opening connections retries exhausted")
+	amqpConn, err := amqp.DialTLS("amqps://"+cp.Config.TLSConfig.CertServerName, cp.tlsConfig)
+	if err != nil {
+		return nil, err
 	}
 
 	connectionHost := &models.ConnectionHost{
@@ -203,23 +172,25 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 	return connectionHost, nil
 }
 
-func (cp *ConnectionPool) handleError(err error) {
+/* func (cp *ConnectionPool) handleError(err error) {
 	go func() { cp.errors <- err }()
 
 	if cp.sleepOnErrorInterval > 0 {
 		time.Sleep(cp.sleepOnErrorInterval)
 	}
-}
+} */
 
 // Errors yields all the internal errs for creating connections.
 func (cp *ConnectionPool) Errors() <-chan error {
 	return cp.errors
 }
 
-// GetConnection gets a connection based on whats available in ConnectionPool queue.
+// GetConnection gets a connection based on whats in the ConnectionPool (blocking under bad network conditions).
+// Outages/transient network outages block until success connecting.
+// Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 	if atomic.LoadInt32(&cp.connectionLock) > 0 {
-		return nil, errors.New("can't get connection - connection pool has been shutdown")
+		return nil, errors.New("can't get connection - connection pool is being shutdown")
 	}
 
 	if !cp.Initialized {
@@ -248,19 +219,26 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 
 	// Between these three states we do our best to determine that a connection is dead in the various
 	// lifecycles.
-	if notifiedClosed || cp.IsConnectionFlagged(connectionHost.ConnectionID) || connectionHost.Connection.IsClosed() {
+	if notifiedClosed || connectionHost.Connection.IsClosed() || cp.IsConnectionFlagged(connectionHost.ConnectionID) {
+
+		if connectionHost.Connection.IsClosed() {
+			cp.FlagConnection(connectionHost.ConnectionID)
+		}
 
 		var err error
+		replacementConnectionID := connectionHost.ConnectionID
+		connectionHost = nil
 
 		// Do not leave without a good Connection.
 		for connectionHost == nil {
+
 			if cp.enableTLS { // Replacement Connection
-				connectionHost, err = cp.createConnectionHostWithTLS(connectionHost.ConnectionID)
+				connectionHost, err = cp.createConnectionHostWithTLS(replacementConnectionID)
 				if err != nil {
 					continue
 				}
 			} else { // Replacement Connection
-				connectionHost, err = cp.createConnectionHost(connectionHost.ConnectionID)
+				connectionHost, err = cp.createConnectionHost(replacementConnectionID)
 				if err != nil {
 					continue
 				}
@@ -271,7 +249,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 			}
 		}
 
-		cp.UnflagConnection(connectionHost.ConnectionID)
+		cp.UnflagConnection(replacementConnectionID)
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.

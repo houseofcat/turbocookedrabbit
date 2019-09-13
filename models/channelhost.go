@@ -12,6 +12,7 @@ import (
 type ChannelHost struct {
 	Channel          *amqp.Channel
 	ChannelID        uint64
+	ConnectionID     uint64
 	ConnectionClosed func() bool // super unreliable
 	ErrorMessages    chan *ErrorMessage
 	ReturnMessages   chan *ReturnMessage
@@ -23,6 +24,7 @@ type ChannelHost struct {
 func (ch *ChannelHost) NewChannelHost(
 	amqpConn *amqp.Connection,
 	channelID uint64,
+	connectionID uint64,
 	retryCount uint32) (*ChannelHost, error) {
 
 	if amqpConn.IsClosed() {
@@ -48,6 +50,7 @@ func (ch *ChannelHost) NewChannelHost(
 	channelHost := &ChannelHost{
 		Channel:          amqpChan,
 		ChannelID:        channelID,
+		ConnectionID:     connectionID,
 		ConnectionClosed: amqpConn.IsClosed,
 		ErrorMessages:    make(chan *ErrorMessage, 1),
 		ReturnMessages:   make(chan *ReturnMessage, 1),

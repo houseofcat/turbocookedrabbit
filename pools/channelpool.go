@@ -2,13 +2,11 @@ package pools
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
-	"github.com/streadway/amqp"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
 )
@@ -17,23 +15,21 @@ import (
 
 // ChannelPool houses the pool of RabbitMQ channels.
 type ChannelPool struct {
-	Config                  models.PoolConfig
-	connectionPool          *ConnectionPool
-	Initialized             bool
-	errors                  chan error
-	channels                *queue.Queue
-	ackChannels             *queue.Queue
-	maxChannels             uint64
-	maxAckChannels          uint64
-	channelID               uint64
-	poolLock                *sync.Mutex
-	channelLock             int32
-	flaggedChannels         map[uint64]bool
-	createChannelRetryCount uint16
-	breakOnInitializeError  bool
-	sleepOnErrorInterval    time.Duration
-	maxInitializeErrorCount uint16
-	globalQosCount          int
+	Config               models.PoolConfig
+	connectionPool       *ConnectionPool
+	Initialized          bool
+	errors               chan error
+	channels             *queue.Queue
+	ackChannels          *queue.Queue
+	maxChannels          uint64
+	maxAckChannels       uint64
+	channelID            uint64
+	poolLock             *sync.Mutex
+	channelLock          int32
+	flaggedChannels      map[uint64]bool
+	sleepOnErrorInterval time.Duration
+	globalQosCount       int
+	ackNoWait            bool
 }
 
 // NewChannelPool creates hosting structure for the ChannelPool.
@@ -51,20 +47,18 @@ func NewChannelPool(
 	}
 
 	cp := &ChannelPool{
-		Config:                  *config,
-		connectionPool:          connPool,
-		errors:                  make(chan error, config.ChannelPoolConfig.ErrorBuffer),
-		maxChannels:             config.ChannelPoolConfig.ChannelCount,
-		maxAckChannels:          config.ChannelPoolConfig.AckChannelCount,
-		channels:                queue.New(int64(config.ChannelPoolConfig.ChannelCount)),
-		ackChannels:             queue.New(int64(config.ChannelPoolConfig.AckChannelCount)),
-		poolLock:                &sync.Mutex{},
-		flaggedChannels:         make(map[uint64]bool),
-		createChannelRetryCount: config.ChannelPoolConfig.CreateChannelRetryCount,
-		sleepOnErrorInterval:    time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
-		breakOnInitializeError:  config.ChannelPoolConfig.BreakOnInitializeError,
-		maxInitializeErrorCount: config.ChannelPoolConfig.MaxInitializeErrorCount,
-		globalQosCount:          config.ChannelPoolConfig.GlobalQosCount,
+		Config:               *config,
+		connectionPool:       connPool,
+		errors:               make(chan error, config.ChannelPoolConfig.ErrorBuffer),
+		maxChannels:          config.ChannelPoolConfig.ChannelCount,
+		maxAckChannels:       config.ChannelPoolConfig.AckChannelCount,
+		channels:             queue.New(int64(config.ChannelPoolConfig.ChannelCount)),
+		ackChannels:          queue.New(int64(config.ChannelPoolConfig.AckChannelCount)),
+		poolLock:             &sync.Mutex{},
+		flaggedChannels:      make(map[uint64]bool),
+		sleepOnErrorInterval: time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
+		globalQosCount:       config.ChannelPoolConfig.GlobalQosCount,
+		ackNoWait:            config.ChannelPoolConfig.AckNoWait,
 	}
 
 	if initializeNow {
@@ -76,7 +70,7 @@ func NewChannelPool(
 
 // Initialize creates the ConnectionPool based on the config details.
 // Blocks on network/communication issues unless overridden by config.
-func (cp *ChannelPool) Initialize() {
+func (cp *ChannelPool) Initialize() error {
 	cp.poolLock.Lock()
 	defer cp.poolLock.Unlock()
 
@@ -85,89 +79,61 @@ func (cp *ChannelPool) Initialize() {
 	}
 
 	if !cp.Initialized {
-		cp.initialize()
-		cp.Initialized = true
+		ok := cp.initialize()
+		if ok {
+			cp.Initialized = true
+		} else {
+			return errors.New("errors occurred creating channels")
+		}
 	}
+
+	return nil
 }
 
-func (cp *ChannelPool) initialize() {
-
-	errCount := uint16(0)
+func (cp *ChannelPool) initialize() bool {
 
 	// Create Channel queue.
 	for i := uint64(0); i < cp.maxChannels; i++ {
 
-		channelHost, err := cp.createChannelHost(cp.channelID)
+		channelHost, err := cp.createChannelHost(cp.channelID, false)
 		if err != nil {
-			cp.handleError(err)
-			errCount++
-
-			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
-				break
-			}
-
-			continue
+			return false
 		}
 
-		cp.channelID++
 		cp.channels.Put(channelHost)
 	}
-
-	errCount = 0
 
 	// Create AckChannel queue.
 	for i := uint64(0); i < cp.maxAckChannels; i++ {
 
-		channelHost, err := cp.createChannelHost(cp.channelID)
+		channelHost, err := cp.createChannelHost(cp.channelID, true)
 		if err != nil {
-			cp.handleError(err)
-			errCount++
-
-			if cp.breakOnInitializeError || errCount >= cp.maxInitializeErrorCount {
-				break
-			}
-
-			continue
+			return false
 		}
 
-		cp.channelID++
 		cp.ackChannels.Put(channelHost)
 	}
+
+	return true
 }
 
 // CreateChannelHost creates the Channel (backed by a Connection) with RabbitMQ server.
-func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost, error) {
+func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*models.ChannelHost, error) {
 
-	var amqpChan *amqp.Channel
-	var connHost *models.ConnectionHost
-	var err error
-
-	for i := cp.createChannelRetryCount + 1; i > 0; i-- {
-
-		connHost, err = cp.connectionPool.GetConnection()
-		if err != nil {
-			cp.handleError(fmt.Errorf("opening channel failed - could not get connection [err: %s]", err))
-			continue
-		}
-
-		if connHost.Connection.IsClosed() {
-			cp.connectionPool.FlagConnection(connHost.ConnectionID)
-			cp.handleError(fmt.Errorf("opening channel failed - connection %q was marked as closed [err: %s]", connHost.ConnectionID, err))
-			continue
-		}
-
-		amqpChan, err = connHost.Connection.Channel()
-		if err != nil {
-			cp.connectionPool.FlagConnection(connHost.ConnectionID)
-			cp.handleError(err)
-			continue
-		}
-
-		break
+	connHost, err := cp.connectionPool.GetConnection()
+	if err != nil {
+		return nil, err
 	}
 
-	if amqpChan == nil {
-		return nil, errors.New("opening channel retries exhausted")
+	if connHost.Connection.IsClosed() {
+		cp.connectionPool.FlagConnection(connHost.ConnectionID)
+		return nil, err
+	}
+
+	amqpChan, err := connHost.Connection.Channel()
+	if err != nil {
+		cp.connectionPool.FlagConnection(connHost.ConnectionID)
+		return nil, err
 	}
 
 	if cp.globalQosCount > 0 {
@@ -177,8 +143,15 @@ func (cp *ChannelPool) createChannelHost(channelID uint64) (*models.ChannelHost,
 	channelHost := &models.ChannelHost{
 		Channel:          amqpChan,
 		ChannelID:        channelID,
+		ConnectionID:     connHost.ConnectionID,
 		ConnectionClosed: connHost.Connection.IsClosed,
 	}
+
+	if ackable {
+		channelHost.Channel.Confirm(cp.ackNoWait)
+	}
+
+	cp.channelID++
 
 	return channelHost, nil
 }
@@ -196,7 +169,9 @@ func (cp *ChannelPool) Errors() <-chan error {
 	return cp.errors
 }
 
-// GetChannel gets a channel based on whats available in ChannelPool queue.
+// GetChannel gets a channel based on whats ChannelPool queue (blocking under bad network conditions).
+// Outages/transient network outages block until success connecting.
+// Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can't get channel - channel pool has been shutdown")
@@ -230,12 +205,27 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	// lifecycles.
 	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
-		channelHost, err = cp.createChannelHost(channelHost.ChannelID)
-		if err != nil {
-			return nil, err
+		if channelHost.ConnectionClosed() {
+			cp.connectionPool.FlagConnection(channelHost.ConnectionID)
 		}
 
-		cp.UnflagChannel(channelHost.ChannelID)
+		replacementChannelID := channelHost.ChannelID
+		channelHost = nil
+
+		// Do not leave without a good ChannelHost.
+		for channelHost == nil {
+
+			channelHost, err = cp.createChannelHost(replacementChannelID, false)
+			if err != nil {
+				continue
+			}
+
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+		}
+
+		cp.UnflagChannel(replacementChannelID)
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.
@@ -246,7 +236,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 }
 
 // GetAckableChannel gets an ackable channel based on whats available in AckChannelPool queue.
-func (cp *ChannelPool) GetAckableChannel(noWait bool) (*models.ChannelHost, error) {
+func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can't get channel - channel pool has been shutdown")
 	}
@@ -275,18 +265,30 @@ func (cp *ChannelPool) GetAckableChannel(noWait bool) (*models.ChannelHost, erro
 		break
 	}
 
-	// Between these three states we do our best to determine that a channel is dead in the various
+	// Between these two states we do our best to determine that a channel is dead in the various
 	// lifecycles.
 	if notifiedClosed || channelHost.ConnectionClosed() || cp.IsChannelFlagged(channelHost.ChannelID) {
 
-		channelHost, err = cp.createChannelHost(channelHost.ChannelID)
-		if err != nil {
-			return nil, err
+		if channelHost.ConnectionClosed() {
+			cp.connectionPool.FlagConnection(channelHost.ConnectionID)
 		}
 
-		cp.UnflagChannel(channelHost.ChannelID)
+		replacementChannelID := channelHost.ChannelID
+		channelHost = nil
 
-		channelHost.Channel.Confirm(noWait)
+		for channelHost == nil {
+
+			channelHost, err = cp.createChannelHost(replacementChannelID, true)
+			if err != nil {
+				continue
+			}
+
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+		}
+
+		cp.UnflagChannel(replacementChannelID)
 	}
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.

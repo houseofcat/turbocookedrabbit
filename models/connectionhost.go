@@ -30,6 +30,7 @@ func (ch *ConnectionHost) NewConnectionHost(
 			time.Sleep(1 * time.Second)
 		}
 	}
+
 	if amqpConn == nil {
 		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
 	}
@@ -61,6 +62,7 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 			time.Sleep(1 * time.Second)
 		}
 	}
+
 	if amqpConn == nil {
 		return nil, fmt.Errorf("opening connection retries exhausted [last err: %s]", err)
 	}
@@ -69,6 +71,8 @@ func (ch *ConnectionHost) NewConnectionHostWithTLS(
 		Connection:   amqpConn,
 		ConnectionID: connectionID,
 	}
+
+	amqpConn.NotifyClose(ch.closeErrors)
 
 	return connectionHost, nil
 }

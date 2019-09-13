@@ -19,6 +19,7 @@ type Consumer struct {
 	ConsumerName         string
 	errors               chan error
 	sleepOnErrorInterval time.Duration
+	sleepOnIdleInterval  time.Duration
 	messageGroup         *sync.WaitGroup
 	messages             chan *models.Message
 	consumeStop          chan bool
@@ -55,6 +56,7 @@ func NewConsumerFromConfig(
 		ConsumerName:         config.ConsumerName,
 		errors:               make(chan error, config.ErrorBuffer),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		sleepOnIdleInterval:  time.Duration(config.SleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
 		messages:             make(chan *models.Message, config.MessageBuffer),
 		consumeStop:          make(chan bool, 1),
@@ -80,7 +82,8 @@ func NewConsumer(
 	qosCountOverride int, // if zero ignored
 	messageBuffer uint32,
 	errorBuffer uint32,
-	sleepOnErrorInterval uint32) (*Consumer, error) {
+	sleepOnErrorInterval uint32,
+	sleepOnIdleInterval uint32) (*Consumer, error) {
 
 	var err error
 	if channelPool == nil {
@@ -101,6 +104,7 @@ func NewConsumer(
 		ConsumerName:         consumerName,
 		errors:               make(chan error, errorBuffer),
 		sleepOnErrorInterval: time.Duration(sleepOnErrorInterval) * time.Millisecond,
+		sleepOnIdleInterval:  time.Duration(sleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
 		messages:             make(chan *models.Message, messageBuffer),
 		consumeStop:          make(chan bool, 1),
@@ -125,7 +129,7 @@ func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error
 	if autoAck {
 		chanHost, err = con.channelPool.GetChannel()
 	} else {
-		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+		chanHost, err = con.channelPool.GetAckableChannel()
 	}
 
 	if err != nil {
@@ -164,7 +168,7 @@ func (con *Consumer) GetBatch(queueName string, batchSize int, autoAck bool) ([]
 	if autoAck {
 		chanHost, err = con.channelPool.GetChannel()
 	} else {
-		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+		chanHost, err = con.channelPool.GetAckableChannel()
 	}
 
 	if err != nil {
@@ -240,14 +244,6 @@ ConsumerOuterLoop:
 		if con.processDeliveries(deliveryChan, chanHost) {
 			break ConsumerOuterLoop
 		}
-
-		// Quality of Service channel overrides reset
-		if con.Config.PoolConfig.ChannelPoolConfig.GlobalQosCount > 0 {
-			chanHost.Channel.Qos(
-				con.Config.PoolConfig.ChannelPoolConfig.GlobalQosCount,
-				0,
-				false)
-		}
 	}
 
 	con.conLock.Lock()
@@ -274,7 +270,7 @@ func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.Channel
 	if con.autoAck {
 		chanHost, err = con.channelPool.GetChannel()
 	} else {
-		chanHost, err = con.channelPool.GetAckableChannel(con.noWait)
+		chanHost, err = con.channelPool.GetAckableChannel()
 	}
 
 	if err != nil {
@@ -321,7 +317,7 @@ ProcessDeliveriesInnerLoop:
 			con.messageGroup.Add(1)
 			con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
 		default:
-			break
+			time.Sleep(con.sleepOnIdleInterval)
 		}
 
 		// Detect if we should stop.

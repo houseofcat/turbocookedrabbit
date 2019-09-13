@@ -2,10 +2,7 @@
 	"PoolConfig": {
 		"ChannelPoolConfig": {
 			"ErrorBuffer": 10,
-			"BreakOnInitializeError": false,
-			"MaxInitializeErrorCount": 5,
-			"SleepOnErrorInterval": 5,
-			"CreateChannelRetryCount": 5,
+			"SleepOnErrorInterval": 1000,
 			"ChannelCount": 50,
 			"AckChannelCount": 50,
 			"GlobalQosCount": 5
@@ -13,10 +10,7 @@
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ErrorBuffer": 10,
-			"BreakOnInitializeError": false,
-			"MaxInitializeErrorCount": 5,
 			"SleepOnErrorInterval": 5000,
-			"CreateConnectionRetryCount": 60,
 			"ConnectionCount": 10,
 			"TLSConfig": {
 				"EnableTLS": false,
@@ -35,8 +29,9 @@
 			"NoWait": false,
 			"QosCountOverride": 5,
 			"MessageBuffer": 100,
-			"ErrorBuffer": 1,
-			"SleepOnErrorInterval": 5
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 1000,
+			"SleepOnIdleInterval": 5
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
 			"QueueName": "ConsumerTestQueue",
@@ -45,13 +40,14 @@
 			"Exclusive": false,
 			"NoWait": true,
 			"QosCountOverride": 5,
-			"MessageBuffer": 10,
-			"ErrorBuffer": 1,
-			"SleepOnErrorInterval": 1000
+			"MessageBuffer": 100,
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 1000,
+			"SleepOnIdleInterval": 5
 		}
 	},
 	"PublisherConfig":{
-		"SleepOnIdleInterval": 5,
+		"SleepOnIdleInterval": 100,
 		"LetterBuffer": 100,
 		"NotificationBuffer": 100
 	}

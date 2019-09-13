@@ -15,27 +15,22 @@ type PoolConfig struct {
 
 // ChannelPoolConfig represents settings for creating channel pools.
 type ChannelPoolConfig struct {
-	ErrorBuffer             uint16 `json:"ErrorBuffer"`
-	BreakOnInitializeError  bool   `json:"BreakOnInitializeError"`  // error out on first error during Initialize.
-	MaxInitializeErrorCount uint16 `json:"MaxInitializeErrorCount"` // error out after n errors during Initialize.
-	SleepOnErrorInterval    uint32 `json:"SleepOnErrorInterval"`    // sleep length on errors
-	CreateChannelRetryCount uint16 `json:"CreateChannelRetryCount"`
-	ChannelCount            uint64 `json:"ChannelCount"`
-	AckChannelCount         uint64 `json:"AckChannelCount"`
-	GlobalQosCount          int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
+	ErrorBuffer          uint16 `json:"ErrorBuffer"`
+	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"` // sleep length on errors
+	ChannelCount         uint64 `json:"ChannelCount"`
+	AckChannelCount      uint64 `json:"AckChannelCount"`
+	AckNoWait            bool   `json:"AckNoWait"`
+	GlobalQosCount       int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
 }
 
 // ConnectionPoolConfig represents settings for creating connection pools.
 type ConnectionPoolConfig struct {
-	URI                        string     `json:"URI"`
-	ErrorBuffer                uint16     `json:"ErrorBuffer"`
-	BreakOnInitializeError     bool       `json:"BreakOnInitializeError"`     // error out on first error during Initialize.
-	MaxInitializeErrorCount    uint16     `json:"MaxInitializeErrorCount"`    // error out after n errors during Initialize.
-	SleepOnErrorInterval       uint32     `json:"SleepOnErrorInterval"`       // sleep length on errors
-	EnableTLS                  bool       `json:"EnableTLS"`                  // Use TLSConfig to create connections with AMQPS uri.
-	CreateConnectionRetryCount uint16     `json:"CreateConnectionRetryCount"` // when creating connections, add a retry, ignored when 0
-	ConnectionCount            uint64     `json:"ConnectionCount"`            // number of connections to create in the pool
-	TLSConfig                  *TLSConfig `json:"TLSConfig"`                  // TLS settings for connection with AMQPS.
+	URI                  string     `json:"URI"`
+	ErrorBuffer          uint16     `json:"ErrorBuffer"`
+	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
+	EnableTLS            bool       `json:"EnableTLS"`            // Use TLSConfig to create connections with AMQPS uri.
+	ConnectionCount      uint64     `json:"ConnectionCount"`      // number of connections to create in the pool
+	TLSConfig            *TLSConfig `json:"TLSConfig"`            // TLS settings for connection with AMQPS.
 }
 
 // TLSConfig represents settings for configuring TLS.
@@ -56,7 +51,8 @@ type ConsumerConfig struct {
 	QosCountOverride     int                    `json:"QosCountOverride"` // if zero ignored
 	MessageBuffer        uint32                 `json:"MessageBuffer"`
 	ErrorBuffer          uint32                 `json:"ErrorBuffer"`
-	SleepOnErrorInterval uint32                 `json:"SleepOnErrorInterval"`
+	SleepOnErrorInterval uint32                 `json:"SleepOnErrorInterval"` // sleep on error
+	SleepOnIdleInterval  uint32                 `json:"SleepOnIdleInterval"`  // sleep on idle
 }
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.

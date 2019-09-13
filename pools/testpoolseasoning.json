@@ -2,21 +2,16 @@
 	"PoolConfig": {
 		"ChannelPoolConfig": {
 			"ErrorBuffer": 10,
-			"BreakOnInitializeError": false,
-			"MaxInitializeErrorCount": 5,
-			"SleepOnErrorInterval": 50,
-			"CreateChannelRetryCount": 5,
+			"SleepOnErrorInterval": 1000,
 			"ChannelCount": 25,
 			"AckChannelCount": 25,
+			"AckNoWait": false,
 			"GlobalQosCount": 4
 		},
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ErrorBuffer": 1,
-			"BreakOnInitializeError": false,
-			"MaxInitializeErrorCount": 5,
 			"SleepOnErrorInterval": 50,
-			"CreateConnectionRetryCount": 5,
 			"ConnectionCount": 5,
 			"TLSConfig": {
 				"EnableTLS": false,
