@@ -520,22 +520,6 @@ ConsumeLoop:
 
 ---
 
-<details><summary>Click for CPU & MEM Profiling!</summary>
-<p>
-
-I have no idea what any of this means!
-
-<img src="./consumer/cpu.svg" width=600 height=1200 >
-
-I eat crayons!
-
-<img src="./consumer/mem.svg" width=800 height=600 >
-
-</p>
-</details>
-
----
-
 ## The Pools
 
 <details><summary>Rabbit Pools, how do they even work?!</summary>
@@ -672,6 +656,16 @@ channelPool.ReturnChannel(chanHost)
 ```
 
 I am working on streamlining the ChannelHost integration with ChannelPool. I want to allow communication between the two by flowing Channel errors up to pool/group. It's a bit clunky currently but I am still thinking how best to do such a thing. Ideally all Channel errors (CloseErrors) would be subscribed to and perhaps AutoFlag the channels as dead and I can consolidate my code if that's determine reliable.
+
+</p>
+</details>
+
+---
+
+<details><summary>What happens during an outage?</summary>
+<p>
+
+Well, if you are using a ChannelPool w/ ConnectionPool, it will handle it just fine. The Connections will be either recovered or be replaced. The Channels will all be replaced during the next GetChannel() invocation. There is one catch though with the ChannelPools. Since dead Channels are replaced during a call of **GetChannel()** you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you rapidly getting all ChannelHosts, you may never need your original MaxChannelCount from your PoolConfig. If you can't generate need through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your load does increase, so to will your ChannelCounts, up to the original MaxChannelCount, eventually.
 
 </p>
 </details>
