@@ -674,11 +674,11 @@ I am working on streamlining the ChannelHost integration with ChannelPool. I wan
 <details><summary>What happens during an outage?</summary>
 <p>
 
-Well, if you are using a ChannelPool w/ ConnectionPool, it will handle it just fine. The Connections will be either recovered or be replaced. The Channels will all be replaced during the next **GetChannel()** invocation.
+Well, if you are using a ChannelPool w/ ConnectionPool, it will handle an outage, full or transient, just fine. The Connections/ConnectionHosts will be either heartbeat recovered or be replaced. The Channels will all have to be replaced during the next **GetChannel()** invocation.
 
-There is one catch though with the ChannelPools.  
+There is one small catch though when using ChannelPools.  
 
-Since dead Channels are replaced during a call of **GetChannel()** and you may have replaced all your ConnectionHosts, you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you are rapidly getting all ChannelHosts, you may never hit your original MaxChannelCount from your PoolConfig. If you can't generate need through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your load does increase, so to will your ChannelCounts, up to the original MaxChannelCount, eventually.
+Since dead Channels are replaced during a call of **GetChannel()** and you may have replaced all your ConnectionHosts, you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you are rapidly getting all ChannelHosts, you may never hit your original MaxChannelCount from your PoolConfig based on your use case scenarios. If you can't generate ChannelHost demand through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your **GetChannel()** call count does increase, so to will your ChannelHost counts.
 
 I intend to tweak things here. I have tested multiple back-to-back outages during tests/benches and it has allowed me to improve the user experience / system experience significantly - but refactoring could have brought about bugs. Like I said, I will keep reviewing my work and checking if there are any tweaks.
 
@@ -693,8 +693,6 @@ I intend to tweak things here. I have tested multiple back-to-back outages durin
 Observe the following code example:
 
 ```golang
-defer leaktest.Check(t)() // Fail on leaked goroutines.
-
 channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 
 iterations := 0
@@ -746,9 +744,11 @@ channelPool.Shutdown()
 
 This is a very tight publish loop. This will blast thousands of messages per hour.
 
-On server shutdown: `rabbitmq-service.bat stop`
+Simulating a server shutdown: `bin\rabbitmq-service.bat stop`
 
-The entire thing will pause in place. It will hault in GetChannel() as I preemptively determine the Channel's parent Connection is already closed. We then go into an infinite loop waiting here, to regenerate the Channel (or even the Connection underneath). What dictates the iteration time of these loops until success is the following:
+The entire thing loop will pause at **GetChannel()**. It will hault in **GetChannel()** as I preemptively determine the Channel's parent Connection is already closed. We then go into an infinite (but throttled) loop here. The loop consists of regenerating the Channel/ChannelHost (or even the Connection underneath).
+
+What dictates the iteration time of these loops until success is the following:
 
 ```javascript
 "ChannelPoolConfig": {
@@ -762,7 +762,7 @@ The entire thing will pause in place. It will hault in GetChannel() as I preempt
 ```
 The related settings for outages are here:
 
- * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking.
+ * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking/full.
  * SleepOnErrorInterval is the built in sleep when an error or closed Channel is found.
    * This is the minimum interval waited when rebuilding the ChannelHosts.
 
@@ -801,41 +801,44 @@ We will use the above settings in the ChannelPool (**SleepOnErrorInterval = 1000
  1. RabbitMQ Server outage occurs.
  2. Everything pauses in place, creating infinite loops on **GetChannel()** (which calls **GetConnection()**).  
     * This can be a bit dangerous itself if you have thousands of goroutines calling **GetChannel()** so plan accordingly.
-	* ***Some errors can occur in Consumers/Publishers/ChannelPools/ConnectionPools for in transit at the time of outage.***
+	* Some errors can occur in Consumers/Publishers/ChannelPools/ConnectionPools for in transit at the time of outage.
  3. RabbitMQ Server connectivity is restored.
- 4. The loop iterations start finding connectivity, then build a connection.
-	* The minimum wait time is 5 seconds for the Connection.
-	* You will start seeing very slow publishing at this time.
- 5. That same loop builds a Channel.
-    * The minimum wait time after Connection is 1 second.
+ 4. The loop iterations start finding connectivity, they build a connection.
+	* The minimum wait time is 5 seconds for the ConnectionHost.
+	* You will also start seeing very slow publishing.
+ 5. This same loop is building a ChannelHost.
+    * The minimum wait time after ChannelHost was built is 1 second.
  6. The total time waited should be about 6 seconds.
  7. The next **GetChannel()** is called.
-	* Because we use RoundRobin connections, the next Connection in the pool is called.
-	* We wait a minimum of time of 5 seconds, then 1 second again per channel.
+	* Because we use Round Robin connections, the next Connection in the pool is called.
+	* We wait a minimum of time of 5 seconds for recreating the ConnectionHost, then 1 second again for the ChannelHost.
  8. This behavior continues until all Connections have been successfully restored.
-    * The behavior changes once all Connections are restored.
- 9. Restoring the remaining Connections.
+ 9. After ConnectionHosts, restoring the remaining ChannelHosts.
     * The minimum wait time is now 1 second, no longer the combined total of 6 seconds.
 	* Slightly faster publshing can be observed.
- 10. Once all Channels are restored, the time wait between publishes is the outer loop of **10 ms**.
+ 10. Once all Channels have been restored, the time wait between publishes is found in the publishing loop: **10 ms**.
     * The connectivity has been fully regenerated at this point.
 	* Full speed publishing can now be observed.
 
 So you make recognize this as a funky CircuitBreaker pattern.
 
-CircuitBreaker Behaviors 
+Circuit Breaker Behaviors 
 
  * We don't spin up memory, we don't spin up CPU.
  * We don't spam connection requests to our RabbitMQ server.
  * Once connectivity is restored, we don't flood the RabbitMQ server.
    * This is slow-open.
    * The duration of this time becomes (time(connectionSleep + channelSleep)) * n) where ***n*** is the number of unopened Connections.
- * As connectivity is restored, we go through some more throttling behavior.
-   * This is a medium-open.
+ * As connectivity is restored in Connections, we still see throttling behavior.
+   * This is medium-open.
    * The duration of this time becomes (time(channelSleep) * n) where ***n*** is the number of still unopened Channel.
  * Once connectivity is fully open, publish rate should return to normal (pre-outage speed).
+ * At any time, you can revert back to medium-open, slow-open, fully paused.
+   * The loops never stop so you never have to worry about connectivity or reconnectivity.
 
- All of this behavior depends on the healthy config settings that you determine upfront though - so this is all up to you!
+All of this behavior depends on the healthy config settings that you determine upfront though - so this is all up to you!
+
+Just remember Channels get closed or get killed all the time, you don't want this wait time too high. Connections rarely fully die, so you want this delay reasonably longer.
 
 </p>
 </details>
@@ -849,7 +852,7 @@ CircuitBreaker Behaviors
 
 Coming from plain `streadway/amqp` there isn't too much to it. Call the right method with the right parameters.
 
-I have however integrated those relatively painless methods now with a ChannelPool and added a `TopologyConfig` for a JSON style of batch topology creation/binding.
+I have however integrated those relatively painless methods now with a ChannelPool and added a `TopologyConfig` for a JSON style of batch topology creation/binding. The real advantages here is that I allow things in bulk and allow you to build topology from a **topology.json** file.
 
 Creating an Exchange with a `models.Exchange`
 
