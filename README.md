@@ -665,7 +665,13 @@ I am working on streamlining the ChannelHost integration with ChannelPool. I wan
 <details><summary>What happens during an outage?</summary>
 <p>
 
-Well, if you are using a ChannelPool w/ ConnectionPool, it will handle it just fine. The Connections will be either recovered or be replaced. The Channels will all be replaced during the next GetChannel() invocation. There is one catch though with the ChannelPools. Since dead Channels are replaced during a call of **GetChannel()** you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you rapidly getting all ChannelHosts, you may never need your original MaxChannelCount from your PoolConfig. If you can't generate need through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your load does increase, so to will your ChannelCounts, up to the original MaxChannelCount, eventually.
+Well, if you are using a ChannelPool w/ ConnectionPool, it will handle it just fine. The Connections will be either recovered or be replaced. The Channels will all be replaced during the next **GetChannel()** invocation.
+
+There is one catch though with the ChannelPools.  
+
+Since dead Channels are replaced during a call of **GetChannel()** and you may have replaced all your ConnectionHosts, you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you are rapidly getting all ChannelHosts, you may never hit your original MaxChannelCount from your PoolConfig. If you can't generate need through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your load does increase, so to will your ChannelCounts, up to the original MaxChannelCount, eventually.
+
+I intend to tweak things here. I have tested multiple back-to-back outages during tests/benches and it has allowed me to improve the user experience / system experience significantly - but refactoring could have brought about bugs. Like I said, I will keep reviewing my work and checking if there are any tweaks.
 
 </p>
 </details>
