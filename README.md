@@ -17,6 +17,14 @@ I also don't have the kind of free time I used to. I apologize in advance but, h
 
 Also if you see something syntactically wrong, speak up! I am, relatively speaking, an idiot. Also, I am still new to the golang ecosystem. My background is in infrastructure development, C#, and the .NET/NetCore ecosystem, so if any `golang wizards` want to provide advice, please do.
 
+### Basic Performance
+
+JSON Config Used: `testseason.json`
+Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
+
+    1x Publisher AutoPublish ~ 500-650 msg/s - Single Queue - Small Message Sizes
+    1x Consumer Consumption ~ 2000-3000 msg/s - Single Queue - Small Message Sizes
+
 ### Work Recently Finished
  * Solidify Connections/Pools
  * Solidify Consumers
@@ -30,7 +38,8 @@ Also if you see something syntactically wrong, speak up! I am, relatively speaki
  * ~CPU/MEM spin up on a total server outage even after adjusting config.~
    * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
  * ~Consumer stops working after server outage restore.~
-   * Publisher is still working though.
+   * ~Publisher is still working though.~
+ * Publisher is a tad on the slow side. Might underlying Queue datastructure.
  * README.md needs comments/updates related to new work (9/13/2019 - 7:10 PM EST)
 
 ### Work In Progress
