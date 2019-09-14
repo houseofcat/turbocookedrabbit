@@ -39,18 +39,18 @@ Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
    * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
  * ~Consumer stops working after server outage restore.~
    * ~Publisher is still working though.~
- * Publisher is a tad on the slow side. Might underlying Queue datastructure.
- * README.md needs comments/updates related to new work (9/13/2019 - 7:10 PM EST)
+ * Publisher is a tad on the slow side. Might be an underlying Queue datastructure.
+ * README needs small comments/updates related to new work (9/13/2019 - 7:10 PM EST)
 
 ### Work In Progress
  * Streamline error handling.
- * More Documentation
+ * More documentation.
  * A solid Demo Client
  * More Chaos Engineering / More Tests
 
 ## The Seasoning/Config
 
-The config is just a **quality of life** feature. You don't have to use it. I just like how easy it is to change configurations on the fly.
+The config.json is just a **quality of life** feature. You don't have to use it. I just like how easy it is to change configurations on the fly.
 
 ```golang
 config, err := utils.ConvertJSONFileToConfig("testconsumerseasoning.json")
@@ -58,7 +58,7 @@ config, err := utils.ConvertJSONFileToConfig("testconsumerseasoning.json")
 
 The full structure `RabbitSeasoning` is available under `models/configs.go`
 
-<details><summary>Click to a sample config.json!</summary>
+<details><summary>Click here to see a sample config.json!</summary>
 <p>
 
 ```javascript
@@ -129,19 +129,19 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 <details><summary>Click for creating publisher examples!</summary>
 <p>
 
-Assuming you have a **ChannelPool** already setup. Creating a publisher can be achieved as so:
+Assuming you have a **ChannelPool** already setup. Creating a publisher can be achieved like so:
 
 ```golang
 publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 ```
 
-Assuming you have a **ChannelPool** and **ConnectionPool** setup. Creating a publisher can be achieved as so:
+Assuming you have a **ChannelPool** and **ConnectionPool** setup. Creating a publisher can be achieved like so:
 
 ```golang
 publisher, err := publisher.NewPublisher(Seasoning, channelPool, connectionPool)
 ```
 
-The errors here indicate I was unable to create a Publisher - probably due to the ChannelPool/ConnectionPool you gave me.
+The errors here indicate I was unable to create a Publisher - probably due to the ChannelPool/ConnectionPool given.
 
 </p>
 </details>
@@ -158,7 +158,7 @@ letter := utils.CreateLetter("", "TestQueueName", nil)
 publisher.Publish(letter)
 ```
 
-This creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of TestQueueName. The body is nil, the helper function creates bytes for "h e l l o   w o r l d".
+This **CreateLetter** method creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of TestQueueName. The body is nil, the helper function creates bytes for "h e l l o   w o r l d".
 
 The concept of a Letter may seem clunky on a single publish. I don't disagree and you still always have `streadway/amqp` to rely on. The **letter** idea makes sense with **AutoPublish**.
 
