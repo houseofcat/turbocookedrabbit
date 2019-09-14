@@ -687,6 +687,161 @@ I intend to tweak things here. I have tested multiple back-to-back outages durin
 
 ---
 
+<details><summary>Click to see how to properly prepare for an outage!</summary>
+<p>
+
+Observe the following code example:
+
+```golang
+defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+
+iterations := 0
+maxIterationCount := 100000
+
+// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
+for iterations < maxIterationCount {
+
+	chanHost, err := channelPool.GetChannel()
+	if err != nil {
+		fmt.Printf("%s: Error - GetChannelHost: %s\r\n", time.Now(), err)
+	} else {
+		fmt.Printf("%s: GotChannelHost\r\n", time.Now())
+
+		select {
+		case <-chanHost.CloseErrors():
+			fmt.Printf("%s: Error - ChannelClose: %s\r\n", time.Now(), err)
+		default:
+			break
+		}
+
+		letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+		err := chanHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory, // publish doesn't appear to work when true
+			letter.Envelope.Immediate, // publish doesn't appear to work when true
+			amqp.Publishing{
+				ContentType: letter.Envelope.ContentType,
+				Body:        letter.Body,
+			},
+		)
+
+		if err != nil {
+			fmt.Printf("%s: Error - ChannelPublish: %s\r\n", time.Now(), err)
+			channelPool.FlagChannel(chanHost.ChannelID)
+			fmt.Printf("%s: ChannelFlaggedForRemoval\r\n", time.Now())
+		} else {
+			fmt.Printf("%s: ChannelPublishSuccess\r\n", time.Now())
+		}
+	}
+	channelPool.ReturnChannel(chanHost)
+	iterations++
+	time.Sleep(10 * time.Millisecond)
+}
+
+channelPool.Shutdown()
+```
+
+This is a very tight publish loop. This will blast thousands of messages per hour.
+
+On server shutdown: `rabbitmq-service.bat stop`
+
+The entire thing will pause in place. It will hault in GetChannel() as I preemptively determine the Channel's parent Connection is already closed. We then go into an infinite loop waiting here, to regenerate the Channel (or even the Connection underneath). What dictates the iteration time of these loops until success is the following:
+
+```javascript
+"ChannelPoolConfig": {
+	"ErrorBuffer": 10,
+	"SleepOnErrorInterval": 1000,
+	"MaxChannelCount": 50,
+	"MaxAckChannelCount": 50,
+	"AckNoWait": false,
+	"GlobalQosCount": 5
+},
+```
+The related settings for outages are here:
+
+ * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking.
+ * SleepOnErrorInterval is the built in sleep when an error or closed Channel is found.
+   * This is the minimum interval waited when rebuilding the ChannelHosts.
+
+```javascript
+"ConnectionPoolConfig": {
+	"URI": "amqp://guest:guest@localhost:5672/",
+	"ErrorBuffer": 10,
+	"SleepOnErrorInterval": 5000,
+	"MaxConnectionCount": 10,
+	"TLSConfig": {
+		"EnableTLS": false,
+		"PEMCertLocation": "test/catest.pem",
+		"LocalCertLocation": "client/cert.ca",
+		"CertServerName": "hostname-in-cert"
+	}
+}
+```
+
+The related settings for outages are here:
+
+ * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking.
+ * SleepOnErrorInterval is the built in sleep when an error or closed Connection is found.
+   * This is the minimum interval waited when rebuilding the ConnectionHosts.
+   * I recommend this value to be higher than the ChannelHost interval.
+
+</p>
+</details>
+
+---
+
+<details><summary>Click here for more details on the Circuit Breaking!</summary>
+<p>
+
+We will use the above settings in the ChannelPool (**SleepOnErrorInterval = 1000**) and ConnectionPool (**SleepOnErrorInterval = 5000**) here is what will happen to the above code when publishing.
+
+ 1. RabbitMQ Server outage occurs.
+ 2. Everything pauses in place, creating infinite loops on **GetChannel()** (which calls **GetConnection()**).  
+    * This can be a bit dangerous itself if you have thousands of goroutines calling **GetChannel()** so plan accordingly.
+	* ***Some errors can occur in Consumers/Publishers/ChannelPools/ConnectionPools for in transit at the time of outage.***
+ 3. RabbitMQ Server connectivity is restored.
+ 4. The loop iterations start finding connectivity, then build a connection.
+	* The minimum wait time is 5 seconds for the Connection.
+	* You will start seeing very slow publishing at this time.
+ 5. That same loop builds a Channel.
+    * The minimum wait time after Connection is 1 second.
+ 6. The total time waited should be about 6 seconds.
+ 7. The next **GetChannel()** is called.
+	* Because we use RoundRobin connections, the next Connection in the pool is called.
+	* We wait a minimum of time of 5 seconds, then 1 second again per channel.
+ 8. This behavior continues until all Connections have been successfully restored.
+    * The behavior changes once all Connections are restored.
+ 9. Restoring the remaining Connections.
+    * The minimum wait time is now 1 second, no longer the combined total of 6 seconds.
+	* Slightly faster publshing can be observed.
+ 10. Once all Channels are restored, the time wait between publishes is the outer loop of **10 ms**.
+    * The connectivity has been fully regenerated at this point.
+	* Full speed publishing can now be observed.
+
+So you make recognize this as a funky CircuitBreaker pattern.
+
+CircuitBreaker Behaviors 
+
+ * We don't spin up memory, we don't spin up CPU.
+ * We don't spam connection requests to our RabbitMQ server.
+ * Once connectivity is restored, we don't flood the RabbitMQ server.
+   * This is slow-open.
+   * The duration of this time becomes (time(connectionSleep + channelSleep)) * n) where ***n*** is the number of unopened Connections.
+ * As connectivity is restored, we go through some more throttling behavior.
+   * This is a medium-open.
+   * The duration of this time becomes (time(channelSleep) * n) where ***n*** is the number of still unopened Channel.
+ * Once connectivity is fully open, publish rate should return to normal (pre-outage speed).
+
+ All of this behavior depends on the healthy config settings that you determine upfront though - so this is all up to you!
+
+</p>
+</details>
+
+---
+
 ## The Topologer
 
 <details><summary>How do I create/delete/bind queues and exchanges?</summary>

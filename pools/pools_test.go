@@ -323,7 +323,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 	assert.NoError(t, err)
 
 	iterations := 0
-	maxIterationCount := 20
+	maxIterationCount := 100000
 
 	// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
 	for iterations < maxIterationCount {
@@ -363,7 +363,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 		}
 		channelPool.ReturnChannel(chanHost)
 		iterations++
-		time.Sleep(1 * time.Second)
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	assert.Equal(t, iterations, maxIterationCount)
