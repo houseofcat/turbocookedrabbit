@@ -36,11 +36,12 @@ func NewConnectionHost(
 	}
 
 	connectionHost := &ConnectionHost{
-		Connection:      amqpConn,
-		ConnectionID:    connectionID,
-		closeErrors:     make(chan *amqp.Error, 1),
-		chLock:          &sync.Mutex{},
-		maxChannelCount: maxChannel,
+		Connection:         amqpConn,
+		ConnectionID:       connectionID,
+		closeErrors:        make(chan *amqp.Error, 1),
+		chLock:             &sync.Mutex{},
+		maxChannelCount:    maxChannel,
+		maxAckChannelCount: maxAckChannelCount,
 	}
 
 	connectionHost.Connection.NotifyClose(connectionHost.closeErrors)
@@ -82,6 +83,14 @@ func (ch *ConnectionHost) CloseErrors() <-chan *amqp.Error {
 	return ch.closeErrors
 }
 
+// CanAddChannel provides a true or false based on whether this connection host can handle more channels on it's connection (based on initialization).
+func (ch *ConnectionHost) CanAddChannel() bool {
+	ch.chLock.Lock()
+	defer ch.chLock.Unlock()
+
+	return ch.channelCount < ch.maxChannelCount
+}
+
 // AddChannel increments the count of currentChannels
 func (ch *ConnectionHost) AddChannel() error {
 	ch.chLock.Lock()
@@ -115,7 +124,7 @@ func (ch *ConnectionHost) CanAddAckChannel() bool {
 	ch.chLock.Lock()
 	defer ch.chLock.Unlock()
 
-	return ch.ackChannelCount < ch.maxChannelCount
+	return ch.ackChannelCount < ch.maxAckChannelCount
 }
 
 // AddAckChannel increments the count of currentChannels
@@ -123,7 +132,7 @@ func (ch *ConnectionHost) AddAckChannel() error {
 	ch.chLock.Lock()
 	defer ch.chLock.Unlock()
 
-	if ch.ackChannelCount >= ch.maxChannelCount {
+	if ch.ackChannelCount >= ch.maxAckChannelCount {
 		return errors.New("can't add any more channels to this connection host")
 	}
 
@@ -144,12 +153,4 @@ func (ch *ConnectionHost) RemoveAckChannel() error {
 	ch.ackChannelCount--
 
 	return nil
-}
-
-// CanAddChannel provides a true or false based on whether this connection host can handle more channels on it's connection (based on initialization).
-func (ch *ConnectionHost) CanAddChannel() bool {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
-
-	return ch.channelCount < ch.maxChannelCount
 }

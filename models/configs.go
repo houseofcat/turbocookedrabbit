@@ -57,9 +57,11 @@ type ConsumerConfig struct {
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.
 type PublisherConfig struct {
-	SleepOnIdleInterval uint32 `json:"SleepOnIdleInterval"`
-	LetterBuffer        uint32 `json:"LetterBuffer"`
-	NotificationBuffer  uint32 `json:"NotificationBuffer"`
+	SleepOnIdleInterval  uint32 `json:"SleepOnIdleInterval"`
+	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"`
+	LetterBuffer         uint64 `json:"LetterBuffer"`
+	MaxOverBuffer        uint64 `json:"MaxOverBuffer"`
+	NotificationBuffer   uint32 `json:"NotificationBuffer"`
 }
 
 // TopologyConfig allows you to build simple toplogies from a JSON file.

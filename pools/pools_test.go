@@ -30,7 +30,7 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 func TestCreateConnectionPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	timeStart := time.Now()
@@ -41,7 +41,7 @@ func TestCreateConnectionPool(t *testing.T) {
 
 	elapsed := time.Since(timeStart)
 	fmt.Printf("Created %d connection(s) finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	connectionPool.FlushErrors()
 
@@ -51,7 +51,7 @@ func TestCreateConnectionPool(t *testing.T) {
 func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	timeStart := time.Now()
@@ -61,7 +61,7 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	timeStart = time.Now()
 	connectionPool.Shutdown()
@@ -75,7 +75,7 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 }
 
 func TestGetConnectionAfterShutdown(t *testing.T) {
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	timeStart := time.Now()
@@ -85,7 +85,7 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 
 	connectionPool.FlushErrors()
 
@@ -109,7 +109,7 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 func TestCreateChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
@@ -122,8 +122,8 @@ func TestCreateChannelPool(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -134,7 +134,7 @@ func TestCreateChannelPool(t *testing.T) {
 
 func TestCreateChannelPoolAndShutdown(t *testing.T) {
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
@@ -147,8 +147,8 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -169,7 +169,7 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 func TestGetChannelAfterShutdown(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
@@ -182,8 +182,8 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -207,10 +207,10 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount = 1
-	Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount = 2
+	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount = 2
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
 	assert.NoError(t, err)
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
@@ -223,8 +223,8 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	elapsed := time.Since(timeStart)
 
 	fmt.Printf("Created %d connection(s). Created %d channel(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), channelPool.ChannelCount(), elapsed)
-	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount, uint64(connectionPool.ConnectionCount()))
-	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount, uint64(channelPool.ChannelCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
+	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
 	connectionPool.FlushErrors()
 	channelPool.FlushErrors()
@@ -241,8 +241,9 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 func TestCreateChannelPoolSimple(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount = 1
-	Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount = 2
+	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount = 1
+	Seasoning.PoolConfig.ChannelPoolConfig.MaxAckChannelCount = 1
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
@@ -259,8 +260,8 @@ func TestCreateChannelPoolSimple(t *testing.T) {
 func TestGetChannelAfterKillingChannelPool(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.ConnectionCount = 1
-	Seasoning.PoolConfig.ChannelPoolConfig.ChannelCount = 2
+	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount = 2
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
@@ -276,11 +277,11 @@ func TestGetChannelAfterKillingChannelPool(t *testing.T) {
 func TestGetConnectionDuringOutage(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig.ConnectionPoolConfig, true)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, true)
 	assert.NoError(t, err)
 
 	iterations := 0
-	maxIterationCount := 120
+	maxIterationCount := 10
 
 	// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
 	for iterations < maxIterationCount {
@@ -322,7 +323,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 	assert.NoError(t, err)
 
 	iterations := 0
-	maxIterationCount := 120
+	maxIterationCount := 20
 
 	// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
 	for iterations < maxIterationCount {

@@ -54,64 +54,61 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 
 ```javascript
 {
-    "PoolConfig": {
-        "ChannelPoolConfig": {
-            "ErrorBuffer": 10,
-            "BreakOnInitializeError": false,
-            "MaxInitializeErrorCount": 5,
-            "SleepOnErrorInterval": 50,
-            "CreateChannelRetryCount": 5,
-            "ChannelCount": 25,
-            "AckChannelCount": 25,
-            "GlobalQosCount": 4
-        },
-        "ConnectionPoolConfig": {
-            "URI": "amqp://guest:guest@localhost:5672/",
-            "ErrorBuffer": 1,
-            "BreakOnInitializeError": false,
-            "MaxInitializeErrorCount": 5,
-            "SleepOnErrorInterval": 50,
-            "CreateConnectionRetryCount": 5,
-            "ConnectionCount": 5,
-            "TLSConfig": {
-                "EnableTLS": false,
-                "PEMCertLocation": "test/catest.pem",
-                "LocalCertLocation": "client/cert.ca",
-                "CertServerName": "hostname-in-cert"
-            }
-        }
-    },
-    "ConsumerConfigs": {
-        "TurboCookedRabbitConsumer-Ackable": {
-            "QueueName": "ConsumerTestQueue",
-            "ConsumerName": "TurboCookedRabbitConsumer-Ackable",
-            "AutoAck": false,
-            "Exclusive": false,
-            "NoWait": true,
-            "QosCountOverride": 5,
-            "QosSizeOverride": 65535,
-            "MessageBuffer": 10,
-            "ErrorBuffer": 1,
-            "SleepOnErrorInterval": 1000
-        },
-        "TurboCookedRabbitConsumer-AutoAck": {
-            "QueueName": "ConsumerTestQueue",
-            "ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-            "AutoAck": true,
-            "Exclusive": false,
-            "NoWait": true,
-            "QosCountOverride": 5,
-            "QosSizeOverride": 65535,
-            "MessageBuffer": 10,
-            "ErrorBuffer": 1,
-            "SleepOnErrorInterval": 1000
-        }
-    },
-    "PublisherConfig":{
-        "SleepOnIdleInterval": 1000,
-        "LetterBuffer": 10,
-        "NotificationBuffer": 10
-    }
+	"PoolConfig": {
+		"ChannelPoolConfig": {
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 1000,
+			"MaxChannelCount": 50,
+			"MaxAckChannelCount": 50,
+			"AckNoWait": false,
+			"GlobalQosCount": 5
+		},
+		"ConnectionPoolConfig": {
+			"URI": "amqp://guest:guest@localhost:5672/",
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 5000,
+			"MaxConnectionCount": 10,
+			"TLSConfig": {
+				"EnableTLS": false,
+				"PEMCertLocation": "test/catest.pem",
+				"LocalCertLocation": "client/cert.ca",
+				"CertServerName": "hostname-in-cert"
+			}
+		}
+	},
+	"ConsumerConfigs": {
+		"TurboCookedRabbitConsumer-Ackable": {
+			"QueueName": "ConsumerTestQueue",
+			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
+			"AutoAck": false,
+			"Exclusive": false,
+			"NoWait": false,
+			"QosCountOverride": 5,
+			"MessageBuffer": 100,
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 100,
+			"SleepOnIdleInterval": 0
+		},
+		"TurboCookedRabbitConsumer-AutoAck": {
+			"QueueName": "ConsumerTestQueue",
+			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
+			"AutoAck": true,
+			"Exclusive": false,
+			"NoWait": true,
+			"QosCountOverride": 5,
+			"MessageBuffer": 100,
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 100,
+			"SleepOnIdleInterval": 0
+		}
+	},
+	"PublisherConfig":{
+		"SleepOnIdleInterval": 0,
+		"SleepOnErrorInterval": 1000,
+		"LetterBuffer": 1000,
+		"MaxOverBuffer": 1000,
+		"NotificationBuffer": 1000
+	}
 }
 ```
 
@@ -197,10 +194,11 @@ publisher.QueueLetter(letter) // How simple is that!
 
 ```golang
 for _, letter := range letters {
-    err := publisher.QueueLetter(letter)
-    if err != nil {
-        /* Handle Retry To Add To Queue */
-    }
+    // will queue up to the letter buffer
+    // will allow blocking calls upto max over buffer
+    // after reaching full LetterBuffer+MaxOverBuffer, it spins a
+    //    sleep loop based on the SleepOnErrorInterval for Publishers
+    publisher.QueueLetter(letter)
 }
 ```
 
@@ -335,31 +333,31 @@ Here is a **JSON map/dictionary** wrapped in a **ConsumerConfigs**.
 
 ```javascript
 "ConsumerConfigs": {
-    "TurboCookedRabbitConsumer-Ackable": {
-        "QueueName": "ConsumerTestQueue",
-        "ConsumerName": "TurboCookedRabbitConsumer-Ackable",
-        "AutoAck": false,
-        "Exclusive": false,
-        "NoWait": true,
-        "QosCountOverride": 5,
-        "QosSizeOverride": 65535,
-        "MessageBuffer": 10,
-        "ErrorBuffer": 1,
-        "SleepOnErrorInterval": 1000
-    },
-    "TurboCookedRabbitConsumer-AutoAck": {
-        "QueueName": "ConsumerTestQueue",
-        "ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-        "AutoAck": true,
-        "Exclusive": false,
-        "NoWait": true,
-        "QosCountOverride": 5,
-        "QosSizeOverride": 65535,
-        "MessageBuffer": 10,
-        "ErrorBuffer": 1,
-        "SleepOnErrorInterval": 1000
-    }
-}
+	"TurboCookedRabbitConsumer-Ackable": {
+		"QueueName": "ConsumerTestQueue",
+		"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
+		"AutoAck": false,
+		"Exclusive": false,
+		"NoWait": false,
+		"QosCountOverride": 5,
+		"MessageBuffer": 100,
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 100,
+		"SleepOnIdleInterval": 0
+	},
+	"TurboCookedRabbitConsumer-AutoAck": {
+		"QueueName": "ConsumerTestQueue",
+		"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
+		"AutoAck": true,
+		"Exclusive": false,
+		"NoWait": true,
+		"QosCountOverride": 5,
+		"MessageBuffer": 100,
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 100,
+		"SleepOnIdleInterval": 0
+	}
+},
 ```
 
 And finding this object after it was loaded from a JSON file.
@@ -471,6 +469,51 @@ consumer.FlushMessages() // lets say the ackable messages you have can't be acke
 ```
 
 Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAble messages, this is safe. You will merely **wipe them from your memory** and ***they are still in the original queue***.
+
+Here I demonstrate a very busy ***ConsumerLoop***. Just replace all the counter variables with logging and then an action performed with the message and this could be a production microservice loop.
+
+```golang
+ConsumeLoop:
+	for {
+		select {
+		case <-timeOut:
+			break ConsumeLoop
+		case notice := <-publisher.Notifications():
+			if notice.Success {
+				fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				messagesPublished++
+			} else {
+				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				messagesFailedToPublish++
+			}
+		case err := <-ChannelPool.Errors():
+			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
+			channelPoolErrors++
+		case err := <-ConnectionPool.Errors():
+			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
+			connectionPoolErrors++
+		case err := <-consumer.Errors():
+			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
+			consumerErrors++
+		case message := <-consumer.Messages():
+			messagesReceived++
+			fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
+			go func(msg *models.Message) {
+				err := msg.Acknowledge()
+				if err != nil {
+					fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
+					messagesFailedToAck++
+				} else {
+					fmt.Printf("%s: AckMessaged\r\n", time.Now())
+					messagesAcked++
+				}
+			}(message)
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+```
+
 
 </p>
 </details>

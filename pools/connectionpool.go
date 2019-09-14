@@ -41,6 +41,10 @@ func NewConnectionPool(
 	var tlsConfig *tls.Config
 	var err error
 
+	if config.ConnectionPoolConfig.MaxConnectionCount == 0 || config.ChannelPoolConfig.MaxChannelCount == 0 {
+		return nil, errors.New("connectionpool maxconnectioncount or channelpool maxchannelcount can't be 0")
+	}
+
 	if config.ConnectionPoolConfig.EnableTLS {
 		if config.ConnectionPoolConfig.TLSConfig == nil {
 			return nil, errors.New("can't enable TLS when TLS config is nil")
@@ -58,6 +62,13 @@ func NewConnectionPool(
 		return nil, errors.New("can't create a ConnectionPool when the ErrorBuffer value is 0")
 	}
 
+	maxChannelPerConnection := uint64(1)
+	if config.ConnectionPoolConfig.MaxConnectionCount == 1 {
+		maxChannelPerConnection = config.ChannelPoolConfig.MaxChannelCount
+	} else if config.ChannelPoolConfig.MaxChannelCount > 1 {
+		maxChannelPerConnection = config.ChannelPoolConfig.MaxChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1
+	}
+
 	cp := &ConnectionPool{
 		Config:                     *config,
 		uri:                        config.ConnectionPoolConfig.URI,
@@ -65,7 +76,7 @@ func NewConnectionPool(
 		tlsConfig:                  tlsConfig,
 		errors:                     make(chan error, config.ConnectionPoolConfig.ErrorBuffer),
 		maxConnections:             config.ConnectionPoolConfig.MaxConnectionCount,
-		maxChannelPerConnection:    config.ChannelPoolConfig.MaxChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
+		maxChannelPerConnection:    maxChannelPerConnection,
 		maxAckChannelPerConnection: config.ChannelPoolConfig.MaxAckChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
 		connections:                queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
 		poolLock:                   &sync.Mutex{},

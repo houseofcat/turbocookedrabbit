@@ -12,15 +12,19 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config              *models.RabbitSeasoning
-	ChannelPool         *pools.ChannelPool
-	publishGroup        *sync.WaitGroup
-	letters             chan *models.Letter
-	autoStop            chan bool
-	notifications       chan *models.Notification
-	autoStarted         bool
-	sleepOnIdleInterval time.Duration
-	pubLock             *sync.Mutex
+	Config               *models.RabbitSeasoning
+	ChannelPool          *pools.ChannelPool
+	publishGroup         *sync.WaitGroup
+	letters              chan *models.Letter
+	letterCount          uint64
+	letterBuffer         uint64
+	maxOverBuffer        uint64
+	autoStop             chan bool
+	notifications        chan *models.Notification
+	autoStarted          bool
+	sleepOnIdleInterval  time.Duration
+	sleepOnErrorInterval time.Duration
+	pubLock              *sync.Mutex
 }
 
 // NewPublisher creates and configures a new Publisher.
@@ -39,15 +43,18 @@ func NewPublisher(
 	}
 
 	return &Publisher{
-		Config:              config,
-		ChannelPool:         chanPool,
-		publishGroup:        &sync.WaitGroup{},
-		letters:             make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
-		autoStop:            make(chan bool, 1),
-		notifications:       make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
-		sleepOnIdleInterval: time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
-		pubLock:             &sync.Mutex{},
-		autoStarted:         false,
+		Config:               config,
+		ChannelPool:          chanPool,
+		publishGroup:         &sync.WaitGroup{},
+		letters:              make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
+		letterBuffer:         config.PublisherConfig.LetterBuffer,
+		maxOverBuffer:        config.PublisherConfig.MaxOverBuffer,
+		autoStop:             make(chan bool, 1),
+		notifications:        make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
+		sleepOnIdleInterval:  time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
+		sleepOnErrorInterval: time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
+		pubLock:              &sync.Mutex{},
+		autoStarted:          false,
 	}, nil
 }
 
@@ -62,13 +69,13 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 		pub.sendToNotifications(letter.LetterID, err)
 		return // exit out if you can't get a channel
 	}
-	defer pub.ChannelPool.ReturnChannel(chanHost)
 
 	pubErr := pub.simplePublish(chanHost.Channel, letter)
 	if pubErr != nil {
-		pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
+		pub.handleErrorAndChannel(err, letter.LetterID, chanHost)
 	} else {
 		pub.sendToNotifications(letter.LetterID, pubErr)
+		pub.ChannelPool.ReturnChannel(chanHost)
 	}
 }
 
@@ -82,15 +89,13 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 	for i := letter.RetryCount + 1; i > 0; i-- {
 		chanHost, err := pub.ChannelPool.GetChannel()
 		if err != nil {
-			pub.sendToNotifications(letter.LetterID, err)
-			pub.ChannelPool.ReturnChannel(chanHost)
+			time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
 			continue // can't get a channel
 		}
 
 		pubErr := pub.simplePublish(chanHost.Channel, letter)
 		if pubErr != nil {
-			pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
-			pub.ChannelPool.ReturnChannel(chanHost)
+			pub.handleErrorAndChannel(err, letter.LetterID, chanHost)
 			continue // flag channel and try again
 		}
 
@@ -98,12 +103,13 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 		pub.ChannelPool.ReturnChannel(chanHost)
 		break // finished
 	}
-
 }
 
-func (pub *Publisher) handleErrorAndFlagChannel(err error, letterID uint64, channelID uint64) {
-	pub.ChannelPool.FlagChannel(channelID)
+func (pub *Publisher) handleErrorAndChannel(err error, letterID uint64, chanHost *models.ChannelHost) {
+	pub.ChannelPool.FlagChannel(chanHost.ChannelID)
+	pub.ChannelPool.ReturnChannel(chanHost)
 	pub.sendToNotifications(letterID, err)
+	time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
 }
 
 // Notifications yields all the success and failures during all publish events. Highly recommend susbscribing to this.
@@ -126,9 +132,15 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 				}
 			case letter := <-pub.letters:
 				if allowRetry {
-					go pub.PublishWithRetry(letter)
+					go func() {
+						pub.PublishWithRetry(letter)
+						pub.reduceLetterCount()
+					}()
 				} else {
-					go pub.Publish(letter)
+					go func() {
+						pub.Publish(letter)
+						pub.reduceLetterCount()
+					}()
 				}
 			default:
 				if pub.sleepOnIdleInterval > 0 {
@@ -163,9 +175,34 @@ func (pub *Publisher) StopAutoPublish() {
 
 // QueueLetter queues up a letter that will be consumed by AutoPublish.
 // Blocks on the Letter Buffer being full.
-func (pub *Publisher) QueueLetter(letter *models.Letter) error {
+func (pub *Publisher) QueueLetter(letter *models.Letter) {
+
+	// Loop here until (buffer + maxOverBuffer) has room for you.
+	for pub.letterCount >= (pub.letterBuffer + pub.maxOverBuffer) {
+		time.Sleep(pub.sleepOnErrorInterval)
+		continue
+	}
+
+	pub.queueLetter(letter)
+}
+
+func (pub *Publisher) queueLetter(letter *models.Letter) {
+	pub.increaseLetterCount()
 	pub.letters <- letter
-	return nil
+}
+
+// IncreaseLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
+func (pub *Publisher) increaseLetterCount() {
+	pub.pubLock.Lock()
+	pub.letterCount++
+	pub.pubLock.Unlock()
+}
+
+// ReduceLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
+func (pub *Publisher) reduceLetterCount() {
+	pub.pubLock.Lock()
+	pub.letterCount--
+	pub.pubLock.Unlock()
 }
 
 // SimplePublish performs the actual amqp.Publish.

@@ -109,8 +109,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	publisher.StartAutoPublish(false)
 
-	err = publisher.QueueLetter(letter)
-	assert.NoError(t, err)
+	publisher.QueueLetter(letter)
 
 	publisher.StopAutoPublish()
 
@@ -167,8 +166,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	go func() {
 
 		for _, letter := range letters {
-			err = publisher.QueueLetter(letter)
-			assert.NoError(t, err)
+			publisher.QueueLetter(letter)
 		}
 	}()
 
@@ -257,11 +255,8 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	go func() {
 
 		for _, letter := range letters {
-			err = publisher1.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher2.QueueLetter(letter)
-			assert.NoError(t, err)
+			publisher1.QueueLetter(letter)
+			publisher2.QueueLetter(letter)
 		}
 	}()
 
@@ -366,17 +361,10 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	go func() {
 
 		for _, letter := range letters {
-			err = publisher1.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher2.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher3.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher4.QueueLetter(letter)
-			assert.NoError(t, err)
+			publisher1.QueueLetter(letter)
+			publisher2.QueueLetter(letter)
+			publisher3.QueueLetter(letter)
+			publisher4.QueueLetter(letter)
 		}
 	}()
 
@@ -498,17 +486,10 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	go func() {
 
 		for _, letter := range letters {
-			err = publisher1.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher2.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher3.QueueLetter(letter)
-			assert.NoError(t, err)
-
-			err = publisher4.QueueLetter(letter)
-			assert.NoError(t, err)
+			publisher1.QueueLetter(letter)
+			publisher2.QueueLetter(letter)
+			publisher3.QueueLetter(letter)
+			publisher4.QueueLetter(letter)
 		}
 	}()
 

@@ -9,13 +9,17 @@ import (
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/houseofcat/turbocookedrabbit/consumer"
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/publisher"
 	"github.com/houseofcat/turbocookedrabbit/topology"
 	"github.com/houseofcat/turbocookedrabbit/utils"
 )
 
 var Seasoning *models.RabbitSeasoning
+var ConnectionPool *pools.ConnectionPool
+var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
@@ -23,6 +27,9 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 	if err != nil {
 		return
 	}
+	ConnectionPool, _ = pools.NewConnectionPool(Seasoning.PoolConfig, true)
+	ChannelPool, _ = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+
 	os.Exit(m.Run())
 }
 
@@ -207,4 +214,105 @@ func TestUnbindQueue(t *testing.T) {
 
 	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
 	assert.NoError(t, err)
+}
+
+func TestPublishConsumeAckForDuration(t *testing.T) {
+
+	timeDuration := time.Duration(5 * time.Minute)
+	timeOut := time.After(timeDuration)
+	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
+
+	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+
+	publisher.StartAutoPublish(false)
+
+	letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+
+	go func() {
+	PublishLoop:
+		for {
+			select {
+			case <-timeOut:
+				break PublishLoop
+			default:
+				newLetter := models.Letter(*letter)
+				publisher.QueueLetter(&newLetter)
+				fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
+				letter.LetterID++
+				time.Sleep(1 * time.Second)
+			}
+		}
+	}()
+
+	consumer.StartConsuming()
+
+	messagesReceived := 0
+	messagesPublished := 0
+	messagesFailedToPublish := 0
+	messagesAcked := 0
+	messagesFailedToAck := 0
+	consumerErrors := 0
+	channelPoolErrors := 0
+	connectionPoolErrors := 0
+
+	// Stop RabbitMQ server after entering loop, then start it again, to test reconnectivity.
+ConsumeLoop:
+	for {
+		select {
+		case <-timeOut:
+			break ConsumeLoop
+		case notice := <-publisher.Notifications():
+			if notice.Success {
+				fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				messagesPublished++
+			} else {
+				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				messagesFailedToPublish++
+			}
+		case err := <-ChannelPool.Errors():
+			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
+			channelPoolErrors++
+		case err := <-ConnectionPool.Errors():
+			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
+			connectionPoolErrors++
+		case err := <-consumer.Errors():
+			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
+			consumerErrors++
+		case message := <-consumer.Messages():
+			messagesReceived++
+			fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
+			go func(msg *models.Message) {
+				err := msg.Acknowledge()
+				if err != nil {
+					fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
+					messagesFailedToAck++
+				} else {
+					fmt.Printf("%s: AckMessaged\r\n", time.Now())
+					messagesAcked++
+				}
+			}(message)
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	fmt.Printf("ChannelPool Errors: %d\r\n", channelPoolErrors)
+	fmt.Printf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
+
+	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
+	fmt.Printf("Messages Acked: %d\r\n", messagesAcked)
+	fmt.Printf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
+	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+
+	fmt.Printf("Messages Published: %d\r\n", messagesPublished)
+	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+	publisher.StopAutoPublish()
+
+	consumer.StopConsuming(false, true)
+
+	ChannelPool.Shutdown()
 }

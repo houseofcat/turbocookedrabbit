@@ -55,8 +55,9 @@ func NewChannelHost(
 func (ch *ChannelHost) CloseErrors() <-chan *ErrorMessage {
 	select {
 	case amqpError := <-ch.closeErrors:
-		ch.ErrorMessages <- NewErrorMessage(amqpError)
-
+		if amqpError != nil { // received a nil during testing
+			ch.ErrorMessages <- NewErrorMessage(amqpError)
+		}
 	default:
 		break
 	}

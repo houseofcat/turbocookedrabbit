@@ -40,7 +40,7 @@ func NewChannelPool(
 
 	if connPool == nil {
 		var err error // If connPool is nil, create one here.
-		connPool, err = NewConnectionPool(config, true)
+		connPool, err = NewConnectionPool(config, initializeNow)
 		if err != nil {
 			return nil, err
 		}
@@ -131,7 +131,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 
 	if ackable && !connHost.CanAddAckChannel() {
 		return nil, errors.New("can't add more ackable channels to this connection")
-	} else if !connHost.CanAddChannel() {
+	} else if !ackable && !connHost.CanAddChannel() {
 		return nil, errors.New("can't add more channels to this connection")
 	}
 
