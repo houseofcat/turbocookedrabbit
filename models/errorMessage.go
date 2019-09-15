@@ -25,7 +25,7 @@ func NewErrorMessage(amqpError *amqp.Error) *ErrorMessage {
 	}
 }
 
-// ToString allows you to quickly log the ErrorMessage struct as a string.
-func (em *ErrorMessage) ToString() string {
-	return fmt.Sprintf("[ErrorCode: %d] Reason: %s \r\nServer Initiated: %v \r\nRecoverable: %v\r\n", em.Code, em.Reason, em.Server, em.Recover)
+// Error allows you to quickly log the ErrorMessage struct as a string.
+func (em *ErrorMessage) Error() string {
+	return fmt.Sprintf("[ErrorCode: %d] Reason: %s \r\n[Server Initiated: %v]\r\n[Recoverable: %v]\r\n", em.Code, em.Reason, em.Server, em.Recover)
 }

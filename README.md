@@ -25,13 +25,35 @@ Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
     1x Publisher AutoPublish ~ 500-650 msg/s - Single Queue - Small Message Sizes
     1x Consumer Consumption ~ 2000-3000 msg/s - Single Queue - Small Message Sizes
 
+Stress Test - 2 hours of Publish/Consume
+
+	PS C:\GitHub\personal\turbocookedrabbit> go test -timeout 121m -run "^(TestStressPublishConsumeAckForDuration)$" -v
+
+	=== RUN   TestStressPublishConsumeAckForDuration
+	2019-09-15 12:07:08.9556184 -0400 EDT m=+0.100359901: Benchmark Starts
+	2019-09-15 14:07:08.9566168 -0400 EDT m=+7200.101358301: Est. Benchmark End
+	Messages Acked: 3662418
+	Messages Failed to Ack: 0
+	Messages Received: 3662418
+	ChannelPool Errors: 0
+	ConnectionPool Errors: 0
+	Consumer Errors: 0
+	Messages Published: 3662418
+	Messages Failed to Publish: 0
+	2019-09-15 14:07:08.9711087 -0400 EDT m=+7200.115850201: Benchmark Finished
+	--- PASS: TestStressPublishConsumeAckForDuration (7200.02s)
+	PASS
+	ok      github.com/houseofcat/turbocookedrabbit 7201.863s
+
 ### Work Recently Finished
- * Solidify Connections/Pools
- * Solidify Consumers
+ * Solidify Connections/Pools outage handling.
+ * Solidify Consumers outage handling.
+   * Publishers were still working.
+     * Blocking introduced on QueueLetter.
  * Properly handle total outages server side.
  * Refactor the reconnection logic.
    * Now everything stops/pauses until connectivity is restored.
- * RabbitMQ Topology Creation/Destruction Support
+ * RabbitMQ Topology Creation/Destruction support.
  * Started Profiling and including Benchmark/Profile .svgs.
 
 ### Current Known Issues
@@ -39,7 +61,8 @@ Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
    * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
  * ~Consumer stops working after server outage restore.~
    * ~Publisher is still working though.~
- * Publisher is a tad on the slow side. Might be an underlying Queue datastructure.
+ * AutoPublisher is a tad on the slow side. Might be the underlying Channel/QueueLetter.
+   * Raw looped Publish shows higher performance.
  * README needs small comments/updates related to new work (9/13/2019 - 7:10 PM EST)
 
 ### Work In Progress
@@ -859,46 +882,49 @@ This is a raw AMQP publish test.  We create an AMQP connection, create an AMQP c
 MessageCount: 100,000
 MessageSize: 2500 (2.5KB)
 
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestCreateSingleChannelAndPublish)$" -v
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -timeout 30s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestCreateSingleChannelAndPublish)$" -v
 	=== RUN   TestCreateSingleChannelAndPublish
-	--- PASS: TestCreateSingleChannelAndPublish (4.78s)
-		main_benchpool_test.go:17: 2019-09-15 07:39:48.3578722 -0400 EDT m=+0.091806701: Benchmark Starts
-		main_benchpool_test.go:49: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Benchmark End
-		main_benchpool_test.go:50: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Time Elapsed 4.7778774s
-		main_benchpool_test.go:51: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Publish Errors 0
-		main_benchpool_test.go:52: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Msgs/s 20929.796148
-		main_benchpool_test.go:53: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: KB/s 0.523245
+	--- PASS: TestCreateSingleChannelAndPublish (4.57s)
+		pools_test.go:51: 2019-09-15 14:48:11.615081 -0400 EDT m=+0.085770701: Benchmark Starts
+		pools_test.go:95: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Benchmark End
+		pools_test.go:96: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Time Elapsed 4.5729159s
+		pools_test.go:97: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Publish Errors 0
+		pools_test.go:98: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Publish Actual 100000
+		pools_test.go:99: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Msgs/s 21867.885215
+		pools_test.go:100: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: MB/s 54.669713
 	PASS
-	ok      github.com/houseofcat/turbocookedrabbit 6.512s
+	ok      github.com/houseofcat/turbocookedrabbit/pools   6.188s
 
 Apples to Apples comparison using a ChannelPool. As you can see - the numbers went up - but should have been relatively the same. Shere is some variability with these tests. The important thing to note is that there isn't a significant reduction in performance.
 
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestGetSingleChannelFromPoolAndPublish)$" -v
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -timeout 30s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetSingleChannelFromPoolAndPublish)" -v
 	=== RUN   TestGetSingleChannelFromPoolAndPublish
-	--- PASS: TestGetSingleChannelFromPoolAndPublish (4.32s)
-		main_benchpool_test.go:59: 2019-09-15 07:47:19.0276488 -0400 EDT m=+0.090818001: Benchmark Starts
-		main_benchpool_test.go:89: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Benchmark End
-		main_benchpool_test.go:90: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Time Elapsed 4.3239918s
-		main_benchpool_test.go:91: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Publish Errors 0
-		main_benchpool_test.go:92: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Msgs/s 23126.778363
-		main_benchpool_test.go:93: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: KB/s 0.578169
+	--- PASS: TestGetSingleChannelFromPoolAndPublish (4.30s)
+		pools_test.go:106: 2019-09-15 14:50:01.2111296 -0400 EDT m=+0.104896201: Benchmark Starts
+		pools_test.go:146: 2019-09-15 14:50:05.5139474 -0400 EDT m=+4.407714001: Benchmark End
+		pools_test.go:147: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Time Elapsed 4.3028178s
+		pools_test.go:148: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Publish Errors 0
+		pools_test.go:149: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Publish Actual 100000
+		pools_test.go:150: 2019-09-15 14:50:05.5140623 -0400 EDT m=+4.407828901: Msgs/s 23240.584345
+		pools_test.go:151: 2019-09-15 14:50:05.5140623 -0400 EDT m=+4.407828901: MB/s 58.101461
 	PASS
-	ok      github.com/houseofcat/turbocookedrabbit 4.506s
+	ok      github.com/houseofcat/turbocookedrabbit/pools   4.507s
 
-Apples to Apple Orange comparison same premise, but different ChannelHost per Publish.
+Apples to Apple Orange comparison same premise, but different ChannelHost per Publish allowing us to publish concurrently.
 
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestGetMultiChannelFromPoolAndPublish)$" -v
+	PS C:\GitHub\personal\turbocookedrabbit> go test -timeout 10s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetMultiChannelFromPoolAndPublish)" -v
 	=== RUN   TestGetMultiChannelFromPoolAndPublish
-	--- PASS: TestGetMultiChannelFromPoolAndPublish (3.72s)
-		main_benchpool_test.go:99: 2019-09-15 07:40:44.1532264 -0400 EDT m=+0.086463601: Benchmark Starts
-		main_benchpool_test.go:135: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Benchmark End
-		main_benchpool_test.go:136: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Time Elapsed 3.7150664s
-		main_benchpool_test.go:137: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: ChannelPool Errors 0
-		main_benchpool_test.go:138: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Publish Errors 0
-		main_benchpool_test.go:139: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Msgs/s 26917.419296
-		main_benchpool_test.go:140: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: KB/s 0.672935
+	--- PASS: TestGetMultiChannelFromPoolAndPublish (4.95s)
+		pools_test.go:157: 2019-09-15 14:53:41.2687154 -0400 EDT m=+0.091933501: Benchmark Starts
+		pools_test.go:204: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Benchmark End
+		pools_test.go:205: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Time Elapsed 2.9471258s
+		pools_test.go:206: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: ChannelPool Errors 0
+		pools_test.go:207: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Publish Errors 0
+		pools_test.go:208: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Publish Actual 100000
+		pools_test.go:209: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Msgs/s 33931.364586
+		pools_test.go:210: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: MB/s 84.828411
 	PASS
-	ok      github.com/houseofcat/turbocookedrabbit 3.893s
+	ok      github.com/houseofcat/turbocookedrabbit/pools   5.143s
 
 </p>
 </details>

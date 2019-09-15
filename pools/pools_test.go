@@ -3,6 +3,8 @@ package pools_test
 import (
 	"fmt"
 	"os"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,14 +19,195 @@ import (
 )
 
 var Seasoning *models.RabbitSeasoning
+var ConnectionPool *pools.ConnectionPool
+var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
 	Seasoning, err = utils.ConvertJSONFileToConfig("testpoolseasoning.json")
 	if err != nil {
+		fmt.Print(err.Error())
 		return
 	}
+
+	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+
+	ChannelPool, err = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+
 	os.Exit(m.Run())
+}
+
+func TestCreateSingleChannelAndPublish(t *testing.T) {
+
+	startTime := time.Now()
+	t.Logf("%s: Benchmark Starts\r\n", startTime)
+
+	messageCount := 100000
+	messageSize := 2500
+	publishErrors := 0
+	published := 0
+
+	letter := utils.CreateLetter("", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+
+	amqpConn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	amqpChan, err := amqpConn.Channel()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	for i := 0; i < messageCount; i++ {
+
+		err := amqpChan.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType: letter.Envelope.ContentType,
+				Body:        letter.Body,
+			})
+
+		if err != nil {
+			publishErrors++
+		} else {
+			published++
+		}
+	}
+
+	amqpChan.Close()
+	amqpConn.Close()
+
+	duration := time.Since(startTime)
+
+	t.Logf("%s: Benchmark End\r\n", time.Now())
+	t.Logf("%s: Time Elapsed %s\r\n", time.Now(), duration)
+	t.Logf("%s: Publish Errors %d\r\n", time.Now(), publishErrors)
+	t.Logf("%s: Publish Actual %d\r\n", time.Now(), published)
+	t.Logf("%s: Msgs/s %f\r\n", time.Now(), float64(messageCount)/duration.Seconds())
+	t.Logf("%s: MB/s %f\r\n", time.Now(), (float64(messageSize*published)/duration.Seconds())/1000000)
+}
+
+func TestGetSingleChannelFromPoolAndPublish(t *testing.T) {
+
+	startTime := time.Now()
+	t.Logf("%s: Benchmark Starts\r\n", startTime)
+
+	messageCount := 100000
+	messageSize := 2500
+	published := 0
+
+	letter := utils.CreateLetter("", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+
+	channelHost, err := ChannelPool.GetChannel()
+	if err != nil {
+		t.Error(err)
+		return
+	}
+	publishErrors := 0
+
+	for i := 0; i < messageCount; i++ {
+		err := channelHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType: letter.Envelope.ContentType,
+				Body:        letter.Body,
+			})
+
+		if err != nil {
+			if publishErrors == 0 {
+				t.Error(err)
+			}
+			publishErrors++
+		} else {
+			published++
+		}
+	}
+
+	ChannelPool.ReturnChannel(channelHost, false)
+
+	duration := time.Since(startTime)
+
+	t.Logf("%s: Benchmark End\r\n", time.Now())
+	t.Logf("%s: Time Elapsed %s\r\n", time.Now(), duration)
+	t.Logf("%s: Publish Errors %d\r\n", time.Now(), publishErrors)
+	t.Logf("%s: Publish Actual %d\r\n", time.Now(), published)
+	t.Logf("%s: Msgs/s %f\r\n", time.Now(), float64(published)/duration.Seconds())
+	t.Logf("%s: MB/s %f\r\n", time.Now(), (float64(messageSize*published)/duration.Seconds())/1000000)
+}
+
+func TestGetMultiChannelFromPoolAndPublish(t *testing.T) {
+
+	startTime := time.Now()
+	t.Logf("%s: Benchmark Starts\r\n", startTime)
+
+	poolErrors := 0
+	published := int32(0)
+	publishErrors := 0
+	messageCount := 100000
+	messageSize := 2500
+
+	letter := utils.CreateLetter("", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+
+	var wg sync.WaitGroup
+	for i := 0; i < messageCount; i++ {
+		channelHost, err := ChannelPool.GetChannel()
+		if err != nil {
+			poolErrors++
+			continue
+		}
+
+		wg.Add(1)
+		go func() {
+			wg.Done()
+			err = channelHost.Channel.Publish(
+				letter.Envelope.Exchange,
+				letter.Envelope.RoutingKey,
+				letter.Envelope.Mandatory,
+				letter.Envelope.Immediate,
+				amqp.Publishing{
+					ContentType: letter.Envelope.ContentType,
+					Body:        letter.Body,
+				})
+
+			if err != nil {
+				publishErrors++
+				ChannelPool.ReturnChannel(channelHost, true)
+			} else {
+				atomic.AddInt32(&published, 1)
+				ChannelPool.ReturnChannel(channelHost, false)
+			}
+		}()
+	}
+
+	wg.Wait()
+
+	duration := time.Since(startTime)
+
+	// Needed for internal library routing delays getting out to server.
+	time.Sleep(2 * time.Second)
+	t.Logf("%s: Benchmark End\r\n", time.Now())
+	t.Logf("%s: Time Elapsed %s\r\n", time.Now(), duration)
+	t.Logf("%s: ChannelPool Errors %d\r\n", time.Now(), poolErrors)
+	t.Logf("%s: Publish Errors %d\r\n", time.Now(), publishErrors)
+	t.Logf("%s: Publish Actual %d\r\n", time.Now(), published)
+	t.Logf("%s: Msgs/s %f\r\n", time.Now(), float64(published)/duration.Seconds())
+	t.Logf("%s: MB/s %f\r\n", time.Now(), (float64(int32(messageSize)*published)/duration.Seconds())/1000000)
 }
 
 func TestCreateConnectionPool(t *testing.T) {
