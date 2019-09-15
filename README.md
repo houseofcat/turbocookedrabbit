@@ -77,6 +77,8 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
 			"MaxConnectionCount": 10,
+			"Heartbeat": 5,
+			"ConnectionTimeout": 10,
 			"TLSConfig": {
 				"EnableTLS": false,
 				"PEMCertLocation": "test/catest.pem",
@@ -113,6 +115,7 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 	},
 	"PublisherConfig":{
 		"SleepOnIdleInterval": 0,
+		"SleepOnQueueFullInterval": 100,
 		"SleepOnErrorInterval": 1000,
 		"LetterBuffer": 1000,
 		"MaxOverBuffer": 1000,
@@ -542,26 +545,28 @@ I allow most of this to be configured now inside the ChannelPoolConfig and Conne
 
 ```javascript
 "PoolConfig": {
-    "ChannelPoolConfig": {
-        "ErrorBuffer": 10,
-        "SleepOnErrorInterval": 1000,
-        "MaxChannelCount": 50,
-        "MaxAckChannelCount": 50,
-        "AckNoWait": false,
-        "GlobalQosCount": 5
-    },
-    "ConnectionPoolConfig": {
-        "URI": "amqp://guest:guest@localhost:5672/",
-        "ErrorBuffer": 10,
-        "SleepOnErrorInterval": 5000,
-        "MaxConnectionCount": 10,
-        "TLSConfig": {
-            "EnableTLS": false,
-            "PEMCertLocation": "test/catest.pem",
-            "LocalCertLocation": "client/cert.ca",
-            "CertServerName": "hostname-in-cert"
-        }
-    }
+	"ChannelPoolConfig": {
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 1000,
+		"MaxChannelCount": 50,
+		"MaxAckChannelCount": 50,
+		"AckNoWait": false,
+		"GlobalQosCount": 5
+	},
+	"ConnectionPoolConfig": {
+		"URI": "amqp://guest:guest@localhost:5672/",
+		"ErrorBuffer": 10,
+		"SleepOnErrorInterval": 5000,
+		"MaxConnectionCount": 10,
+		"Heartbeat": 5,
+		"ConnectionTimeout": 10,
+		"TLSConfig": {
+			"EnableTLS": false,
+			"PEMCertLocation": "test/catest.pem",
+			"LocalCertLocation": "client/cert.ca",
+			"CertServerName": "hostname-in-cert"
+		}
+	}
 },
 ```
 
@@ -772,6 +777,8 @@ The related settings for outages are here:
 	"ErrorBuffer": 10,
 	"SleepOnErrorInterval": 5000,
 	"MaxConnectionCount": 10,
+	"Heartbeat": 5,
+	"ConnectionTimeout": 10,
 	"TLSConfig": {
 		"EnableTLS": false,
 		"PEMCertLocation": "test/catest.pem",
