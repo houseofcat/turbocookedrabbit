@@ -17,13 +17,29 @@ import (
 )
 
 var Seasoning *models.RabbitSeasoning
+var ConnectionPool *pools.ConnectionPool
+var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 	var err error
 	Seasoning, err = utils.ConvertJSONFileToConfig("testpublisherseasoning.json")
 	if err != nil {
+		fmt.Print(err.Error())
 		return
 	}
+
+	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+
+	ChannelPool, err = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+
 	os.Exit(m.Run())
 }
 
@@ -45,9 +61,6 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 	assert.NoError(t, err)
 
 	channelPool.FlushErrors()
-
-	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool)
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -99,9 +112,6 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	channelPool.FlushErrors()
 
-	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool)
-
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
@@ -144,7 +154,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	channelPool.FlushErrors()
 
 	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", channelPool)
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -154,7 +164,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -212,7 +222,7 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
 
 	// Purge all queues.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", channelPool)
 
 	// Shut down everything.
 	publisher.StopAutoPublish()
@@ -229,7 +239,7 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", channelPool)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
@@ -242,7 +252,7 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -307,7 +317,7 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Purge all queues.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", channelPool)
 
 	// Shut down everything.
 	publisher1.StopAutoPublish()
@@ -327,7 +337,7 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	channelPool.FlushErrors()
 
 	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, p1Err)
@@ -346,7 +356,7 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -418,7 +428,7 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Purge all queues.
-	purgeAllPublisherTestQueues(t, channelPool)
+	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
 
 	// Shut down everything.
 	publisher1.StopAutoPublish()
@@ -452,7 +462,7 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	channelPool4.FlushErrors()
 
 	// Purge all queues first.
-	purgeAllPublisherTestQueues(t, channelPool1)
+	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
 
 	publisher1, p1Err := publisher.NewPublisher(Seasoning, channelPool1, nil)
 	assert.NoError(t, p1Err)
@@ -471,7 +481,7 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = utils.CreateLetter("", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -537,7 +547,7 @@ ListeningForNotificationsLoop:
 	fmt.Printf("Rate: %f msg/s\r\n", float64(publisherMultiple*messageCount)/elapsed.Seconds())
 
 	// Purge all queues.
-	purgeAllPublisherTestQueues(t, channelPool1)
+	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
 
 	// Shut down everything.
 	publisher1.StopAutoPublish()
@@ -550,9 +560,9 @@ ListeningForNotificationsLoop:
 	channelPool4.Shutdown()
 }
 
-func purgeAllPublisherTestQueues(t *testing.T, channelPool *pools.ChannelPool) {
+func purgeAllPublisherTestQueues(queuePrefix string, channelPool *pools.ChannelPool) {
 	topologer := topology.NewTopologer(channelPool)
 	for i := 0; i < 10; i++ {
-		topologer.PurgeQueue(fmt.Sprintf("TestQueue-%d", i), false)
+		topologer.PurgeQueue(fmt.Sprintf("%s-%d", queuePrefix, i), false)
 	}
 }

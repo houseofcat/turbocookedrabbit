@@ -10,12 +10,13 @@ It was programmed against the following:
  * Golang 1.13.0
  * RabbitMQ Server v3.7.17 (simple localhost)
  * Erlang v22.0 (OTP v10.4)
+ * Streadway/Amqp Latest
 
-If you see any issues with more advanced setups, I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
+Issues with more advanced setups? I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
 
-I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship.
+If you see something syntactically wrong, do speak up! I am, relatively speaking, an idiot ^.^. I am still new to golang. My background is in performant infrastructure development, using C# and the .NET/NetCore ecosystem... so if any `golang wizards` want to provide advice or criticisms, please do!
 
-Also if you see something syntactically wrong, speak up! I am, relatively speaking, an idiot. Also, I am still new to the golang ecosystem. My background is in infrastructure development, C#, and the .NET/NetCore ecosystem, so if any `golang wizards` want to provide advice, please do.
+I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship - suffice to say the golden rule works wonders on me / mind your Ps and Qs.
 
 ### Basic Performance
 
@@ -50,6 +51,7 @@ Stress Test - 2 hours of Publish/Consume
  * Solidify Consumers outage handling.
    * Publishers were still working.
      * Blocking introduced on QueueLetter.
+ * Publisher AutoPublish performance up to par!
  * Properly handle total outages server side.
  * Refactor the reconnection logic.
    * Now everything stops/pauses until connectivity is restored.
@@ -61,9 +63,9 @@ Stress Test - 2 hours of Publish/Consume
    * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
  * ~Consumer stops working after server outage restore.~
    * ~Publisher is still working though.~
- * AutoPublisher is a tad on the slow side. Might be the underlying Channel/QueueLetter.
-   * Raw looped Publish shows higher performance.
- * README needs small comments/updates related to new work (9/13/2019 - 7:10 PM EST)
+ * ~AutoPublisher is a tad on the slow side. Might be the underlying Channel/QueueLetter.~
+   * ~Raw looped Publish shows higher performance.~
+ * README needs small comments/updates related to new work finished on 9/13/2019 - 7:10 PM EST.
 
 ### Work In Progress
  * Streamline error handling.
@@ -186,7 +188,7 @@ publisher.Publish(letter)
 
 This **CreateLetter** method creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of TestQueueName. The body is nil, the helper function creates bytes for "h e l l o   w o r l d".
 
-The concept of a Letter may seem clunky on a single publish. I don't disagree and you still always have `streadway/amqp` to rely on. The **letter** idea makes sense with **AutoPublish**.
+The concept of a Letter may seem clunky on a single publish. I don't disagree and you still have `streadway/amqp` to rely on. The **letter** idea makes more sense with **AutoPublish**.
 
 </p>
 </details>
@@ -207,7 +209,7 @@ for {
     select {
     case notification := <-publisher.Notifications():
         if !notification.Success {
-            /* Handle Republish */
+            /* Handle Requeue or a manual Re-Publish */
         }
     default:
         time.Sleep(1 * time.Millisecond)
@@ -215,9 +217,7 @@ for {
 }
 ```
 
-This tells the Publisher to start reading an **internal queue**, a letter queue.
-
-Once this has been started up, we allow letters to be placed in the mailbox/letter queue.
+This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently.
 
 That could be simple like this...
 
@@ -237,9 +237,9 @@ for _, letter := range letters {
 }
 ```
 
-So you can see why we use these message containers called **letter**. The letter has the **body** and **envelope** inside of it. It has everything you need to publish it. Think of it a small, highly configurable, **unit of work**.
+So you can see why we use these message containers called **letter**. The letter has the **body** and **envelope** inside of it. It has everything you need to publish it. Think of it a small, highly configurable, **unit of work** and **address**.
 
-Notice that you don't have anything to do with channels and connections!
+Notice that you don't have anything to do with channels and connections (even on outage)!
 
 </p>
 </details>
@@ -249,7 +249,7 @@ Notice that you don't have anything to do with channels and connections!
 <details><summary>Click for a more convoluted AutoPublish example!</summary>
 <p>
 
-Let's say the above example was too simple for you... ...let's up it a notch on what you can do with AutoPublish.
+Let's say the above example was too simple for you... ...let's up the over engineering a notch on what you can do with AutoPublish.
 
 ```golang
 
@@ -297,8 +297,50 @@ We have finished our work, we **succeeded** or **failed** to publish **1000** me
 
 ```golang
 publisher.StopAutoPublish()
-// channelPool.Shutdown() // if you have a pointer to your channel pool nearby!
+// channelPool.Shutdown() // don't forge cleanup if you have a pointer to your channel pool nearby!
 ```
+
+</p>
+</details>
+
+---
+
+<details><summary>Click for a clean AutoPublish benchmark!</summary>
+<p>
+
+Early on the performance was not really there on Publish - some 500 msgs/s. Which is great, but not the numbers found during development. Somewhere along the way I introduced one too many race conditions. Also aggressively throttled configurations don't help either. Any who, I isolated the components and benched just AutoPublish and with a few tweaks - I started seeing raw concurrent/parallel Publishing performance for a single a Publisher!
+
+Ran this benchmark with the following Publisher settings and distributed over 10 queues (i % 10).
+
+```javascript
+"PublisherConfig":{
+	"SleepOnIdleInterval": 0,
+	"SleepOnQueueFullInterval": 1,
+	"SleepOnErrorInterval": 1000,
+	"LetterBuffer": 10000,
+	"MaxOverBuffer": 2000,
+	"NotificationBuffer": 1000
+}
+```
+
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -benchmem -run=^$ github.com/houseofcat/turbocookedrabbit/publisher -bench "^(BenchmarkAutoPublishRandomLetters)$" -v
+	goos: windows
+	goarch: amd64
+	pkg: github.com/houseofcat/turbocookedrabbit/publisher
+	BenchmarkAutoPublishRandomLetters-8            1        7346832700 ns/op        563734704 B/op   4525448 allocs/op
+	--- BENCH: BenchmarkAutoPublishRandomLetters-8
+		publisher_bench_test.go:21: 2019-09-15 18:58:57.6932202 -0400 EDT m=+0.107877301: Purging Queues...
+		publisher_bench_test.go:37: 2019-09-15 18:58:57.6972462 -0400 EDT m=+0.111903301: Building Letters
+		publisher_bench_test.go:42: 2019-09-15 18:58:58.9048792 -0400 EDT m=+1.319536301: Finished Building Letters
+		publisher_bench_test.go:43: 2019-09-15 18:58:58.9048792 -0400 EDT m=+1.319536301: Total Size Created: 199.844457 MB
+		publisher_bench_test.go:62: 2019-09-15 18:58:58.9058787 -0400 EDT m=+1.320535801: Queueing Letters
+		publisher_bench_test.go:67: 2019-09-15 18:59:02.669778 -0400 EDT m=+5.084435101: Finished Queueing letters after 3.7638993s
+		publisher_bench_test.go:68: 2019-09-15 18:59:02.669778 -0400 EDT m=+5.084435101: 26568.192194 Msg/s
+		publisher_bench_test.go:74: 2019-09-15 18:59:04.6839535 -0400 EDT m=+7.098610601: Purging Queues...
+	PASS
+	ok      github.com/houseofcat/turbocookedrabbit/publisher       10.092s
+
+Noice!
 
 </p>
 </details>
@@ -895,7 +937,7 @@ MessageSize: 2500 (2.5KB)
 	PASS
 	ok      github.com/houseofcat/turbocookedrabbit/pools   6.188s
 
-Apples to Apples comparison using a ChannelPool. As you can see - the numbers went up - but should have been relatively the same. Shere is some variability with these tests. The important thing to note is that there isn't a significant reduction in performance.
+Apples to Apples comparison using a ChannelPool. As you can see - the numbers went up - but should have been relatively the same. There is some variability with these tests. The important thing to note is that there isn't a significant reduction in performance. You shouldn't see more or less performance - that is the target!
 
 	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -timeout 30s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetSingleChannelFromPoolAndPublish)" -v
 	=== RUN   TestGetSingleChannelFromPoolAndPublish
@@ -910,7 +952,7 @@ Apples to Apples comparison using a ChannelPool. As you can see - the numbers we
 	PASS
 	ok      github.com/houseofcat/turbocookedrabbit/pools   4.507s
 
-Apples to Apple Orange comparison same premise, but different ChannelHost per Publish allowing us to publish concurrently.
+Apples to Apple-Orange-Hybrid comparison. Exact same premise, but different ChannelHost per Publish allowing us to publish concurrently. I was just showing off at this point.
 
 	PS C:\GitHub\personal\turbocookedrabbit> go test -timeout 10s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetMultiChannelFromPoolAndPublish)" -v
 	=== RUN   TestGetMultiChannelFromPoolAndPublish

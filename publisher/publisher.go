@@ -15,7 +15,6 @@ import (
 type Publisher struct {
 	Config                   *models.RabbitSeasoning
 	ChannelPool              *pools.ChannelPool
-	publishGroup             *sync.WaitGroup
 	letters                  chan *models.Letter
 	letterCount              uint64
 	letterBuffer             uint64
@@ -23,6 +22,7 @@ type Publisher struct {
 	autoStop                 chan bool
 	notifications            chan *models.Notification
 	autoStarted              bool
+	autoPublishGroup         *sync.WaitGroup
 	sleepOnIdleInterval      time.Duration
 	sleepOnQueueFullInterval time.Duration
 	sleepOnErrorInterval     time.Duration
@@ -48,11 +48,11 @@ func NewPublisher(
 	return &Publisher{
 		Config:                   config,
 		ChannelPool:              chanPool,
-		publishGroup:             &sync.WaitGroup{},
 		letters:                  make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
 		letterBuffer:             config.PublisherConfig.LetterBuffer,
 		maxOverBuffer:            config.PublisherConfig.MaxOverBuffer,
 		autoStop:                 make(chan bool, 1),
+		autoPublishGroup:         &sync.WaitGroup{},
 		notifications:            make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
 		sleepOnIdleInterval:      time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnQueueFullInterval: time.Duration(config.PublisherConfig.SleepOnQueueFullInterval) * time.Millisecond,
@@ -66,8 +66,6 @@ func NewPublisher(
 // Publish sends a single message to the address on the letter.
 // Subscribe to Notifications to see success and errors.
 func (pub *Publisher) Publish(letter *models.Letter) {
-	pub.publishGroup.Add(1)
-	defer pub.publishGroup.Done()
 
 	chanHost, err := pub.ChannelPool.GetChannel()
 	if err != nil {
@@ -88,8 +86,6 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 // Subscribe to Notifications to see success and errors.
 // RetryCount is based on the letter property. Zero means it will try once.
 func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
-	pub.publishGroup.Add(1)
-	defer pub.publishGroup.Done()
 
 	for i := letter.RetryCount + 1; i > 0; i-- {
 		chanHost, err := pub.ChannelPool.GetChannel()
@@ -134,14 +130,23 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 				if stop {
 					break PublishLoop
 				}
+			default:
+				break
+			}
+
+			select {
 			case letter := <-pub.letters:
 				if allowRetry {
+					pub.autoPublishGroup.Add(1)
 					go func() {
+						defer pub.autoPublishGroup.Done()
 						pub.PublishWithRetry(letter)
 						pub.reduceLetterCount()
 					}()
 				} else {
+					pub.autoPublishGroup.Add(1)
 					go func() {
+						defer pub.autoPublishGroup.Done()
 						pub.Publish(letter)
 						pub.reduceLetterCount()
 					}()
@@ -150,10 +155,11 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 				if pub.sleepOnIdleInterval > 0 {
 					time.Sleep(pub.sleepOnIdleInterval)
 				}
+				break
 			}
 		}
 
-		pub.publishGroup.Wait() // let all remaining publishes finish.
+		pub.autoPublishGroup.Wait() // let all remaining publishes finish.
 
 		pub.pubLock.Lock()
 		defer pub.pubLock.Unlock()

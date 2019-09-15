@@ -51,10 +51,10 @@
 	},
 	"PublisherConfig":{
 		"SleepOnIdleInterval": 0,
-		"SleepOnQueueFullInterval": 100,
+		"SleepOnQueueFullInterval": 1,
 		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 1000,
-		"MaxOverBuffer": 1000,
+		"LetterBuffer": 10000,
+		"MaxOverBuffer": 2000,
 		"NotificationBuffer": 1000
 	}
 }
