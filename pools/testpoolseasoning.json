@@ -13,7 +13,7 @@
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
 			"MaxConnectionCount": 10,
-			"HeartbeatInterval": 5,
+			"Heartbeat": 5,
 			"ConnectionTimeout": 10,
 			"TLSConfig": {
 				"EnableTLS": false,

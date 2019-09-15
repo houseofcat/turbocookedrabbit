@@ -27,8 +27,16 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 	if err != nil {
 		return
 	}
-	ConnectionPool, _ = pools.NewConnectionPool(Seasoning.PoolConfig, true)
-	ChannelPool, _ = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+	ChannelPool, err = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
 
 	os.Exit(m.Run())
 }

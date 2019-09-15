@@ -218,7 +218,7 @@ func TestUnbindQueue(t *testing.T) {
 
 func TestPublishConsumeAckForDuration(t *testing.T) {
 
-	timeDuration := time.Duration(5 * time.Minute)
+	timeDuration := time.Duration(30 * time.Minute)
 	timeOut := time.After(timeDuration)
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
@@ -242,7 +242,7 @@ func TestPublishConsumeAckForDuration(t *testing.T) {
 				publisher.QueueLetter(&newLetter)
 				fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
 				letter.LetterID++
-				time.Sleep(1 * time.Second)
+				time.Sleep(1 * time.Millisecond)
 			}
 		}
 	}()
@@ -295,7 +295,7 @@ ConsumeLoop:
 				}
 			}(message)
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(5 * time.Millisecond)
 		}
 	}
 
