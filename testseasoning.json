@@ -13,6 +13,8 @@
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
 			"MaxConnectionCount": 10,
+			"HeartbeatInterval": 5,
+			"ConnectionTimeout": 10,
 			"TLSConfig": {
 				"EnableTLS": false,
 				"PEMCertLocation": "test/catest.pem",
@@ -49,6 +51,7 @@
 	},
 	"PublisherConfig":{
 		"SleepOnIdleInterval": 0,
+		"SleepOnQueueFullInterval": 100,
 		"SleepOnErrorInterval": 1000,
 		"LetterBuffer": 1000,
 		"MaxOverBuffer": 1000,

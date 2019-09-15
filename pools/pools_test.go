@@ -361,7 +361,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 				fmt.Printf("%s: ChannelPublishSuccess\r\n", time.Now())
 			}
 		}
-		channelPool.ReturnChannel(chanHost)
+		channelPool.ReturnChannel(chanHost, false)
 		iterations++
 		time.Sleep(10 * time.Millisecond)
 	}

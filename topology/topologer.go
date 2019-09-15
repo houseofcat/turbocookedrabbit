@@ -126,7 +126,7 @@ func (top *Topologer) CreateExchange(
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if passiveDeclare {
 		err = chanHost.Channel.ExchangeDeclarePassive(exchangeName, exchangeType, durable, autoDelete, internal, noWait, amqp.Table(args))
@@ -155,7 +155,7 @@ func (top *Topologer) CreateExchangeFromConfig(exchange *models.Exchange) error 
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if exchange.PassiveDeclare {
 		err = chanHost.Channel.ExchangeDeclarePassive(
@@ -200,7 +200,7 @@ func (top *Topologer) ExchangeBind(exchangeBinding *models.ExchangeBinding) erro
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	err = chanHost.Channel.ExchangeBind(
 		exchangeBinding.ExchangeName,
@@ -227,7 +227,7 @@ func (top *Topologer) ExchangeDelete(
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	err = chanHost.Channel.ExchangeDelete(exchangeName, ifUnused, noWait)
 	if err != nil {
@@ -246,7 +246,7 @@ func (top *Topologer) ExchangeUnbind(exchangeName, routingKey, parentExchangeNam
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	err = chanHost.Channel.ExchangeUnbind(
 		exchangeName,
@@ -278,7 +278,7 @@ func (top *Topologer) CreateQueue(
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if passiveDeclare {
 		_, err = chanHost.Channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
@@ -307,7 +307,7 @@ func (top *Topologer) CreateQueueFromConfig(queue *models.Queue) error {
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if queue.PassiveDeclare {
 		_, err = chanHost.Channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
@@ -336,7 +336,7 @@ func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (
 		return 0, err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	count, err := chanHost.Channel.QueueDelete(name, ifUnused, ifEmpty, noWait)
 	if err != nil {
@@ -355,7 +355,7 @@ func (top *Topologer) QueueBind(queueBinding *models.QueueBinding) error {
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	err = chanHost.Channel.QueueBind(
 		queueBinding.QueueName,
@@ -400,7 +400,7 @@ func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 		return 0, err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	count, err := chanHost.Channel.QueuePurge(
 		queueName,
@@ -422,7 +422,7 @@ func (top *Topologer) UnbindQueue(queueName, routingKey, exchangeName string, ar
 		return err
 	}
 
-	defer top.channelPool.ReturnChannel(chanHost)
+	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	err = chanHost.Channel.QueueUnbind(
 		queueName,

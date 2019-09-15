@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math/rand"
+	"time"
 	"unsafe"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
@@ -31,8 +32,8 @@ func CreateLetter(exchangeName string, queueName string, body []byte) *models.Le
 	}
 }
 
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 const (
+	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	letterIdxBits = 6                    // 6 bits to represent a letter index
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
@@ -58,4 +59,9 @@ func RandomString(size int, src rand.Source) string {
 	}
 
 	return *(*string)(unsafe.Pointer(&b))
+}
+
+// RandomBytes returns a RandomString converted to bytes.
+func RandomBytes(size int) []byte {
+	return []byte(RandomString(size, rand.NewSource(time.Now().UnixNano())))
 }

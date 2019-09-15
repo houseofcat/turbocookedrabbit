@@ -21,12 +21,15 @@ type ConnectionPool struct {
 	enableTLS                  bool
 	tlsConfig                  *tls.Config
 	errors                     chan error
+	heartbeat                  time.Duration
+	connectionTimeout          time.Duration
 	connections                *queue.Queue
 	maxConnections             uint64
 	maxChannelPerConnection    uint64
 	maxAckChannelPerConnection uint64
 	connectionID               uint64
 	poolLock                   *sync.Mutex
+	poolRWLock                 *sync.RWMutex
 	connectionLock             int32
 	flaggedConnections         map[uint64]bool
 	sleepOnErrorInterval       time.Duration
@@ -40,6 +43,10 @@ func NewConnectionPool(
 
 	var tlsConfig *tls.Config
 	var err error
+
+	if config.ConnectionPoolConfig.Heartbeat == 0 || config.ConnectionPoolConfig.ConnectionTimeout == 0 {
+		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
+	}
 
 	if config.ConnectionPoolConfig.MaxConnectionCount == 0 || config.ChannelPoolConfig.MaxChannelCount == 0 {
 		return nil, errors.New("connectionpool maxconnectioncount or channelpool maxchannelcount can't be 0")
@@ -75,11 +82,14 @@ func NewConnectionPool(
 		enableTLS:                  config.ConnectionPoolConfig.EnableTLS,
 		tlsConfig:                  tlsConfig,
 		errors:                     make(chan error, config.ConnectionPoolConfig.ErrorBuffer),
+		heartbeat:                  time.Duration(config.ConnectionPoolConfig.Heartbeat) * time.Second,
+		connectionTimeout:          time.Duration(config.ConnectionPoolConfig.ConnectionTimeout) * time.Second,
 		maxConnections:             config.ConnectionPoolConfig.MaxConnectionCount,
 		maxChannelPerConnection:    maxChannelPerConnection,
 		maxAckChannelPerConnection: config.ChannelPoolConfig.MaxAckChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
 		connections:                queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
 		poolLock:                   &sync.Mutex{},
+		poolRWLock:                 &sync.RWMutex{},
 		flaggedConnections:         make(map[uint64]bool),
 		sleepOnErrorInterval:       time.Duration(config.ConnectionPoolConfig.SleepOnErrorInterval) * time.Millisecond,
 	}
@@ -149,7 +159,13 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 // CreateConnectionHost creates the Connection with RabbitMQ server.
 func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.ConnectionHost, error) {
 
-	return models.NewConnectionHost(cp.uri, connectionID, cp.maxChannelPerConnection, cp.maxAckChannelPerConnection)
+	return models.NewConnectionHost(
+		cp.uri,
+		connectionID,
+		cp.heartbeat,
+		cp.connectionTimeout,
+		cp.maxChannelPerConnection,
+		cp.maxAckChannelPerConnection)
 }
 
 // CreateConnectionHostWithTLS creates the Connection with RabbitMQ server.
@@ -158,7 +174,14 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 		return nil, errors.New("tls enabled but tlsConfig has not been created")
 	}
 
-	return models.NewConnectionHostWithTLS(cp.uri, connectionID, cp.maxChannelPerConnection, cp.maxAckChannelPerConnection, cp.tlsConfig)
+	return models.NewConnectionHostWithTLS(
+		cp.uri,
+		connectionID,
+		cp.heartbeat,
+		cp.connectionTimeout,
+		cp.maxChannelPerConnection,
+		cp.maxAckChannelPerConnection,
+		cp.tlsConfig)
 }
 
 // Errors yields all the internal errs for creating connections.
@@ -251,22 +274,22 @@ func (cp *ConnectionPool) ConnectionCount() int64 {
 
 // UnflagConnection flags that connection as usable in the future.
 func (cp *ConnectionPool) UnflagConnection(connectionID uint64) {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.Lock()
+	defer cp.poolRWLock.Unlock()
 	cp.flaggedConnections[connectionID] = false
 }
 
 // FlagConnection flags that connection as non-usable in the future.
 func (cp *ConnectionPool) FlagConnection(connectionID uint64) {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.Lock()
+	defer cp.poolRWLock.Unlock()
 	cp.flaggedConnections[connectionID] = true
 }
 
 // IsConnectionFlagged checks to see if the connection has been flagged for removal.
 func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.RLock()
+	defer cp.poolRWLock.RUnlock()
 	if flagged, ok := cp.flaggedConnections[connectionID]; ok {
 		return flagged
 	}

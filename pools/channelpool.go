@@ -25,6 +25,7 @@ type ChannelPool struct {
 	maxAckChannels       uint64
 	channelID            uint64
 	poolLock             *sync.Mutex
+	poolRWLock           *sync.RWMutex
 	channelLock          int32
 	flaggedChannels      map[uint64]bool
 	sleepOnErrorInterval time.Duration
@@ -55,6 +56,7 @@ func NewChannelPool(
 		channels:             queue.New(int64(config.ChannelPoolConfig.MaxChannelCount)),
 		ackChannels:          queue.New(int64(config.ChannelPoolConfig.MaxAckChannelCount)),
 		poolLock:             &sync.Mutex{},
+		poolRWLock:           &sync.RWMutex{},
 		flaggedChannels:      make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.ChannelPoolConfig.SleepOnErrorInterval) * time.Millisecond,
 		globalQosCount:       config.ChannelPoolConfig.GlobalQosCount,
@@ -224,13 +226,18 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	return channelHost, nil
 }
 
-// ReturnChannel puts the connection back in the queue while also returning a pointer to the caller.
+// ReturnChannel puts the connection back in the queue.
 // Developer has to manually return the Channel and helps maintain a Round Robin on Channels and their resources.
-func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost) {
+// Optional parameter allows you to flag a Channel as dead.
+func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost, flagChannel bool) {
 	if chanHost.IsAckable() {
 		cp.ackChannels.Put(chanHost)
 	} else {
 		cp.channels.Put(chanHost)
+	}
+
+	if flagChannel {
+		cp.FlagChannel(chanHost.ChannelID)
 	}
 }
 
@@ -306,22 +313,22 @@ func (cp *ChannelPool) AckChannelCount() int64 {
 
 // UnflagChannel flags that channel as usable in the future.
 func (cp *ChannelPool) UnflagChannel(channelID uint64) {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.Lock()
+	defer cp.poolRWLock.Unlock()
 	cp.flaggedChannels[channelID] = false
 }
 
 // FlagChannel flags that channel as non-usable in the future.
 func (cp *ChannelPool) FlagChannel(channelID uint64) {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.Lock()
+	defer cp.poolRWLock.Unlock()
 	cp.flaggedChannels[channelID] = true
 }
 
 // IsChannelFlagged checks to see if the channel has been flagged for removal.
 func (cp *ChannelPool) IsChannelFlagged(channelID uint64) bool {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
+	cp.poolRWLock.RLock()
+	defer cp.poolRWLock.RUnlock()
 	if flagged, ok := cp.flaggedChannels[channelID]; ok {
 		return flagged
 	}

@@ -2,6 +2,7 @@ package publisher
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
@@ -12,19 +13,21 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config               *models.RabbitSeasoning
-	ChannelPool          *pools.ChannelPool
-	publishGroup         *sync.WaitGroup
-	letters              chan *models.Letter
-	letterCount          uint64
-	letterBuffer         uint64
-	maxOverBuffer        uint64
-	autoStop             chan bool
-	notifications        chan *models.Notification
-	autoStarted          bool
-	sleepOnIdleInterval  time.Duration
-	sleepOnErrorInterval time.Duration
-	pubLock              *sync.Mutex
+	Config                   *models.RabbitSeasoning
+	ChannelPool              *pools.ChannelPool
+	publishGroup             *sync.WaitGroup
+	letters                  chan *models.Letter
+	letterCount              uint64
+	letterBuffer             uint64
+	maxOverBuffer            uint64
+	autoStop                 chan bool
+	notifications            chan *models.Notification
+	autoStarted              bool
+	sleepOnIdleInterval      time.Duration
+	sleepOnQueueFullInterval time.Duration
+	sleepOnErrorInterval     time.Duration
+	pubLock                  *sync.Mutex
+	pubRWLock                *sync.RWMutex
 }
 
 // NewPublisher creates and configures a new Publisher.
@@ -43,18 +46,20 @@ func NewPublisher(
 	}
 
 	return &Publisher{
-		Config:               config,
-		ChannelPool:          chanPool,
-		publishGroup:         &sync.WaitGroup{},
-		letters:              make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
-		letterBuffer:         config.PublisherConfig.LetterBuffer,
-		maxOverBuffer:        config.PublisherConfig.MaxOverBuffer,
-		autoStop:             make(chan bool, 1),
-		notifications:        make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
-		sleepOnIdleInterval:  time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
-		sleepOnErrorInterval: time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
-		pubLock:              &sync.Mutex{},
-		autoStarted:          false,
+		Config:                   config,
+		ChannelPool:              chanPool,
+		publishGroup:             &sync.WaitGroup{},
+		letters:                  make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
+		letterBuffer:             config.PublisherConfig.LetterBuffer,
+		maxOverBuffer:            config.PublisherConfig.MaxOverBuffer,
+		autoStop:                 make(chan bool, 1),
+		notifications:            make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
+		sleepOnIdleInterval:      time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
+		sleepOnQueueFullInterval: time.Duration(config.PublisherConfig.SleepOnQueueFullInterval) * time.Millisecond,
+		sleepOnErrorInterval:     time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
+		pubLock:                  &sync.Mutex{},
+		pubRWLock:                &sync.RWMutex{},
+		autoStarted:              false,
 	}, nil
 }
 
@@ -75,7 +80,7 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 		pub.handleErrorAndChannel(err, letter.LetterID, chanHost)
 	} else {
 		pub.sendToNotifications(letter.LetterID, pubErr)
-		pub.ChannelPool.ReturnChannel(chanHost)
+		pub.ChannelPool.ReturnChannel(chanHost, false)
 	}
 }
 
@@ -100,14 +105,13 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 		}
 
 		pub.sendToNotifications(letter.LetterID, pubErr)
-		pub.ChannelPool.ReturnChannel(chanHost)
+		pub.ChannelPool.ReturnChannel(chanHost, false)
 		break // finished
 	}
 }
 
 func (pub *Publisher) handleErrorAndChannel(err error, letterID uint64, chanHost *models.ChannelHost) {
-	pub.ChannelPool.FlagChannel(chanHost.ChannelID)
-	pub.ChannelPool.ReturnChannel(chanHost)
+	pub.ChannelPool.ReturnChannel(chanHost, true)
 	pub.sendToNotifications(letterID, err)
 	time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
 }
@@ -178,8 +182,8 @@ func (pub *Publisher) StopAutoPublish() {
 func (pub *Publisher) QueueLetter(letter *models.Letter) {
 
 	// Loop here until (buffer + maxOverBuffer) has room for you.
-	for pub.letterCount >= (pub.letterBuffer + pub.maxOverBuffer) {
-		time.Sleep(pub.sleepOnErrorInterval)
+	for atomic.LoadUint64(&pub.letterCount) >= (pub.letterBuffer + pub.maxOverBuffer) {
+		time.Sleep(pub.sleepOnQueueFullInterval)
 		continue
 	}
 
@@ -193,16 +197,16 @@ func (pub *Publisher) queueLetter(letter *models.Letter) {
 
 // IncreaseLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
 func (pub *Publisher) increaseLetterCount() {
-	pub.pubLock.Lock()
+	pub.pubRWLock.Lock()
 	pub.letterCount++
-	pub.pubLock.Unlock()
+	pub.pubRWLock.Unlock()
 }
 
 // ReduceLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
 func (pub *Publisher) reduceLetterCount() {
-	pub.pubLock.Lock()
+	pub.pubRWLock.Lock()
 	pub.letterCount--
-	pub.pubLock.Unlock()
+	pub.pubRWLock.Unlock()
 }
 
 // SimplePublish performs the actual amqp.Publish.

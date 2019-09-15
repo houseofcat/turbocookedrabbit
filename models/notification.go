@@ -15,5 +15,5 @@ func (not *Notification) ToString() string {
 		return fmt.Sprintf("[LetterID: %d] - Successful.\r\n", not.LetterID)
 	}
 
-	return fmt.Sprintf("[LetterID: %d] - Failed. Reason: %s\r\n", not.LetterID, fmt.Sprint(not.Error))
+	return fmt.Sprintf("[LetterID: %d] - Failed. Reason: %s\r\n", not.LetterID, not.Error.Error())
 }

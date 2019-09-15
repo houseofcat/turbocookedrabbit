@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/streadway/amqp"
 )
@@ -17,20 +18,26 @@ type ConnectionHost struct {
 	channelCount       uint64
 	ackChannelCount    uint64
 	closeErrors        chan *amqp.Error
-	chLock             *sync.Mutex
+	chanRWLock         *sync.RWMutex
+	ackChanRWLock      *sync.RWMutex
 }
 
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.
 func NewConnectionHost(
 	uri string,
 	connectionID uint64,
+	heartbeat time.Duration,
+	connectionTimeout time.Duration,
 	maxChannel uint64,
 	maxAckChannelCount uint64) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var err error
 
-	amqpConn, err = amqp.Dial(uri)
+	amqpConn, err = amqp.DialConfig(uri, amqp.Config{
+		Heartbeat: heartbeat,
+		Dial:      amqp.DefaultDial(connectionTimeout),
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +46,8 @@ func NewConnectionHost(
 		Connection:         amqpConn,
 		ConnectionID:       connectionID,
 		closeErrors:        make(chan *amqp.Error, 1),
-		chLock:             &sync.Mutex{},
+		chanRWLock:         &sync.RWMutex{},
+		ackChanRWLock:      &sync.RWMutex{},
 		maxChannelCount:    maxChannel,
 		maxAckChannelCount: maxAckChannelCount,
 	}
@@ -53,6 +61,8 @@ func NewConnectionHost(
 func NewConnectionHostWithTLS(
 	certServerName string,
 	connectionID uint64,
+	heartbeat time.Duration,
+	connectionTimeout time.Duration,
 	maxChannel uint64,
 	maxAckChannelCount uint64,
 	tlsConfig *tls.Config) (*ConnectionHost, error) {
@@ -60,7 +70,11 @@ func NewConnectionHostWithTLS(
 	var amqpConn *amqp.Connection
 	var err error
 
-	amqpConn, err = amqp.DialTLS("amqps://"+certServerName, tlsConfig)
+	amqpConn, err = amqp.DialConfig("amqps://"+certServerName, amqp.Config{
+		Heartbeat:       heartbeat,
+		Dial:            amqp.DefaultDial(connectionTimeout),
+		TLSClientConfig: tlsConfig,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +83,8 @@ func NewConnectionHostWithTLS(
 		Connection:      amqpConn,
 		ConnectionID:    connectionID,
 		closeErrors:     make(chan *amqp.Error, 1),
-		chLock:          &sync.Mutex{},
+		chanRWLock:      &sync.RWMutex{},
+		ackChanRWLock:   &sync.RWMutex{},
 		maxChannelCount: maxChannel,
 	}
 
@@ -85,16 +100,16 @@ func (ch *ConnectionHost) CloseErrors() <-chan *amqp.Error {
 
 // CanAddChannel provides a true or false based on whether this connection host can handle more channels on it's connection (based on initialization).
 func (ch *ConnectionHost) CanAddChannel() bool {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.chanRWLock.RLock()
+	defer ch.chanRWLock.RUnlock()
 
 	return ch.channelCount < ch.maxChannelCount
 }
 
 // AddChannel increments the count of currentChannels
 func (ch *ConnectionHost) AddChannel() error {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.chanRWLock.Lock()
+	defer ch.chanRWLock.Unlock()
 
 	if ch.channelCount >= ch.maxChannelCount {
 		return errors.New("can't add any more channels to this connection host")
@@ -107,8 +122,8 @@ func (ch *ConnectionHost) AddChannel() error {
 
 // RemoveChannel decrements the count of currentChannels.
 func (ch *ConnectionHost) RemoveChannel() error {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.chanRWLock.Lock()
+	defer ch.chanRWLock.Unlock()
 
 	if ch.channelCount <= 0 {
 		return errors.New("can't remove any more channels from this connection host")
@@ -121,16 +136,16 @@ func (ch *ConnectionHost) RemoveChannel() error {
 
 // CanAddAckChannel provides a true or false based on whether this connection host can handle more channels on it's connection (based on initialization).
 func (ch *ConnectionHost) CanAddAckChannel() bool {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.ackChanRWLock.RLock()
+	defer ch.ackChanRWLock.RUnlock()
 
 	return ch.ackChannelCount < ch.maxAckChannelCount
 }
 
 // AddAckChannel increments the count of currentChannels
 func (ch *ConnectionHost) AddAckChannel() error {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.ackChanRWLock.Lock()
+	defer ch.ackChanRWLock.Unlock()
 
 	if ch.ackChannelCount >= ch.maxAckChannelCount {
 		return errors.New("can't add any more channels to this connection host")
@@ -143,8 +158,8 @@ func (ch *ConnectionHost) AddAckChannel() error {
 
 // RemoveAckChannel decrements the count of currentChannels.
 func (ch *ConnectionHost) RemoveAckChannel() error {
-	ch.chLock.Lock()
-	defer ch.chLock.Unlock()
+	ch.ackChanRWLock.Lock()
+	defer ch.ackChanRWLock.Unlock()
 
 	if ch.ackChannelCount <= 0 {
 		return errors.New("can't remove any more channels from this connection host")

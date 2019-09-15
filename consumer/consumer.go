@@ -136,13 +136,10 @@ func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error
 		return nil, err
 	}
 
-	defer con.channelPool.ReturnChannel(chanHost)
-
 	// Get Single Message
 	amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
 	if getErr != nil {
-		con.channelPool.FlagChannel(chanHost.ChannelID)
-		con.channelPool.ReturnChannel(chanHost)
+		con.channelPool.ReturnChannel(chanHost, true)
 		return nil, getErr
 	}
 
@@ -153,7 +150,7 @@ func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error
 			amqpDelivery.DeliveryTag,
 			chanHost.Channel), nil
 	}
-
+	con.channelPool.ReturnChannel(chanHost, false)
 	return nil, nil
 }
 
@@ -189,8 +186,7 @@ GetBatchLoop:
 
 		amqpDelivery, ok, getErr := chanHost.Channel.Get(queueName, autoAck)
 		if getErr != nil {
-			con.channelPool.FlagChannel(chanHost.ChannelID)
-			con.channelPool.ReturnChannel(chanHost)
+			con.channelPool.ReturnChannel(chanHost, true)
 			return nil, getErr
 		}
 
@@ -290,7 +286,7 @@ func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.Channel
 	// Start Consuming
 	deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
 	if err != nil {
-		con.handleErrorAndFlagChannel(err, chanHost.ChannelID)
+		con.handleErrorAndChannel(err, chanHost)
 		return nil, nil, err // Retry
 	}
 
@@ -307,8 +303,7 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case errorMessage := <-chanHost.CloseErrors():
 			if errorMessage != nil {
-				con.handleErrorAndFlagChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost.ChannelID)
-				con.channelPool.ReturnChannel(chanHost)
+				con.handleErrorAndChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost)
 				break ProcessDeliveriesInnerLoop
 			}
 		default:
@@ -329,7 +324,7 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
-				con.channelPool.ReturnChannel(chanHost)
+				con.channelPool.ReturnChannel(chanHost, false)
 				return true
 			}
 		default:
@@ -368,8 +363,8 @@ func (con *Consumer) Messages() <-chan *models.Message {
 	return con.messages
 }
 
-func (con *Consumer) handleErrorAndFlagChannel(err error, channelID uint64) {
-	con.channelPool.FlagChannel(channelID)
+func (con *Consumer) handleErrorAndChannel(err error, chanHost *models.ChannelHost) {
+	con.channelPool.ReturnChannel(chanHost, true)
 	con.handleError(err)
 }
 

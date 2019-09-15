@@ -26,6 +26,8 @@ type ChannelPoolConfig struct {
 // ConnectionPoolConfig represents settings for creating connection pools.
 type ConnectionPoolConfig struct {
 	URI                  string     `json:"URI"`
+	Heartbeat            uint32     `json:"Heartbeat"`
+	ConnectionTimeout    uint32     `json:"ConnectionTimeout"`
 	ErrorBuffer          uint16     `json:"ErrorBuffer"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
 	EnableTLS            bool       `json:"EnableTLS"`            // Use TLSConfig to create connections with AMQPS uri.
@@ -57,11 +59,12 @@ type ConsumerConfig struct {
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.
 type PublisherConfig struct {
-	SleepOnIdleInterval  uint32 `json:"SleepOnIdleInterval"`
-	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"`
-	LetterBuffer         uint64 `json:"LetterBuffer"`
-	MaxOverBuffer        uint64 `json:"MaxOverBuffer"`
-	NotificationBuffer   uint32 `json:"NotificationBuffer"`
+	SleepOnIdleInterval      uint32 `json:"SleepOnIdleInterval"`
+	SleepOnQueueFullInterval uint32 `json:"SleepOnQueueFullInterval"`
+	SleepOnErrorInterval     uint32 `json:"SleepOnErrorInterval"`
+	LetterBuffer             uint64 `json:"LetterBuffer"`
+	MaxOverBuffer            uint64 `json:"MaxOverBuffer"`
+	NotificationBuffer       uint32 `json:"NotificationBuffer"`
 }
 
 // TopologyConfig allows you to build simple toplogies from a JSON file.

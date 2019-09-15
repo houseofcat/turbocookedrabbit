@@ -845,6 +845,59 @@ Just remember Channels get closed or get killed all the time, you don't want thi
 
 ---
 
+<details><summary>Click here for some Channel Pool benchmarks!</summary>
+<p>
+
+This is a raw AMQP publish test.  We create an AMQP connection, create an AMQP channel, and execute an AMQP publish looped.
+MessageCount: 100,000
+MessageSize: 2500 (2.5KB)
+
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestCreateSingleChannelAndPublish)$" -v
+	=== RUN   TestCreateSingleChannelAndPublish
+	--- PASS: TestCreateSingleChannelAndPublish (4.78s)
+		main_benchpool_test.go:17: 2019-09-15 07:39:48.3578722 -0400 EDT m=+0.091806701: Benchmark Starts
+		main_benchpool_test.go:49: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Benchmark End
+		main_benchpool_test.go:50: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Time Elapsed 4.7778774s
+		main_benchpool_test.go:51: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Publish Errors 0
+		main_benchpool_test.go:52: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: Msgs/s 20929.796148
+		main_benchpool_test.go:53: 2019-09-15 07:39:53.1357496 -0400 EDT m=+4.869684101: KB/s 0.523245
+	PASS
+	ok      github.com/houseofcat/turbocookedrabbit 6.512s
+
+Apples to Apples comparison using a ChannelPool. As you can see - the numbers went up - but should have been relatively the same. Shere is some variability with these tests. The important thing to note is that there isn't a significant reduction in performance.
+
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestGetSingleChannelFromPoolAndPublish)$" -v
+	=== RUN   TestGetSingleChannelFromPoolAndPublish
+	--- PASS: TestGetSingleChannelFromPoolAndPublish (4.32s)
+		main_benchpool_test.go:59: 2019-09-15 07:47:19.0276488 -0400 EDT m=+0.090818001: Benchmark Starts
+		main_benchpool_test.go:89: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Benchmark End
+		main_benchpool_test.go:90: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Time Elapsed 4.3239918s
+		main_benchpool_test.go:91: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Publish Errors 0
+		main_benchpool_test.go:92: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: Msgs/s 23126.778363
+		main_benchpool_test.go:93: 2019-09-15 07:47:23.3516406 -0400 EDT m=+4.414809801: KB/s 0.578169
+	PASS
+	ok      github.com/houseofcat/turbocookedrabbit 4.506s
+
+Apples to Apple Orange comparison same premise, but different ChannelHost per Publish.
+
+	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -run "^(TestGetMultiChannelFromPoolAndPublish)$" -v
+	=== RUN   TestGetMultiChannelFromPoolAndPublish
+	--- PASS: TestGetMultiChannelFromPoolAndPublish (3.72s)
+		main_benchpool_test.go:99: 2019-09-15 07:40:44.1532264 -0400 EDT m=+0.086463601: Benchmark Starts
+		main_benchpool_test.go:135: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Benchmark End
+		main_benchpool_test.go:136: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Time Elapsed 3.7150664s
+		main_benchpool_test.go:137: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: ChannelPool Errors 0
+		main_benchpool_test.go:138: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Publish Errors 0
+		main_benchpool_test.go:139: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: Msgs/s 26917.419296
+		main_benchpool_test.go:140: 2019-09-15 07:40:47.8682928 -0400 EDT m=+3.801530001: KB/s 0.672935
+	PASS
+	ok      github.com/houseofcat/turbocookedrabbit 3.893s
+
+</p>
+</details>
+
+---
+
 ## The Topologer
 
 <details><summary>How do I create/delete/bind queues and exchanges?</summary>
