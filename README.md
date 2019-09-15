@@ -297,7 +297,7 @@ We have finished our work, we **succeeded** or **failed** to publish **1000** me
 
 ```golang
 publisher.StopAutoPublish()
-// channelPool.Shutdown() // don't forge cleanup if you have a pointer to your channel pool nearby!
+// channelPool.Shutdown() // don't forget to cleanup (if you have a pointer to your channel pool nearby)!
 ```
 
 </p>
