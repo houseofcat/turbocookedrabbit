@@ -9,7 +9,7 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/models"
 )
 
-var globalLetterID uint64 = 0
+var globalLetterID uint64
 var mockRandomSource = rand.NewSource(time.Now().UnixNano())
 var mockRandom = rand.New(mockRandomSource)
 var randomMin = 1500
