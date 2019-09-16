@@ -179,6 +179,7 @@ ConsumeLoop:
 			}(message)
 		default:
 			time.Sleep(50 * time.Microsecond)
+			break
 		}
 	}
 
