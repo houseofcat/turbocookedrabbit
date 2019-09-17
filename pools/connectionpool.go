@@ -48,8 +48,8 @@ func NewConnectionPool(
 		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
 	}
 
-	if config.ConnectionPoolConfig.MaxConnectionCount == 0 || config.ChannelPoolConfig.MaxChannelCount == 0 {
-		return nil, errors.New("connectionpool maxconnectioncount or channelpool maxchannelcount can't be 0")
+	if config.ConnectionPoolConfig.MaxConnectionCount == 0 {
+		return nil, errors.New("connectionpool maxconnectioncount can't be 0")
 	}
 
 	if config.ConnectionPoolConfig.EnableTLS {
