@@ -39,7 +39,7 @@ func NewChannelPool(
 	connPool *ConnectionPool,
 	initializeNow bool) (*ChannelPool, error) {
 
-	if config.ChannelPoolConfig.MaxChannelCount == 0 && config.ChannelPoolConfig.MaxAckChannelCount == 0 {
+	if config.ChannelPoolConfig.MaxChannelCount == 0 || config.ChannelPoolConfig.MaxAckChannelCount == 0 {
 		return nil, errors.New("channelpool maxchannelcount or maxackchannelcount can't be 0")
 	}
 
@@ -181,6 +181,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 	}
 
 	if !cp.Initialized {
+		time.Sleep(cp.sleepOnErrorInterval)
 		return nil, errors.New("can't get channel - channel pool has not been initialized")
 	}
 
@@ -252,6 +253,7 @@ func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 	}
 
 	if !cp.Initialized {
+		time.Sleep(cp.sleepOnErrorInterval)
 		return nil, errors.New("can't get channel - channel pool has not been initialized")
 	}
 

@@ -9,6 +9,7 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/publisher"
 	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStressPublishConsumeAckForDuration(t *testing.T) {
@@ -18,9 +19,22 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 	fmt.Printf("%s: Benchmark Starts\r\n", time.Now())
 	fmt.Printf("%s: Est. Benchmark End\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
-	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	if err != nil {
+		assert.NoError(t, err)
+		return
+	}
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	if !ok {
+		assert.True(t, ok)
+		return
+	}
+	consumer, conErr := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+	if conErr != nil {
+		assert.NoError(t, conErr)
+		return
+	}
 
 	publisher.StartAutoPublish(false)
 

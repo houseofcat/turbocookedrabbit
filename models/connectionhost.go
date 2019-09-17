@@ -107,17 +107,11 @@ func (ch *ConnectionHost) CanAddChannel() bool {
 }
 
 // AddChannel increments the count of currentChannels
-func (ch *ConnectionHost) AddChannel() error {
+func (ch *ConnectionHost) AddChannel() {
 	ch.chanRWLock.Lock()
 	defer ch.chanRWLock.Unlock()
 
-	if ch.channelCount >= ch.maxChannelCount {
-		return errors.New("can't add any more channels to this connection host")
-	}
-
 	ch.channelCount++
-
-	return nil
 }
 
 // RemoveChannel decrements the count of currentChannels.
@@ -143,17 +137,11 @@ func (ch *ConnectionHost) CanAddAckChannel() bool {
 }
 
 // AddAckChannel increments the count of currentChannels
-func (ch *ConnectionHost) AddAckChannel() error {
+func (ch *ConnectionHost) AddAckChannel() {
 	ch.ackChanRWLock.Lock()
 	defer ch.ackChanRWLock.Unlock()
 
-	if ch.ackChannelCount >= ch.maxAckChannelCount {
-		return errors.New("can't add any more channels to this connection host")
-	}
-
 	ch.ackChannelCount++
-
-	return nil
 }
 
 // RemoveAckChannel decrements the count of currentChannels.

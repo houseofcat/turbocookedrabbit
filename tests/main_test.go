@@ -20,13 +20,23 @@ var ConnectionPool *pools.ConnectionPool
 var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
+
 	var err error
 	Seasoning, err = utils.ConvertJSONFileToConfig("testseasoning.json")
 	if err != nil {
+		fmt.Print(err.Error())
 		return
 	}
-	ConnectionPool, _ = pools.NewConnectionPool(Seasoning.PoolConfig, true)
-	ChannelPool, _ = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
+	ChannelPool, err = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	if err != nil {
+		fmt.Print(err.Error())
+		return
+	}
 
 	os.Exit(m.Run())
 }
