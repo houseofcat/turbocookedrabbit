@@ -39,6 +39,10 @@ func NewChannelPool(
 	connPool *ConnectionPool,
 	initializeNow bool) (*ChannelPool, error) {
 
+	if config.ChannelPoolConfig.MaxChannelCount == 0 && config.ChannelPoolConfig.MaxAckChannelCount == 0 {
+		return nil, errors.New("channelpool maxchannelcount or maxackchannelcount can't be 0")
+	}
+
 	if connPool == nil {
 		var err error // If connPool is nil, create one here.
 		connPool, err = NewConnectionPool(config, initializeNow)

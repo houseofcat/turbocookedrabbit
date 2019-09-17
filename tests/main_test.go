@@ -195,7 +195,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
 	assert.NoError(t, err)
 
-	topologer := topology.NewTopologer(channelPool)
+	topologer, err := topology.NewTopologer(channelPool)
 	assert.NoError(t, err)
 
 	err = topologer.BuildToplogy(topologyConfig, true)
@@ -207,7 +207,7 @@ func TestUnbindQueue(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
 	assert.NoError(t, err)
 
-	topologer := topology.NewTopologer(channelPool)
+	topologer, err := topology.NewTopologer(channelPool)
 	assert.NoError(t, err)
 
 	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
