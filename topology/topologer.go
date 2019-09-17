@@ -14,7 +14,11 @@ type Topologer struct {
 }
 
 // NewTopologer builds you a new Topologer.
-func NewTopologer(channelPool *pools.ChannelPool) *Topologer {
+func NewTopologer(channelPool *pools.ChannelPool) (*Topologer, error) {
+
+	if channelPool == nil {
+		return nil, errors.New("channelpool can't be nil")
+	}
 
 	if !channelPool.Initialized {
 		channelPool.Initialize()
@@ -22,7 +26,7 @@ func NewTopologer(channelPool *pools.ChannelPool) *Topologer {
 
 	return &Topologer{
 		channelPool: channelPool,
-	}
+	}, nil
 }
 
 // BuildToplogy builds a topology based on a ToplogyConfig - stops on first error.
