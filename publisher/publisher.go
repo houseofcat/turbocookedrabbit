@@ -223,8 +223,10 @@ func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Lette
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType: letter.Envelope.ContentType,
-			Body:        letter.Body,
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
 		},
 	)
 }

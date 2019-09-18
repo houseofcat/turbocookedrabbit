@@ -17,7 +17,7 @@ func BenchmarkGetMultiChannelAndPublish(b *testing.B) {
 
 	messageSize := 1000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	letter := utils.CreateLetter("", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", utils.RandomBytes(messageSize))
 	poolErrors := 0
 
 	for i := 0; i < 1000; i++ {
@@ -48,7 +48,7 @@ func BenchmarkGetSingleChannelAndPublish(b *testing.B) {
 
 	messageSize := 1000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	letter := utils.CreateLetter("", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", utils.RandomBytes(messageSize))
 
 	channelHost, err := channelPool.GetChannel()
 	if err != nil {

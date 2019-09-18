@@ -36,7 +36,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	go func() {
 		for i := 0; i < messageCount; i++ {
-			letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+			letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
 			letter.LetterID = counter
 			counter++
 
@@ -116,7 +116,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	publisher.StartAutoPublish(false)
 
-	letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
 
 	go func() {
 	PublishLoop:

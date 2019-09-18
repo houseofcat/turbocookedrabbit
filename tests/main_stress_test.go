@@ -58,7 +58,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 }
 
 func publish(timeOut <-chan time.Time, publisher *publisher.Publisher) {
-	letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
 
 PublishLoop:
 	for {

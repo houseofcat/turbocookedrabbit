@@ -193,7 +193,7 @@ func TestPublishAndConsume(t *testing.T) {
 
 	publisher.StartAutoPublish(false)
 
-	publisher.QueueLetter(utils.CreateLetter("", "ConsumerTestQueue", nil))
+	publisher.QueueLetter(utils.CreateLetter(1, "", "ConsumerTestQueue", nil))
 
 	err = consumer.StartConsuming()
 	assert.NoError(t, err)
@@ -257,7 +257,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	letters := make([]*models.Letter, messageCount)
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", "ConsumerTestQueue", nil)
+		letters[i] = utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
 	}
 
 	go func() {

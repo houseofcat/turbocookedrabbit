@@ -16,20 +16,12 @@ var randomMin = 1500
 var randomMax = 2500
 
 // CreateLetter creates a simple letter for publishing.
-func CreateLetter(exchangeName string, queueName string, body []byte) *models.Letter {
-
-	letterID := uint64(1)
-
-	if body == nil { //   h   e   l   l   o       w   o   r   l   d
-		body = []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
-	}
+func CreateLetter(letterID uint64, exchangeName string, queueName string, body []byte) *models.Letter {
 
 	envelope := &models.Envelope{
-		Exchange:    "",
+		Exchange:    exchangeName,
 		RoutingKey:  queueName,
 		ContentType: "application/json",
-		Mandatory:   false,
-		Immediate:   false,
 	}
 
 	return &models.Letter{
@@ -52,11 +44,9 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 	}
 
 	envelope := &models.Envelope{
-		Exchange:    "",
+		Exchange:    exchangeName,
 		RoutingKey:  queueName,
 		ContentType: "application/json",
-		Mandatory:   false,
-		Immediate:   false,
 	}
 
 	return &models.Letter{
@@ -79,8 +69,6 @@ func CreateMockRandomLetter(queueName string) *models.Letter {
 		Exchange:    "",
 		RoutingKey:  queueName,
 		ContentType: "application/json",
-		Mandatory:   false,
-		Immediate:   false,
 	}
 
 	return &models.Letter{

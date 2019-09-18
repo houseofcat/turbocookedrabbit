@@ -10,9 +10,11 @@ type Letter struct {
 
 // Envelope contains all the address details of where a letter is going.
 type Envelope struct {
-	Exchange    string
-	RoutingKey  string
-	ContentType string
-	Mandatory   bool
-	Immediate   bool
+	Exchange     string
+	RoutingKey   string
+	ContentType  string
+	Mandatory    bool
+	Immediate    bool
+	Headers      map[string]interface{}
+	DeliveryMode uint8
 }

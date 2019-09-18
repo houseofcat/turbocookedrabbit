@@ -61,7 +61,7 @@ func TestBasicPublish(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = utils.CreateLetter(1, "", fmt.Sprintf("TestQueue-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)

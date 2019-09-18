@@ -182,7 +182,7 @@ The errors here indicate I was unable to create a Publisher - probably due to th
 Once you have a publisher, you can perform a relatively simple publish.
 
 ```golang
-letter := utils.CreateLetter("", "TestQueueName", nil)
+letter := utils.CreateLetter(1, "", "TestQueueName", nil)
 publisher.Publish(letter)
 ```
 
@@ -784,7 +784,7 @@ for iterations < maxIterationCount {
 			break
 		}
 
-		letter := utils.CreateLetter("", "ConsumerTestQueue", nil)
+		letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
 		err := chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
