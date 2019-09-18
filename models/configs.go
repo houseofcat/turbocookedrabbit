@@ -25,6 +25,7 @@ type ChannelPoolConfig struct {
 
 // ConnectionPoolConfig represents settings for creating connection pools.
 type ConnectionPoolConfig struct {
+	ConnectionName       string     `json:"ConnectionName"`
 	URI                  string     `json:"URI"`
 	Heartbeat            uint32     `json:"Heartbeat"`
 	ConnectionTimeout    uint32     `json:"ConnectionTimeout"`

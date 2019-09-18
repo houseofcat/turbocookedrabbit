@@ -3,6 +3,7 @@ package pools
 import (
 	"crypto/tls"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -17,6 +18,7 @@ import (
 type ConnectionPool struct {
 	Config                     models.PoolConfig
 	Initialized                bool
+	connectionName             string
 	uri                        string
 	enableTLS                  bool
 	tlsConfig                  *tls.Config
@@ -79,6 +81,7 @@ func NewConnectionPool(
 	cp := &ConnectionPool{
 		Config:                     *config,
 		uri:                        config.ConnectionPoolConfig.URI,
+		connectionName:             config.ConnectionPoolConfig.ConnectionName,
 		enableTLS:                  config.ConnectionPoolConfig.EnableTLS,
 		tlsConfig:                  tlsConfig,
 		errors:                     make(chan error, config.ConnectionPoolConfig.ErrorBuffer),
@@ -161,6 +164,7 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 
 	return models.NewConnectionHost(
 		cp.uri,
+		cp.connectionName+"-"+strconv.FormatUint(connectionID, 10),
 		connectionID,
 		cp.heartbeat,
 		cp.connectionTimeout,
@@ -176,6 +180,7 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 
 	return models.NewConnectionHostWithTLS(
 		cp.uri,
+		cp.connectionName+"-"+strconv.FormatUint(connectionID, 10),
 		connectionID,
 		cp.heartbeat,
 		cp.connectionTimeout,

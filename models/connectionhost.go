@@ -25,6 +25,7 @@ type ConnectionHost struct {
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.
 func NewConnectionHost(
 	uri string,
+	connectionName string,
 	connectionID uint64,
 	heartbeat time.Duration,
 	connectionTimeout time.Duration,
@@ -37,6 +38,9 @@ func NewConnectionHost(
 	amqpConn, err = amqp.DialConfig(uri, amqp.Config{
 		Heartbeat: heartbeat,
 		Dial:      amqp.DefaultDial(connectionTimeout),
+		Properties: amqp.Table{
+			"connection_name": connectionName,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -60,6 +64,7 @@ func NewConnectionHost(
 // NewConnectionHostWithTLS creates a simple ConnectionHost wrapper for management by end-user developer.
 func NewConnectionHostWithTLS(
 	certServerName string,
+	connectionName string,
 	connectionID uint64,
 	heartbeat time.Duration,
 	connectionTimeout time.Duration,
@@ -74,6 +79,9 @@ func NewConnectionHostWithTLS(
 		Heartbeat:       heartbeat,
 		Dial:            amqp.DefaultDial(connectionTimeout),
 		TLSClientConfig: tlsConfig,
+		Properties: amqp.Table{
+			"connection_name": connectionName,
+		},
 	})
 	if err != nil {
 		return nil, err

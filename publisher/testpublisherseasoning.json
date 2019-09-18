@@ -10,6 +10,7 @@
 		},
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
+			"ConnectionName": "TurboCookedRabbit",
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
 			"MaxConnectionCount": 10,
@@ -45,16 +46,16 @@
 			"QosCountOverride": 5,
 			"MessageBuffer": 100,
 			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 100,
-			"SleepOnIdleInterval": 0
+			"SleepOnErrorInterval": 1000,
+			"SleepOnIdleInterval": 1000
 		}
 	},
 	"PublisherConfig":{
-		"SleepOnIdleInterval": 0,
-		"SleepOnQueueFullInterval": 1,
+		"SleepOnIdleInterval": 1000,
+		"SleepOnQueueFullInterval": 1000,
 		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 10000,
-		"MaxOverBuffer": 2000,
+		"LetterBuffer": 1000,
+		"MaxOverBuffer": 1000,
 		"NotificationBuffer": 1000
 	}
 }
