@@ -3,7 +3,6 @@ package utils
 import (
 	"encoding/json"
 	"io/ioutil"
-	"os"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
 )
@@ -11,12 +10,7 @@ import (
 // ConvertJSONFileToConfig opens a file.json and converts to RabbitSeasoning.
 func ConvertJSONFileToConfig(fileNamePath string) (*models.RabbitSeasoning, error) {
 
-	jsonFile, err := os.Open(fileNamePath)
-	if err != nil {
-		return nil, err
-	}
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := ioutil.ReadFile(fileNamePath)
 	if err != nil {
 		return nil, err
 	}
@@ -30,12 +24,7 @@ func ConvertJSONFileToConfig(fileNamePath string) (*models.RabbitSeasoning, erro
 // ConvertJSONFileToTopologyConfig opens a file.json and converts to Topology.
 func ConvertJSONFileToTopologyConfig(fileNamePath string) (*models.TopologyConfig, error) {
 
-	jsonFile, err := os.Open(fileNamePath)
-	if err != nil {
-		return nil, err
-	}
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := ioutil.ReadFile(fileNamePath)
 	if err != nil {
 		return nil, err
 	}
@@ -49,12 +38,7 @@ func ConvertJSONFileToTopologyConfig(fileNamePath string) (*models.TopologyConfi
 // ReadJSONFileToInterface opens a file.json and converts to interface{}.
 func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 
-	jsonFile, err := os.Open(fileNamePath)
-	if err != nil {
-		return nil, err
-	}
-
-	byteValue, err := ioutil.ReadAll(jsonFile)
+	byteValue, err := ioutil.ReadFile(fileNamePath)
 	if err != nil {
 		return nil, err
 	}
