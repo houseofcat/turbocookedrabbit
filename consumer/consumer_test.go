@@ -193,7 +193,7 @@ func TestPublishAndConsume(t *testing.T) {
 
 	publisher.StartAutoPublish(false)
 
-	publisher.QueueLetter(utils.CreateLetter(1, "", "ConsumerTestQueue", nil))
+	publisher.QueueLetter(utils.CreateMockRandomLetter("ConsumerTestQueue"))
 
 	err = consumer.StartConsuming()
 	assert.NoError(t, err)
@@ -245,7 +245,7 @@ ErrorLoop:
 func TestPublishAndConsumeMany(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	messageCount := 1000
+	messageCount := 100000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
@@ -257,7 +257,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	letters := make([]*models.Letter, messageCount)
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
+		letters[i] = utils.CreateMockRandomLetter("ConsumerTestQueue")
 	}
 
 	go func() {

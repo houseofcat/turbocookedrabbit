@@ -1,5 +1,5 @@
 # TurboCookedRabbit
- A user friendly RabbitMQ written in Golang.  
+ A user friendly RabbitMQ library written in Golang.  
  Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/houseofcat/turbocookedrabbit)](https://goreportcard.com/report/github.com/houseofcat/turbocookedrabbit)
@@ -12,11 +12,13 @@ It was programmed against the following:
  * Erlang v22.0 (OTP v10.4)
  * Streadway/Amqp Latest
 
-Issues with more advanced setups? I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
+Having issues with more advanced setups? Open up and issue but I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
 
-If you see something syntactically wrong, do speak up! I am, relatively speaking, an idiot ^.^. I am still new to golang. My background is in performant infrastructure development, using C# and the .NET/NetCore ecosystem... so if any `golang wizards` want to provide advice or criticisms, please do!
+If you see something syntactically wrong, do speak up! I am, relatively speaking, an idiot (^.^) and I am still new to golang.
 
-I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job, this isn't a corporate sponsorship - suffice to say the golden rule works wonders on me / mind your Ps and Qs.
+My background is in performant infrastructure development, using C# and the .NET/NetCore ecosystem... so if any ***golang wizards*** want to provide advice or criticism, please do!
+
+I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job or a fancy corporate sponsorship - this was being down with a plague for a couple of weekends. Suffice to say, the golden rule works wonders on me / mind your Ps and Qs.
 
 ### Basic Performance
 
@@ -182,7 +184,7 @@ The errors here indicate I was unable to create a Publisher - probably due to th
 Once you have a publisher, you can perform a relatively simple publish.
 
 ```golang
-letter := utils.CreateLetter(1, "", "TestQueueName", nil)
+letter := utils.CreateMockLetter(1, "", "TestQueueName", nil)
 publisher.Publish(letter)
 ```
 
@@ -784,7 +786,7 @@ for iterations < maxIterationCount {
 			break
 		}
 
-		letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
+		letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 		err := chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,

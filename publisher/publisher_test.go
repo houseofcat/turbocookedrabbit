@@ -115,7 +115,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
-	letter := utils.CreateLetter(1, "", "TestQueue", nil)
+	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	publisher.StartAutoPublish(false)
 
@@ -164,7 +164,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter(1, "", fmt.Sprintf("PubTQ-%d", i%10), nil)
+		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -252,7 +252,7 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter(1, "", fmt.Sprintf("PubTQ-%d", i%10), nil)
+		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -356,7 +356,7 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter(1, "", fmt.Sprintf("PubTQ-%d", i%10), nil)
+		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -481,7 +481,7 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	letters := make([]*models.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateLetter(1, "", fmt.Sprintf("PubTQ-%d", i%10), nil)
+		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("PubTQ-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)

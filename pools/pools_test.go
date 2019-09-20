@@ -55,7 +55,7 @@ func TestCreateSingleChannelAndPublish(t *testing.T) {
 	publishErrors := 0
 	published := 0
 
-	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	amqpConn, err := amqp.Dial("amqp://guest:guest@localhost:5672/")
 	if err != nil {
@@ -109,7 +109,7 @@ func TestGetSingleChannelFromPoolAndPublish(t *testing.T) {
 	messageSize := 2500
 	published := 0
 
-	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	channelHost, err := ChannelPool.GetChannel()
 	if err != nil {
@@ -162,7 +162,7 @@ func TestGetMultiChannelFromPoolAndPublish(t *testing.T) {
 	messageCount := 100000
 	messageSize := 2500
 
-	letter := utils.CreateLetter(1, "", "ConsumerTestQueue", utils.RandomBytes(messageSize))
+	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	var wg sync.WaitGroup
 	for i := 0; i < messageCount; i++ {
@@ -524,7 +524,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 				break
 			}
 
-			letter := utils.CreateLetter(1, "", "ConsumerTestQueue", nil)
+			letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 			err := chanHost.Channel.Publish(
 				letter.Envelope.Exchange,
 				letter.Envelope.RoutingKey,
