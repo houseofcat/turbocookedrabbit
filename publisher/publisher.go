@@ -183,6 +183,21 @@ func (pub *Publisher) StopAutoPublish() {
 	go func() { pub.autoStop <- true }() // signal auto publish to stop
 }
 
+// QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish.
+// Blocks on the Letter Buffer being full.
+func (pub *Publisher) QueueLetters(letters []*models.Letter) {
+
+	for i := 0; i < len(letters); i++ {
+		// Loop here until (buffer + maxOverBuffer) has room for you.
+		for atomic.LoadUint64(&pub.letterCount) >= (pub.letterBuffer + pub.maxOverBuffer) {
+			time.Sleep(pub.sleepOnQueueFullInterval)
+			continue
+		}
+
+		pub.queueLetter(letters[i])
+	}
+}
+
 // QueueLetter queues up a letter that will be consumed by AutoPublish.
 // Blocks on the Letter Buffer being full.
 func (pub *Publisher) QueueLetter(letter *models.Letter) {

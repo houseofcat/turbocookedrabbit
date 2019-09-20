@@ -31,10 +31,10 @@
 			"AutoAck": false,
 			"Exclusive": false,
 			"NoWait": false,
-			"QosCountOverride": 5,
-			"MessageBuffer": 100,
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 100,
+			"QosCountOverride": 20,
+			"MessageBuffer": 1000,
+			"ErrorBuffer": 100,
+			"SleepOnErrorInterval": 1,
 			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
@@ -43,19 +43,19 @@
 			"AutoAck": true,
 			"Exclusive": false,
 			"NoWait": true,
-			"QosCountOverride": 5,
+			"QosCountOverride": 10,
 			"MessageBuffer": 100,
 			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 1000,
-			"SleepOnIdleInterval": 1000
+			"SleepOnErrorInterval": 1,
+			"SleepOnIdleInterval": 0
 		}
 	},
 	"PublisherConfig":{
-		"SleepOnIdleInterval": 1000,
-		"SleepOnQueueFullInterval": 1000,
-		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 1000,
-		"MaxOverBuffer": 1000,
+		"SleepOnIdleInterval": 0,
+		"SleepOnQueueFullInterval": 1,
+		"SleepOnErrorInterval": 1,
+		"LetterBuffer": 10000,
+		"MaxOverBuffer": 2000,
 		"NotificationBuffer": 1000
 	}
 }

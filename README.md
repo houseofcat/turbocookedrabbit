@@ -26,7 +26,7 @@ JSON Config Used: `testseason.json`
 Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
 
     1x Publisher AutoPublish ~ 21000 msg/s - Single Queue - Small Message Sizes
-    1x Consumer Consumption ~ 2000-3000 msg/s - Single Queue - Small Message Sizes
+    1x Consumer Consumption ~ 15-17000 msg/s - Single Queue - Small Message Sizes
 
 Stress Test - 2 hours of Publish/Consume
 

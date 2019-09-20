@@ -12,8 +12,11 @@ import (
 var globalLetterID uint64
 var mockRandomSource = rand.NewSource(time.Now().UnixNano())
 var mockRandom = rand.New(mockRandomSource)
-var randomMin = 1500
-var randomMax = 2500
+
+const (
+	randomMin = 1500
+	randomMax = 2500
+)
 
 // CreateLetter creates a simple letter for publishing.
 func CreateLetter(letterID uint64, exchangeName string, queueName string, body []byte) *models.Letter {

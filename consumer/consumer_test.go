@@ -245,7 +245,15 @@ ErrorLoop:
 func TestPublishAndConsumeMany(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	messageCount := 100000
+	t.Logf("%s: Benchmark started...", time.Now())
+
+	messagesReceived := 0
+	messagesPublished := 0
+	messagesFailedToPublish := 0
+	consumerErrors := 0
+	channelPoolErrors := 0
+	messageCount := 200000
+
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
 	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
@@ -260,54 +268,77 @@ func TestPublishAndConsumeMany(t *testing.T) {
 		letters[i] = utils.CreateMockRandomLetter("ConsumerTestQueue")
 	}
 
-	go func() {
-		for _, letter := range letters {
-			publisher.QueueLetter(letter)
+	for i := 0; i < len(letters); i++ {
+		publisher.QueueLetter(letters[i])
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Minute))
+
+MonitorMessages:
+	for {
+		select {
+		case <-ctx.Done():
+			t.Logf("%s\r\nContextTimeout\r\n", time.Now())
+			break MonitorMessages
+		case notice := <-publisher.Notifications():
+			if notice.Success {
+				messagesPublished++
+			} else {
+				messagesFailedToPublish++
+				t.Logf("%s: Message [ID: %d] failed to publish.", time.Now(), notice.LetterID)
+			}
+
+			if messagesPublished+messagesFailedToPublish == messageCount {
+				break MonitorMessages
+			}
 		}
-	}()
+	}
 
+	letters = nil // release memory
+
+	startTime := time.Now()
 	consumer.StartConsuming()
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Second))
-	messagesReceived := 0
-	messagesFailedToPublish := 0
-	consumerErrors := 0
-	channelPoolErrors := 0
 
 ConsumeMessages:
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Print("\r\nContextTimeout\r\n")
+			t.Logf("%s\r\nContextTimeout\r\n", time.Now())
 			break ConsumeMessages
-		case notice := <-publisher.Notifications():
-			if !notice.Success {
-				messagesFailedToPublish++
+		case err := <-consumer.Errors():
+			if err != nil {
+				t.Log(err)
 			}
-		case <-consumer.Errors():
 			consumerErrors++
 		case <-consumer.Messages():
 			messagesReceived++
-		case <-channelPool.Errors():
+		case err := <-channelPool.Errors():
+			if err != nil {
+				t.Log(err)
+			}
 			channelPoolErrors++
 		default:
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(100 * time.Nanosecond)
 			break
 		}
 
-		if messagesReceived+messagesFailedToPublish == messageCount {
+		if messagesReceived+messagesFailedToPublish >= messageCount {
 			break ConsumeMessages
 		}
 	}
+	elapsedTime := time.Since(startTime)
 
 	assert.Equal(t, messageCount, messagesReceived+messagesFailedToPublish)
-	fmt.Printf("Channel Pool Errors: %d\r\n", channelPoolErrors)
-	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
-	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
-	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+	t.Logf("%s: Test finished, elapsed time: %f s", time.Now(), elapsedTime.Seconds())
+	t.Logf("%s: Consumer Rate: %f msgs/s", time.Now(), (float64(messagesReceived) / elapsedTime.Seconds()))
+	t.Logf("%s: Channel Pool Errors: %d\r\n", time.Now(), channelPoolErrors)
+	t.Logf("%s: Consumer Errors: %d\r\n", time.Now(), consumerErrors)
+	t.Logf("%s: Messages Published: %d\r\n", time.Now(), messagesPublished)
+	t.Logf("%s: Messages Failed to Publish: %d\r\n", time.Now(), messagesFailedToPublish)
+	t.Logf("%s: Messages Received: %d\r\n", time.Now(), messagesReceived)
 
-	consumer.StopConsuming(false, true)
 	publisher.StopAutoPublish()
+	consumer.StopConsuming(false, true)
 	channelPool.Shutdown()
 	cancel()
 }
