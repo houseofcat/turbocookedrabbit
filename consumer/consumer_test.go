@@ -246,28 +246,42 @@ ErrorLoop:
 }
 
 func TestPublishAndConsumeMany(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	t.Logf("%s: Benchmark started...", time.Now())
 
-	messagesReceived := 0
-	messagesPublished := 0
-	messagesFailedToPublish := 0
-	consumerErrors := 0
-	channelPoolErrors := 0
 	messageCount := 200000
 
-	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(t, ok)
 
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
-
-	channelPool.FlushErrors()
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
 
 	publisher.StartAutoPublish(false)
+
+	createAndQueueLetters(t, messageCount, publisher)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Minute))
+	defer cancel()
+
+	messagesPublished, messagesFailedToPublish := monitorPublishing(ctx, t, publisher, messageCount)
+
+	if err := consumer.StartConsuming(); err != nil {
+
+		t.Error(err)
+	}
+
+	consumeMessages(ctx, t, consumer, messageCount, messagesPublished, messagesFailedToPublish)
+
+	publisher.StopAutoPublish()
+	if err := consumer.StopConsuming(false, true); err != nil {
+		t.Error(err)
+	}
+
+}
+
+func createAndQueueLetters(t *testing.T, messageCount int, publisher *publisher.Publisher) {
 
 	letters := make([]*models.Letter, messageCount)
 	for i := 0; i < messageCount; i++ {
@@ -277,9 +291,12 @@ func TestPublishAndConsumeMany(t *testing.T) {
 	for i := 0; i < len(letters); i++ {
 		publisher.QueueLetter(letters[i])
 	}
+}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Minute))
-	defer cancel()
+func monitorPublishing(ctx context.Context, t *testing.T, publisher *publisher.Publisher, messageCount int) (int, int) {
+
+	messagesPublished := 0
+	messagesFailedToPublish := 0
 
 MonitorMessages:
 	for {
@@ -301,14 +318,22 @@ MonitorMessages:
 		}
 	}
 
-	// letters = nil // release memory if necessary
+	return messagesPublished, messagesFailedToPublish
+}
+
+func consumeMessages(
+	ctx context.Context,
+	t *testing.T,
+	consumer *consumer.Consumer,
+	messageCount int,
+	messagesPublished int,
+	messagesFailedToPublish int) {
+
+	messagesReceived := 0
+	consumerErrors := 0
+	channelPoolErrors := 0
 
 	startTime := time.Now()
-	if err := consumer.StartConsuming(); err != nil {
-
-		t.Error(err)
-	}
-
 ConsumeMessages:
 	for {
 		select {
@@ -322,7 +347,7 @@ ConsumeMessages:
 			consumerErrors++
 		case <-consumer.Messages():
 			messagesReceived++
-		case err := <-channelPool.Errors():
+		case err := <-ChannelPool.Errors():
 			if err != nil {
 				t.Log(err)
 			}
@@ -346,11 +371,4 @@ ConsumeMessages:
 	t.Logf("%s: Messages Published: %d\r\n", time.Now(), messagesPublished)
 	t.Logf("%s: Messages Failed to Publish: %d\r\n", time.Now(), messagesFailedToPublish)
 	t.Logf("%s: Messages Received: %d\r\n", time.Now(), messagesReceived)
-
-	publisher.StopAutoPublish()
-	if err := consumer.StopConsuming(false, true); err != nil {
-		t.Error(err)
-	}
-
-	channelPool.Shutdown()
 }

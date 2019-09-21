@@ -125,7 +125,25 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	publisher.StartAutoPublish(false)
 
-	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
+	go publishLoop(timeOut, publisher)
+
+	if err := consumer.StartConsuming(); err != nil {
+		b.Error(err)
+	}
+
+	consumeLoop(b, timeOut, publisher, consumer)
+
+	publisher.StopAutoPublish()
+
+	if err := consumer.StopConsuming(false, true); err != nil {
+		b.Error(err)
+	}
+
+	ChannelPool.Shutdown()
+}
+
+func publishLoop(timeOut <-chan time.Time, publisher *publisher.Publisher) {
+	letterTemplate := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	go func() {
 	PublishLoop:
@@ -134,18 +152,21 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 			case <-timeOut:
 				break PublishLoop
 			default:
-				newLetter := models.Letter(*letter)
+				newLetter := models.Letter(*letterTemplate)
 				publisher.QueueLetter(&newLetter)
 				//fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
-				letter.LetterID++
+				letterTemplate.LetterID++
 				time.Sleep(5 * time.Microsecond)
 			}
 		}
 	}()
+}
 
-	if err := consumer.StartConsuming(); err != nil {
-		b.Error(err)
-	}
+func consumeLoop(
+	b *testing.B,
+	timeOut <-chan time.Time,
+	publisher *publisher.Publisher,
+	consumer *consumer.Consumer) {
 
 	messagesReceived := 0
 	messagesPublished := 0
@@ -170,13 +191,13 @@ ConsumeLoop:
 				notice = nil
 			}
 		case err := <-ChannelPool.Errors():
-			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
+			b.Logf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
 			channelPoolErrors++
 		case err := <-ConnectionPool.Errors():
-			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
+			b.Logf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
 			connectionPoolErrors++
 		case err := <-consumer.Errors():
-			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
+			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
 		case message := <-consumer.Messages():
 			messagesReceived++
@@ -194,22 +215,14 @@ ConsumeLoop:
 		}
 	}
 
-	fmt.Printf("ChannelPool Errors: %d\r\n", channelPoolErrors)
-	fmt.Printf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
+	b.Logf("ChannelPool Errors: %d\r\n", channelPoolErrors)
+	b.Logf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
 
-	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
-	fmt.Printf("Messages Acked: %d\r\n", messagesAcked)
-	fmt.Printf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
-	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+	b.Logf("Consumer Errors: %d\r\n", consumerErrors)
+	b.Logf("Messages Acked: %d\r\n", messagesAcked)
+	b.Logf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
+	b.Logf("Messages Received: %d\r\n", messagesReceived)
 
-	fmt.Printf("Messages Published: %d\r\n", messagesPublished)
-	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
-
-	publisher.StopAutoPublish()
-
-	if err := consumer.StopConsuming(false, true); err != nil {
-		b.Error(err)
-	}
-
-	ChannelPool.Shutdown()
+	b.Logf("Messages Published: %d\r\n", messagesPublished)
+	b.Logf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
 }
