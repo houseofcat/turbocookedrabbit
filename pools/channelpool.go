@@ -68,7 +68,9 @@ func NewChannelPool(
 	}
 
 	if initializeNow {
-		cp.Initialize()
+		if err := cp.Initialize(); err != nil {
+			return nil, err
+		}
 	}
 
 	return cp, nil
@@ -81,7 +83,9 @@ func (cp *ChannelPool) Initialize() error {
 	defer cp.poolLock.Unlock()
 
 	if !cp.connectionPool.Initialized {
-		cp.connectionPool.Initialize()
+		if err := cp.connectionPool.Initialize(); err != nil {
+			return err
+		}
 	}
 
 	if !cp.Initialized {
@@ -103,11 +107,17 @@ func (cp *ChannelPool) initialize() bool {
 
 		channelHost, err := cp.createChannelHost(cp.channelID, false)
 		if err != nil {
+			cp.channelID = 0
+			cp.channels = queue.New(int64(cp.Config.ChannelPoolConfig.MaxChannelCount))
 			return false
 		}
 
 		cp.channelID++
-		cp.channels.Put(channelHost)
+		if err = cp.channels.Put(channelHost); err != nil {
+			cp.channelID = 0
+			cp.channels = queue.New(int64(cp.Config.ChannelPoolConfig.MaxChannelCount))
+			return false
+		}
 	}
 
 	// Create AckChannel queue.
@@ -115,11 +125,17 @@ func (cp *ChannelPool) initialize() bool {
 
 		channelHost, err := cp.createChannelHost(cp.channelID, true)
 		if err != nil {
+			cp.channelID = 0
+			cp.channels = queue.New(int64(cp.Config.ChannelPoolConfig.MaxAckChannelCount))
 			return false
 		}
 
 		cp.channelID++
-		cp.ackChannels.Put(channelHost)
+		if err = cp.ackChannels.Put(channelHost); err != nil {
+			cp.channelID = 0
+			cp.channels = queue.New(int64(cp.Config.ChannelPoolConfig.MaxAckChannelCount))
+			return false
+		}
 	}
 
 	return true
@@ -153,11 +169,15 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 	}
 
 	if cp.globalQosCount > 0 {
-		channelHost.Channel.Qos(cp.globalQosCount, 0, true)
+		if err = channelHost.Channel.Qos(cp.globalQosCount, 0, true); err != nil {
+			cp.handleError(err)
+		}
 	}
 
 	if ackable {
-		channelHost.Channel.Confirm(cp.ackNoWait)
+		if err = channelHost.Channel.Confirm(cp.ackNoWait); err != nil {
+			cp.handleError(err)
+		}
 	}
 
 	return channelHost, nil
@@ -167,7 +187,7 @@ func (cp *ChannelPool) handleError(err error) {
 	go func() { cp.errors <- err }()
 }
 
-// Errors yields all the internal errs for creating connections.
+// Errors yields all the internal err chan for managing the ChannelPool.
 func (cp *ChannelPool) Errors() <-chan error {
 	return cp.errors
 }
@@ -236,9 +256,13 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 // Optional parameter allows you to flag a Channel as dead.
 func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost, flagChannel bool) {
 	if chanHost.IsAckable() {
-		cp.ackChannels.Put(chanHost)
+		if err := cp.ackChannels.Put(chanHost); err != nil {
+			cp.handleError(err)
+		}
 	} else {
-		cp.channels.Put(chanHost)
+		if err := cp.channels.Put(chanHost); err != nil {
+			cp.handleError(err)
+		}
 	}
 
 	if flagChannel {
@@ -302,7 +326,9 @@ func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 
 	// Puts the connection back in the queue while also returning a pointer to the caller.
 	// This creates a Round Robin on Connections and their resources.
-	cp.ackChannels.Put(channelHost)
+	if err := cp.ackChannels.Put(channelHost); err != nil {
+		cp.handleError(err)
+	}
 
 	return channelHost, nil
 }

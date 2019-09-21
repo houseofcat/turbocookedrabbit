@@ -42,7 +42,10 @@ func NewConsumerFromConfig(
 	if channelPool == nil {
 		return nil, errors.New("can't start a consumer without a channel pool")
 	} else if !channelPool.Initialized {
-		channelPool.Initialize()
+		err := channelPool.Initialize()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if config.MessageBuffer == 0 || config.ErrorBuffer == 0 {
@@ -280,7 +283,10 @@ func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.Channel
 
 	// Quality of Service channel overrides
 	if con.qosCountOverride > 0 {
-		chanHost.Channel.Qos(con.qosCountOverride, 0, false)
+		err := chanHost.Channel.Qos(con.qosCountOverride, 0, false)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	// Start Consuming

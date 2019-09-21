@@ -21,9 +21,10 @@ var Seasoning *models.RabbitSeasoning
 var ConnectionPool *pools.ConnectionPool
 var ChannelPool *pools.ChannelPool
 
-func TestMain(m *testing.M) { // Load Configuration On Startup
+func TestMain(m *testing.M) {
+
 	var err error
-	Seasoning, err = utils.ConvertJSONFileToConfig("testconsumerseasoning.json")
+	Seasoning, err = utils.ConvertJSONFileToConfig("testconsumerseasoning.json") // Load Configuration On Startup
 	if err != nil {
 		return
 	}
@@ -204,13 +205,15 @@ ConsumeMessages:
 	for {
 		select {
 		case <-ctx.Done():
-			fmt.Print("\r\nContextTimeout\r\n")
+			t.Log("\r\nContextTimeout\r\n")
 			break ConsumeMessages
 		case notice := <-publisher.Notifications():
-			fmt.Printf("UpperLoop: %s\r\n", notice.ToString())
+			t.Logf("UpperLoop: %s\r\n", notice.ToString())
 		case message := <-consumer.Messages():
 			fmt.Printf("Message Received: %s\r\n", string(message.Body))
-			consumer.StopConsuming(false, true)
+			if err := consumer.StopConsuming(false, true); err != nil {
+				t.Error(err)
+			}
 			break ConsumeMessages
 		case err := <-consumer.Errors():
 			assert.NoError(t, err)
@@ -273,6 +276,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(2*time.Minute))
+	defer cancel()
 
 MonitorMessages:
 	for {
@@ -297,7 +301,10 @@ MonitorMessages:
 	letters = nil // release memory
 
 	startTime := time.Now()
-	consumer.StartConsuming()
+	if err := consumer.StartConsuming(); err != nil {
+
+		t.Error(err)
+	}
 
 ConsumeMessages:
 	for {
@@ -338,7 +345,9 @@ ConsumeMessages:
 	t.Logf("%s: Messages Received: %d\r\n", time.Now(), messagesReceived)
 
 	publisher.StopAutoPublish()
-	consumer.StopConsuming(false, true)
+	if err := consumer.StopConsuming(false, true); err != nil {
+		t.Error(err)
+	}
+
 	channelPool.Shutdown()
-	cancel()
 }
