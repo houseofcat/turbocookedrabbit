@@ -301,7 +301,7 @@ MonitorMessages:
 		}
 	}
 
-	letters = nil // release memory
+	// letters = nil // release memory if necessary
 
 	startTime := time.Now()
 	if err := consumer.StartConsuming(); err != nil {

@@ -21,7 +21,9 @@ func NewTopologer(channelPool *pools.ChannelPool) (*Topologer, error) {
 	}
 
 	if !channelPool.Initialized {
-		channelPool.Initialize()
+		if err := channelPool.Initialize(); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Topologer{
@@ -56,7 +58,7 @@ func (top *Topologer) BuildToplogy(config *models.TopologyConfig, ignoreErrors b
 
 // BuildExchanges loops through and builds Exchanges - stops on first error.
 func (top *Topologer) BuildExchanges(exchanges []*models.Exchange, ignoreErrors bool) error {
-	if exchanges == nil || len(exchanges) == 0 {
+	if len(exchanges) == 0 {
 		return nil
 	}
 
@@ -72,7 +74,7 @@ func (top *Topologer) BuildExchanges(exchanges []*models.Exchange, ignoreErrors 
 
 // BuildQueues loops through and builds Queues - stops on first error.
 func (top *Topologer) BuildQueues(queues []*models.Queue, ignoreErrors bool) error {
-	if queues == nil || len(queues) == 0 {
+	if len(queues) == 0 {
 		return nil
 	}
 
@@ -88,7 +90,7 @@ func (top *Topologer) BuildQueues(queues []*models.Queue, ignoreErrors bool) err
 
 // BindQueues loops through and binds Queues to Exchanges - stops on first error.
 func (top *Topologer) BindQueues(bindings []*models.QueueBinding, ignoreErrors bool) error {
-	if bindings == nil || len(bindings) == 0 {
+	if len(bindings) == 0 {
 		return nil
 	}
 
