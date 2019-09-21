@@ -3,6 +3,9 @@
  Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/houseofcat/turbocookedrabbit)](https://goreportcard.com/report/github.com/houseofcat/turbocookedrabbit)
+<a title="" target="_blank" href="https://golangci.com/r/github.com/houseofcat/turbocookedrabbit"><img src="https://golangci.com/badges/github.com/houseofcat/turbocookedrabbit.svg"></a>  
+
+<a title="Release" target="_blank" href="https://github.com/houseofcat/turbocookedrabbit/releases"><img src="https://img.shields.io/github/release/houseofcat/turbocookedrabbit.svg?style=flat-square"></a>  
 
 ### Developer's Notes
 It was programmed against the following:
