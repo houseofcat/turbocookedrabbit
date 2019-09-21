@@ -106,7 +106,7 @@ func (top *Topologer) BindQueues(bindings []*models.QueueBinding, ignoreErrors b
 
 // BindExchanges loops thrrough and binds Exchanges to Exchanges - stops on first error.
 func (top *Topologer) BindExchanges(bindings []*models.ExchangeBinding, ignoreErrors bool) error {
-	if bindings == nil || len(bindings) == 0 {
+	if len(bindings) == 0 {
 		return nil
 	}
 
@@ -381,7 +381,7 @@ func (top *Topologer) QueueBind(queueBinding *models.QueueBinding) error {
 // PurgeQueues purges each Queue provided.
 func (top *Topologer) PurgeQueues(queueNames []string, noWait bool) (int, error) {
 
-	if queueNames == nil || len(queueNames) == 0 {
+	if len(queueNames) == 0 {
 		return 0, errors.New("can't purge an empty array of queues")
 	}
 
