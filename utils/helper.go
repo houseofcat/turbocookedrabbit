@@ -16,6 +16,11 @@ var mockRandom = rand.New(mockRandomSource)
 const (
 	randomMin = 1500
 	randomMax = 2500
+
+	letterBytes   = "0123456789!@#$%^&*()_+abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	letterIdxBits = 6                    // 6 bits to represent a letter index
+	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
+	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
 
 // CreateLetter creates a simple letter for publishing.
@@ -81,13 +86,6 @@ func CreateMockRandomLetter(queueName string) *models.Letter {
 		Envelope:   envelope,
 	}
 }
-
-const (
-	letterBytes   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	letterIdxBits = 6                    // 6 bits to represent a letter index
-	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
-	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
-)
 
 // RandomString generates a Random string.
 // var src = rand.NewSource(time.Now().UnixNano())
