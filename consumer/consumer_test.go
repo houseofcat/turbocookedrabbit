@@ -259,7 +259,10 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
-	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	assert.True(t, ok)
+
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
 
 	channelPool.FlushErrors()

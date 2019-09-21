@@ -3,7 +3,6 @@ package main_test
 import (
 	"context"
 	"fmt"
-	"runtime/trace"
 	"testing"
 	"time"
 
@@ -18,14 +17,17 @@ import (
 
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
 	b.ReportAllocs()
-	ctx, task := trace.NewTask(context.Background(), "BenchmarkPublishAndConsumeMany")
-	defer task.End()
+	//ctx, task := trace.NewTask(context.Background(), "BenchmarkPublishAndConsumeMany")
+	//defer task.End()
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	messageCount := 1000
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
-	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	assert.True(b, ok)
+
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
 
 	channelPool.FlushErrors()
@@ -47,7 +49,9 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 		}
 	}()
 
-	consumer.StartConsuming()
+	if err := consumer.StartConsuming(); err != nil {
+		b.Error(err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1*time.Minute))
 	messagesReceived := 0
@@ -96,8 +100,11 @@ ReceivePublishConfirmations:
 	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
 	fmt.Printf("Consumer Messages Received: %d\r\n", messagesReceived)
 
-	consumer.StopConsuming(true, true)
 	publisher.StopAutoPublish()
+
+	if err := consumer.StopConsuming(true, true); err != nil {
+		b.Error(err)
+	}
 	channelPool.Shutdown()
 	cancel()
 }
@@ -111,7 +118,9 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
 	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
-	consumerConfig, _ := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	assert.True(b, ok)
+
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
 
 	publisher.StartAutoPublish(false)
@@ -134,7 +143,9 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 		}
 	}()
 
-	consumer.StartConsuming()
+	if err := consumer.StartConsuming(); err != nil {
+		b.Error(err)
+	}
 
 	messagesReceived := 0
 	messagesPublished := 0
@@ -196,7 +207,9 @@ ConsumeLoop:
 
 	publisher.StopAutoPublish()
 
-	consumer.StopConsuming(false, true)
+	if err := consumer.StopConsuming(false, true); err != nil {
+		b.Error(err)
+	}
 
 	ChannelPool.Shutdown()
 }

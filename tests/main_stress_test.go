@@ -40,7 +40,9 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 
 	go publish(timeOut, publisher)
 
-	consumer.StartConsuming()
+	if err = consumer.StartConsuming(); err != nil {
+		t.Error(err)
+	}
 
 	done := make(chan bool, 1)
 	go monitor(done, publisher, consumer)
@@ -51,7 +53,11 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 	done <- true
 
 	publisher.StopAutoPublish()
-	consumer.StopConsuming(false, true)
+
+	if err = consumer.StopConsuming(false, true); err != nil {
+		t.Error(err)
+	}
+
 	ChannelPool.Shutdown()
 
 	fmt.Printf("%s: Benchmark Finished\r\n", time.Now())

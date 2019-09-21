@@ -27,7 +27,6 @@ type Consumer struct {
 	started              bool
 	autoAck              bool
 	exclusive            bool
-	noLocal              bool
 	noWait               bool
 	args                 amqp.Table
 	qosCountOverride     int

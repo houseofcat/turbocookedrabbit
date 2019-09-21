@@ -219,7 +219,9 @@ func TestCreateConnectionPool(t *testing.T) {
 	timeStart := time.Now()
 
 	if !connectionPool.Initialized {
-		connectionPool.Initialize()
+		if err := connectionPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 
 	elapsed := time.Since(timeStart)
@@ -239,7 +241,9 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 
 	timeStart := time.Now()
 	if !connectionPool.Initialized {
-		connectionPool.Initialize()
+		if err := connectionPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 
@@ -263,7 +267,9 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 
 	timeStart := time.Now()
 	if !connectionPool.Initialized {
-		connectionPool.Initialize()
+		if err := connectionPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 
@@ -300,7 +306,9 @@ func TestCreateChannelPool(t *testing.T) {
 
 	timeStart := time.Now()
 	if !channelPool.Initialized {
-		channelPool.Initialize()
+		if err := channelPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 
@@ -325,7 +333,9 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 
 	timeStart := time.Now()
 	if !channelPool.Initialized {
-		channelPool.Initialize()
+		if err := channelPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 
@@ -360,7 +370,9 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 
 	timeStart := time.Now()
 	if !channelPool.Initialized {
-		channelPool.Initialize()
+		if err := channelPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 
@@ -401,7 +413,9 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 
 	timeStart := time.Now()
 	if !channelPool.Initialized {
-		channelPool.Initialize()
+		if err := channelPool.Initialize(); err != nil {
+			t.Error(err)
+		}
 	}
 	elapsed := time.Since(timeStart)
 

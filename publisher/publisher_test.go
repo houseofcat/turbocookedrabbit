@@ -564,7 +564,9 @@ func purgeAllPublisherTestQueues(queuePrefix string, channelPool *pools.ChannelP
 	topologer, err := topology.NewTopologer(channelPool)
 	if err == nil {
 		for i := 0; i < 10; i++ {
-			topologer.PurgeQueue(fmt.Sprintf("%s-%d", queuePrefix, i), false)
+			if _, err := topologer.PurgeQueue(fmt.Sprintf("%s-%d", queuePrefix, i), false); err != nil {
+				fmt.Print(err)
+			}
 		}
 	}
 }

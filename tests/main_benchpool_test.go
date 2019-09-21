@@ -27,15 +27,21 @@ func BenchmarkGetMultiChannelAndPublish(b *testing.B) {
 			continue
 		}
 
-		go channelHost.Channel.Publish(
-			letter.Envelope.Exchange,
-			letter.Envelope.RoutingKey,
-			letter.Envelope.Mandatory,
-			letter.Envelope.Immediate,
-			amqp.Publishing{
-				ContentType: letter.Envelope.ContentType,
-				Body:        letter.Body,
-			})
+		go func() {
+			err := channelHost.Channel.Publish(
+				letter.Envelope.Exchange,
+				letter.Envelope.RoutingKey,
+				letter.Envelope.Mandatory,
+				letter.Envelope.Immediate,
+				amqp.Publishing{
+					ContentType: letter.Envelope.ContentType,
+					Body:        letter.Body,
+				})
+
+			if err != nil {
+				b.Log(err)
+			}
+		}()
 
 		channelPool.ReturnChannel(channelHost, false)
 	}
@@ -50,13 +56,14 @@ func BenchmarkGetSingleChannelAndPublish(b *testing.B) {
 	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
+	var err error
 	channelHost, err := channelPool.GetChannel()
 	if err != nil {
 		b.Log(err.Error())
 	}
 
 	for i := 0; i < messageSize; i++ {
-		channelHost.Channel.Publish(
+		err = channelHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -65,6 +72,10 @@ func BenchmarkGetSingleChannelAndPublish(b *testing.B) {
 				ContentType: letter.Envelope.ContentType,
 				Body:        letter.Body,
 			})
+
+		if err != nil {
+			b.Log(err)
+		}
 	}
 
 	channelPool.ReturnChannel(channelHost, false)

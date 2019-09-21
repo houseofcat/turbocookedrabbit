@@ -53,6 +53,7 @@ func TestReadConfig(t *testing.T) {
 }
 
 func TestBasicPublish(t *testing.T) {
+
 	//defer leaktest.Check(t)() // Fail on leaked goroutines.
 	messageCount := 100000
 
@@ -65,7 +66,7 @@ func TestBasicPublish(t *testing.T) {
 	}
 
 	elapsed := time.Since(timeStart)
-	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
+	t.Logf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	// Test
 	timeStart = time.Now()
@@ -81,7 +82,8 @@ func TestBasicPublish(t *testing.T) {
 
 	for i := 0; i < messageCount; i++ {
 		letter := letters[i]
-		amqpChan.Publish(
+
+		err = amqpChan.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -89,13 +91,17 @@ func TestBasicPublish(t *testing.T) {
 			amqp.Publishing{
 				ContentType: letter.Envelope.ContentType,
 				Body:        letter.Body,
-			},
-		)
+			})
+
+		if err != nil {
+			t.Log(err)
+		}
+
 	}
 
 	elapsed = time.Since(timeStart)
-	fmt.Printf("Publish Time: %s\r\n", elapsed)
-	fmt.Printf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
+	t.Logf("Publish Time: %s\r\n", elapsed)
+	t.Logf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
 
 	// TODO: Poll Queues till the message counts are there. Should be messageCount distributed evenly in 10 queues.
 }

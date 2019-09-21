@@ -16,7 +16,7 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	Config                     models.PoolConfig
+	config                     models.PoolConfig
 	Initialized                bool
 	connectionName             string
 	uri                        string
@@ -79,7 +79,7 @@ func NewConnectionPool(
 	}
 
 	cp := &ConnectionPool{
-		Config:                     *config,
+		config:                     *config,
 		uri:                        config.ConnectionPoolConfig.URI,
 		connectionName:             config.ConnectionPoolConfig.ConnectionName,
 		enableTLS:                  config.ConnectionPoolConfig.EnableTLS,
@@ -98,7 +98,9 @@ func NewConnectionPool(
 	}
 
 	if initializeNow {
-		cp.Initialize()
+		if err = cp.Initialize(); err != nil {
+			return nil, err
+		}
 	}
 
 	return cp, nil
@@ -113,7 +115,7 @@ func (cp *ConnectionPool) Initialize() error {
 	if !cp.Initialized {
 		var ok bool
 
-		if cp.Config.ConnectionPoolConfig.EnableTLS {
+		if cp.config.ConnectionPoolConfig.EnableTLS {
 			ok = cp.initializeWithTLS()
 		} else {
 			ok = cp.initialize()
@@ -134,11 +136,17 @@ func (cp *ConnectionPool) initialize() bool {
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHost(cp.connectionID)
 		if err != nil {
+			cp.connectionID = 0
+			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
 			return false
 		}
 
 		cp.connectionID++
-		cp.connections.Put(connectionHost)
+		if err = cp.connections.Put(connectionHost); err != nil {
+			cp.connectionID = 0
+			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+			return false
+		}
 	}
 
 	return true
@@ -149,11 +157,17 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 	for i := uint64(0); i < cp.maxConnections; i++ {
 		connectionHost, err := cp.createConnectionHostWithTLS(cp.connectionID)
 		if err != nil {
+			cp.connectionID = 0
+			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
 			return false
 		}
 
 		cp.connectionID++
-		cp.connections.Put(connectionHost)
+		if err = cp.connections.Put(connectionHost); err != nil {
+			cp.connectionID = 0
+			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+			return false
+		}
 	}
 
 	return true
@@ -187,6 +201,10 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*mod
 		cp.maxChannelPerConnection,
 		cp.maxAckChannelPerConnection,
 		cp.tlsConfig)
+}
+
+func (cp *ConnectionPool) handleError(err error) {
+	go func() { cp.errors <- err }()
 }
 
 // Errors yields all the internal errs for creating connections.
@@ -269,7 +287,9 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 // ReturnConnection puts the connection back in the queue.
 // This helps maintain a Round Robin on Connections and their resources.
 func (cp *ConnectionPool) ReturnConnection(connHost *models.ConnectionHost) {
-	cp.connections.Put(connHost)
+	if err := cp.connections.Put(connHost); err != nil {
+		cp.handleError(err)
+	}
 }
 
 // ConnectionCount flags that connection as usable in the future. Careful, locking call.
