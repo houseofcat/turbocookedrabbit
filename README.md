@@ -1142,9 +1142,9 @@ if err != nil {
 Service.StartService(false)
 ```
 
-The **Service.StartService(true/false)** begins monitoring errors and notifications in the background while at the same time centralizing all the errors from the sub-processes. You should subscribe to these erros, and it is called **.CentralErr()**
+The **Service.StartService(true/false)** begins monitoring errors and notifications in the background while at the same time centralizing all the errors from the sub-processes. You should subscribe to these errors... just need to turn on **.CentralErr()**
 
-It also starts the internal Publisher's AutoPublisher.
+It also starts the internal Publisher's AutoPublisher so you need that **.Notifications()**
 
 ```golang
 func serviceMonitor(done chan bool, se   
@@ -1155,6 +1155,7 @@ func serviceMonitor(done chan bool, se
 			case <-done:
 				break MonitorLoop
 			case <-service.CentralErr():
+			case <-service.Notifications():
 			}
 		}
 
@@ -1187,7 +1188,8 @@ And don't forget to subscribe to **Consumer.Messages()** when using **StartConsu
 <details><summary>But wait, there's more!</summary>
 <p>
 
-The service allows JSON Marshalling, Argon2 hashing, Aes-128/192/256 bit encryption, and GZIP/ZSTD compression. Note: ZSTD is from 3rd party library and it's working but in Beta - if worried use the standard vanilla GZIP.
+The service allows JSON Marshalling, Argon2 hashing, Aes-128/192/256 bit encryption, and GZIP/ZSTD compression.  
+***Note: ZSTD is from 3rd party library and it's working but in Beta - if worried use the standard vanilla GZIP.***
 
 Setting Up Hashing (required for Encryption):
 ```golang
@@ -1226,7 +1228,7 @@ Service.Config.CompressionConfig.Enabled = false
 
 wrapData := false
 data := interface{}
-err := Service.Publish(data, "", "MyQueue", wrapData)
+err := Service.Publish(data, "MyExchange", "MyQueue", wrapData)
 if err != nil {
 	
 }
@@ -1246,7 +1248,7 @@ Service.Config.CompressionConfig.Type = "gzip"
 
 wrapData := false
 data := interface{}
-err := Service.Publish(data, "", "MyQueue", wrapData)
+err := Service.Publish(data, "MyExchange", "MyQueue", wrapData)
 if err != nil {
 	
 }
@@ -1269,7 +1271,7 @@ Service.Config.CompressionConfig.Enabled = false
 
 wrapData := false
 data := interface{}
-err := Service.Publish(data, "", "MyQueue", wrapData)
+err := Service.Publish(data, "MyExchange", "MyQueue", wrapData)
 if err != nil {
 	
 }
@@ -1284,7 +1286,7 @@ So to reverse it into a struct, you need to:
  * Unmarshal bytes to your struct!
  * Profit!
 
- What about Compcryption?
+ What about Compcryption (a word I just made up)?
 
  Good lord, fine!
 
@@ -1300,7 +1302,7 @@ Service.Config.CompressionConfig.Enabled = true
 
 wrapData := false
 data := interface{}
-err := Service.Publish(data, "", "MyQueue", wrapData)
+err := Service.Publish(data, "MyExchange", "MyQueue", wrapData)
 if err != nil {
 	
 }
@@ -1347,13 +1349,13 @@ Service.Config.CompressionConfig.Enabled = true
 
 wrapData := false
 data := interface{}
-err := Service.Publish(data, "", "MyQueue", wrapData)
+err := Service.Publish(data, "MyExchange", "MyQueue", wrapData)
 if err != nil {
 	
 }
 ```
 
-The problem here in lies that the message could leave you slightly blind as to what is in your queue! I tried to enhance this process, by including an object wrapper. If you wrap your message is always of type **models.ModdedLetter**.
+The problem here in lies that the message could leave you slightly blind as to what is in your queue! I tried to enhance this process, by including a wrapper. If you wrap your message, it is always of type **models.ModdedLetter**.
 
 The following...
 
@@ -1379,9 +1381,53 @@ wrapData = true
 
 You definitely can't tell this is MBison's Social Security Number.
 
-The idea around this *metadata* is that it could help identify which passphrase was used to create this based on ***UTCDateTime***.
+The idea around this *metadata* is that it could help identify which passphrase was used to create this based on ***UTCDateTime*** and how it was modified.
 
-The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it's compressed and with what. Same goes for encryption - or neither.
+The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it is a compressed []byte and with what. Same goes for encryption - or neither.
 
 </p>
 </details>
+
+---
+
+<details><summary>I think I bitshifted to the 4th dimension... how the hell do I get my object/struct back?</summary>
+<p>
+
+I am going to assume we are Compcrypting, so adjust this example to your needs
+
+First we get our data out of a Consumer, once we have a **models.Body.Data** []byte, we can begin reversing it.
+
+```golang
+var json = jsoniter.ConfigFastest // optional - can use built-in json if you prefer
+
+message := <-consumer.Messages() // get compcrypted message
+
+modLetter := &models.ModdedLetter{}
+err = json.Unmarshal(message.Body, modLetter) // unmarshal as ModdedLetter
+if err != nil {
+	// I probably have a bug.
+}
+
+buffer := bytes.NewBuffer(modLetter.Body.Data)
+
+// Helper function to get the original JSON marshal bytes back.
+err = utils.ReadPayload(buffer, Service.Config.CompressionConfig, Service.Config.EncryptionConfig)
+if err != nil {
+	// I probably have a bug.
+}
+
+myStruct := &MyStruct{}
+err = json.Unmarshal(buffer.Bytes(), myStruct) // unmarshal as actual type!
+if err != nil {
+	// You probably have a bug!
+}
+```
+
+There maybe changes as I am tightening this up a bit.
+
+Be sure to keep an eye on the integration test for this **TestPublishCompressionEncryptionWithWrapAndConsume**
+
+</p>
+</details>
+
+---

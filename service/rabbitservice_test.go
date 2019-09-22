@@ -1,6 +1,9 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -46,6 +49,7 @@ func TestSetHashForEncryption(t *testing.T) {
 	salt := "MBisonDidNothingWrong"
 
 	Service.SetHashForEncryption(password, salt)
+
 	assert.NotEqual(t, nil, Service.Config.EncryptionConfig.Hashkey)
 	assert.NotEqual(t, 0, Service.Config.EncryptionConfig.Hashkey)
 }
@@ -75,10 +79,7 @@ func TestPublishWithWrap(t *testing.T) {
 	Service.Config.CompressionConfig.Enabled = false
 
 	unmodifiedPayload := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
-	anonData := struct {
-		Data []byte
-		Time string
-	}{
+	anonData := &AnonData{
 		unmodifiedPayload,
 		time.UTC.String(),
 	}
@@ -96,15 +97,10 @@ func TestPublishCompressionEncryptionWithoutWrap(t *testing.T) {
 	Service.SetHashForEncryption(password, salt)
 
 	unmodifiedPayload := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
-	anonData := struct {
-		Data []byte
-		Time string
-	}{
+	anonData := &AnonData{
 		unmodifiedPayload,
 		time.UTC.String(),
 	}
-
-	Service.SetHashForEncryption(password, salt)
 
 	err := Service.Publish(anonData, "", "ServiceTestQueue", false)
 	assert.NoError(t, err)
@@ -119,12 +115,9 @@ func TestPublishCompressionEncryptionWithWrap(t *testing.T) {
 	Service.SetHashForEncryption(password, salt)
 
 	unmodifiedPayload := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
-	anonData := struct {
-		Data        []byte
-		UTCDateTime string
-	}{
+	anonData := &AnonData{
 		unmodifiedPayload,
-		time.Now().UTC().Format(time.RFC3339),
+		time.UTC.String(),
 	}
 
 	err := Service.Publish(anonData, "", "ServiceTestQueue", true)
@@ -286,4 +279,57 @@ func serviceMonitor(done chan bool, service *RabbitService) {
 		}
 
 	}()
+}
+
+func TestPublishCompressionEncryptionWithWrapAndConsume(t *testing.T) {
+
+	password := "SuperStreetFighter2Turbo"
+	salt := "MBisonDidNothingWrong"
+
+	Service.SetHashForEncryption(password, salt)
+
+	consumer, err := Service.GetConsumer("TCR-Compcryption")
+	if err != nil {
+		t.Error(err)
+	}
+
+	err = consumer.StartConsuming()
+	if err != nil {
+		t.Error(err)
+	}
+
+	unmodifiedPayload := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
+	timeStamp := time.UTC.String()
+	anonData := &AnonData{
+		unmodifiedPayload,
+		timeStamp,
+	}
+
+	err = Service.Publish(anonData, "", "ServiceTestQueue", true)
+	if err != nil {
+		t.Error(err)
+	}
+
+	message := <-consumer.Messages()
+	modLetter := &models.ModdedLetter{}
+	err = json.Unmarshal(message.Body, modLetter) // unmarshal as ModdedLetter
+	if err != nil {
+		t.Error(err)
+	}
+
+	if modLetter.Body == nil {
+		t.Error(errors.New("body didn't deserialize"))
+	}
+
+	buffer := bytes.NewBuffer(modLetter.Body.Data)
+	err = utils.ReadPayload(buffer, Service.Config.CompressionConfig, Service.Config.EncryptionConfig)
+	if err != nil {
+		t.Error(err)
+	}
+
+	returnedData := &AnonData{}
+	err = json.Unmarshal(buffer.Bytes(), returnedData) // unmarshal inner (now modified) bytes to an actual type!
+	assert.NoError(t, err)
+	assert.Equal(t, timeStamp, returnedData.UTCDateTime)
+	assert.Equal(t, unmodifiedPayload, returnedData.Data)
 }

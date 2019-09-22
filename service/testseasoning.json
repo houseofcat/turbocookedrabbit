@@ -62,6 +62,18 @@
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
 			"SleepOnIdleInterval": 1000
+		},
+		"TCR-Compcryption": {
+			"QueueName": "ServiceTestQueue",
+			"ConsumerName": "TCR-Compcryption",
+			"AutoAck": true,
+			"Exclusive": false,
+			"NoWait": true,
+			"QosCountOverride": 5,
+			"MessageBuffer": 100,
+			"ErrorBuffer": 10,
+			"SleepOnErrorInterval": 1000,
+			"SleepOnIdleInterval": 1000
 		}
 	},
 	"PublisherConfig":{
