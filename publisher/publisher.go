@@ -136,21 +136,19 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 
 			select {
 			case letter := <-pub.letters:
-				if allowRetry {
-					pub.autoPublishGroup.Add(1)
-					go func() {
-						defer pub.autoPublishGroup.Done()
+				pub.autoPublishGroup.Add(1)
+
+				go func() {
+					defer pub.autoPublishGroup.Done()
+					if allowRetry {
 						pub.PublishWithRetry(letter)
-						pub.reduceLetterCount()
-					}()
-				} else {
-					pub.autoPublishGroup.Add(1)
-					go func() {
-						defer pub.autoPublishGroup.Done()
+					} else {
 						pub.Publish(letter)
-						pub.reduceLetterCount()
-					}()
-				}
+					}
+
+					pub.reduceLetterCount()
+				}()
+
 			default:
 				if pub.sleepOnIdleInterval > 0 {
 					time.Sleep(pub.sleepOnIdleInterval)
