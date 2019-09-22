@@ -16,6 +16,12 @@ It was programmed against the following:
  * RabbitMQ Server v3.7.17 (simple localhost)
  * Erlang v22.0 (OTP v10.4)
  * Streadway/Amqp Latest
+ 
+#### Minute Breaking Changes
+`v1.0.2 -> v1.1.0`  
+New RabbitService, Supporting Encryption, Compression   
+I will hotfix `v1.0.2` should anyone need fixes but not wanting to move to `v1.1.0`  
+***I apologize for any inconvenience and the changes are minute.***
 
 Having issues with more advanced setups? Open up and issue but I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
 
