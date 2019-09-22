@@ -142,7 +142,7 @@ func (cp *ChannelPool) initialize() bool {
 }
 
 // CreateChannelHost creates the Channel (backed by a Connection) with RabbitMQ server.
-func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*models.ChannelHost, error) {
+func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*ChannelHost, error) {
 
 	connHost, err := cp.connectionPool.GetConnection()
 	if err != nil {
@@ -157,7 +157,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*model
 		return nil, errors.New("can't add more channels to this connection")
 	}
 
-	channelHost, err := models.NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
+	channelHost, err := NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (cp *ChannelPool) Errors() <-chan error {
 // GetChannel gets a channel based on whats ChannelPool queue (blocking under bad network conditions).
 // Outages/transient network outages block until success connecting.
 // Uses the SleepOnErrorInterval to pause between retries.
-func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
+func (cp *ChannelPool) GetChannel() (*ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can't get channel - channel pool has been shutdown")
 	}
@@ -212,7 +212,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 		return nil, err
 	}
 
-	channelHost, ok := structs[0].(*models.ChannelHost)
+	channelHost, ok := structs[0].(*ChannelHost)
 	if !ok {
 		return nil, errors.New("invalid struct type found in ChannelPool queue")
 	}
@@ -254,7 +254,7 @@ func (cp *ChannelPool) GetChannel() (*models.ChannelHost, error) {
 // ReturnChannel puts the connection back in the queue.
 // Developer has to manually return the Channel and helps maintain a Round Robin on Channels and their resources.
 // Optional parameter allows you to flag a Channel as dead.
-func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost, flagChannel bool) {
+func (cp *ChannelPool) ReturnChannel(chanHost *ChannelHost, flagChannel bool) {
 	if chanHost.IsAckable() {
 		if err := cp.ackChannels.Put(chanHost); err != nil {
 			cp.handleError(err)
@@ -271,7 +271,7 @@ func (cp *ChannelPool) ReturnChannel(chanHost *models.ChannelHost, flagChannel b
 }
 
 // GetAckableChannel gets an ackable channel based on whats available in AckChannelPool queue.
-func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
+func (cp *ChannelPool) GetAckableChannel() (*ChannelHost, error) {
 	if atomic.LoadInt32(&cp.channelLock) > 0 {
 		return nil, errors.New("can't get channel - channel pool has been shutdown")
 	}
@@ -288,7 +288,7 @@ func (cp *ChannelPool) GetAckableChannel() (*models.ChannelHost, error) {
 		return nil, err
 	}
 
-	channelHost, ok := structs[0].(*models.ChannelHost)
+	channelHost, ok := structs[0].(*ChannelHost)
 	if !ok {
 		return nil, errors.New("invalid struct type found in ChannelPool queue")
 	}
@@ -404,7 +404,7 @@ func (cp *ChannelPool) shutdownChannels(done chan bool) {
 		items, _ := cp.channels.Get(cp.channels.Len())
 
 		for _, item := range items {
-			channelHost := item.(*models.ChannelHost)
+			channelHost := item.(*ChannelHost)
 			channelHost.Channel.Close()
 		}
 	}
@@ -417,7 +417,7 @@ func (cp *ChannelPool) shutdownAckChannels(done chan bool) {
 		items, _ := cp.ackChannels.Get(cp.ackChannels.Len())
 
 		for _, item := range items {
-			channelHost := item.(*models.ChannelHost)
+			channelHost := item.(*ChannelHost)
 			channelHost.Channel.Close()
 		}
 	}

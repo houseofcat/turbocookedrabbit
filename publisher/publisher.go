@@ -106,7 +106,7 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 	}
 }
 
-func (pub *Publisher) handleErrorAndChannel(err error, letterID uint64, chanHost *models.ChannelHost) {
+func (pub *Publisher) handleErrorAndChannel(err error, letterID uint64, chanHost *pools.ChannelHost) {
 	pub.ChannelPool.ReturnChannel(chanHost, true)
 	pub.sendToNotifications(letterID, err)
 	time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)

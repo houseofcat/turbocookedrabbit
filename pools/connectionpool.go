@@ -174,9 +174,9 @@ func (cp *ConnectionPool) initializeWithTLS() bool {
 }
 
 // CreateConnectionHost creates the Connection with RabbitMQ server.
-func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.ConnectionHost, error) {
+func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*ConnectionHost, error) {
 
-	return models.NewConnectionHost(
+	return NewConnectionHost(
 		cp.uri,
 		cp.connectionName+"-"+strconv.FormatUint(connectionID, 10),
 		connectionID,
@@ -187,12 +187,12 @@ func (cp *ConnectionPool) createConnectionHost(connectionID uint64) (*models.Con
 }
 
 // CreateConnectionHostWithTLS creates the Connection with RabbitMQ server.
-func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*models.ConnectionHost, error) {
+func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*ConnectionHost, error) {
 	if cp.tlsConfig == nil {
 		return nil, errors.New("tls enabled but tlsConfig has not been created")
 	}
 
-	return models.NewConnectionHostWithTLS(
+	return NewConnectionHostWithTLS(
 		cp.uri,
 		cp.connectionName+"-"+strconv.FormatUint(connectionID, 10),
 		connectionID,
@@ -215,7 +215,7 @@ func (cp *ConnectionPool) Errors() <-chan error {
 // GetConnection gets a connection based on whats in the ConnectionPool (blocking under bad network conditions).
 // Outages/transient network outages block until success connecting.
 // Uses the SleepOnErrorInterval to pause between retries.
-func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
+func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 	if atomic.LoadInt32(&cp.connectionLock) > 0 {
 		return nil, errors.New("can't get connection - connection pool has been shutdown")
 	}
@@ -231,7 +231,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 		return nil, err
 	}
 
-	connectionHost, ok := structs[0].(*models.ConnectionHost)
+	connectionHost, ok := structs[0].(*ConnectionHost)
 	if !ok {
 		return nil, errors.New("invalid struct type found in ConnectionPool queue")
 	}
@@ -286,7 +286,7 @@ func (cp *ConnectionPool) GetConnection() (*models.ConnectionHost, error) {
 
 // ReturnConnection puts the connection back in the queue.
 // This helps maintain a Round Robin on Connections and their resources.
-func (cp *ConnectionPool) ReturnConnection(connHost *models.ConnectionHost) {
+func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost) {
 	if err := cp.connections.Put(connHost); err != nil {
 		cp.handleError(err)
 	}
@@ -351,7 +351,7 @@ func (cp *ConnectionPool) shutdownConnections() {
 		items, _ := cp.connections.Get(cp.connections.Len())
 
 		for _, item := range items {
-			connectionHost := item.(*models.ConnectionHost)
+			connectionHost := item.(*ConnectionHost)
 			if !connectionHost.Connection.IsClosed() {
 				connectionHost.Connection.Close()
 			}

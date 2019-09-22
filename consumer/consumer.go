@@ -125,7 +125,7 @@ func NewConsumer(
 func (con *Consumer) Get(queueName string, autoAck bool) (*models.Message, error) {
 
 	// Get Channel
-	var chanHost *models.ChannelHost
+	var chanHost *pools.ChannelHost
 	var err error
 
 	if autoAck {
@@ -164,7 +164,7 @@ func (con *Consumer) GetBatch(queueName string, batchSize int, autoAck bool) ([]
 	}
 
 	// Get Channel
-	var chanHost *models.ChannelHost
+	var chanHost *pools.ChannelHost
 	var err error
 
 	if autoAck {
@@ -263,10 +263,10 @@ ConsumerOuterLoop:
 }
 
 // GetDeliveryChannel attempts to get the amqp.Delivery chan and a viable ChannelHost from the ChannelPool.
-func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.ChannelHost, error) {
+func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *pools.ChannelHost, error) {
 
 	// Get Channel
-	var chanHost *models.ChannelHost
+	var chanHost *pools.ChannelHost
 	var err error
 
 	if con.autoAck {
@@ -299,7 +299,7 @@ func (con *Consumer) getDeliveryChannel() (<-chan amqp.Delivery, *models.Channel
 }
 
 // ProcessDeliveries is the inner loop for processing the deliveries and returns true to break outer loop.
-func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *models.ChannelHost) bool {
+func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *pools.ChannelHost) bool {
 
 ProcessDeliveriesInnerLoop:
 	for {
@@ -368,7 +368,7 @@ func (con *Consumer) Messages() <-chan *models.Message {
 	return con.messages
 }
 
-func (con *Consumer) handleErrorAndChannel(err error, chanHost *models.ChannelHost) {
+func (con *Consumer) handleErrorAndChannel(err error, chanHost *pools.ChannelHost) {
 	con.channelPool.ReturnChannel(chanHost, true)
 	con.handleError(err)
 }

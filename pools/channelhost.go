@@ -1,8 +1,9 @@
-package models
+package pools
 
 import (
 	"errors"
 
+	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/streadway/amqp"
 )
 
@@ -12,8 +13,8 @@ type ChannelHost struct {
 	ChannelID      uint64
 	ConnectionID   uint64
 	ackable        bool
-	ErrorMessages  chan *ErrorMessage
-	ReturnMessages chan *ReturnMessage
+	ErrorMessages  chan *models.ErrorMessage
+	ReturnMessages chan *models.ReturnMessage
 	closeErrors    chan *amqp.Error
 	returnMessages chan amqp.Return
 }
@@ -39,8 +40,8 @@ func NewChannelHost(
 		ChannelID:      channelID,
 		ConnectionID:   connectionID,
 		ackable:        ackable,
-		ErrorMessages:  make(chan *ErrorMessage, 1),
-		ReturnMessages: make(chan *ReturnMessage, 1),
+		ErrorMessages:  make(chan *models.ErrorMessage, 1),
+		ReturnMessages: make(chan *models.ReturnMessage, 1),
 		closeErrors:    make(chan *amqp.Error, 1),
 		returnMessages: make(chan amqp.Return, 1),
 	}
@@ -52,11 +53,11 @@ func NewChannelHost(
 }
 
 // CloseErrors allow you to listen for amqp.Error messages.
-func (ch *ChannelHost) CloseErrors() <-chan *ErrorMessage {
+func (ch *ChannelHost) CloseErrors() <-chan *models.ErrorMessage {
 	select {
 	case amqpError := <-ch.closeErrors:
 		if amqpError != nil { // received a nil during testing
-			ch.ErrorMessages <- NewErrorMessage(amqpError)
+			ch.ErrorMessages <- models.NewErrorMessage(amqpError)
 		}
 	default:
 		break
@@ -66,10 +67,10 @@ func (ch *ChannelHost) CloseErrors() <-chan *ErrorMessage {
 }
 
 // Returns allow you to listen for ReturnMessages.
-func (ch *ChannelHost) Returns() <-chan *ReturnMessage {
+func (ch *ChannelHost) Returns() <-chan *models.ReturnMessage {
 	select {
 	case amqpReturn := <-ch.returnMessages:
-		ch.ReturnMessages <- NewReturnMessage(&amqpReturn)
+		ch.ReturnMessages <- models.NewReturnMessage(&amqpReturn)
 
 	default:
 		break
