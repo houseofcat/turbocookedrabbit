@@ -4,6 +4,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"io"
 
@@ -14,8 +16,8 @@ const (
 	defaultNonceSize = 12 // 12 is the standard
 )
 
-// HashWithArgon uses Argon2 to hash a plaintext password with a provided salt string.
-func HashWithArgon(password string, salt string, timeConsideration uint32, threads uint8) []byte {
+// GetHashWithArgon uses Argon2 version 0x13 to hash a plaintext password with a provided salt string and return hash as bytes.
+func GetHashWithArgon(password, salt string, timeConsideration uint32, threads uint8, hashLength uint32) []byte {
 
 	if password == "" || salt == "" {
 		return nil
@@ -29,10 +31,48 @@ func HashWithArgon(password string, salt string, timeConsideration uint32, threa
 		threads = 1
 	}
 
-	return argon2.IDKey([]byte(password), []byte(salt), timeConsideration, 64*1024, threads, 32)
+	return argon2.IDKey([]byte(password), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
 }
 
-// EncryptWithAes encrypts bytes based on an Aes compatible hashed key.
+// GetStringHashWithArgon uses Argon2 version 0x13 to hash a plaintext password with a provided salt string and return hash as base64 string.
+func GetStringHashWithArgon(password, salt string, timeConsideration uint32, threads uint8, hashLength uint32) string {
+
+	if password == "" || salt == "" {
+		return ""
+	}
+
+	if timeConsideration == 0 {
+		timeConsideration = 1
+	}
+
+	if threads == 0 {
+		threads = 1
+	}
+
+	hashy := argon2.IDKey([]byte(password), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
+
+	base64Hash := make([]byte, base64.StdEncoding.EncodedLen(len(hashy)))
+	base64.StdEncoding.Encode(base64Hash, hashy)
+
+	return string(base64Hash)
+}
+
+// CompareArgon2Hash creates an Argon hash and then compares it to a provided hash.
+func CompareArgon2Hash(password, salt string, hashedPassword []byte) (bool, error) {
+
+	inboundHash := GetHashWithArgon(password, salt, 1, 1, uint32(len(hashedPassword)))
+	if inboundHash != nil {
+		return false, errors.New("hash generated was nil")
+	}
+
+	if subtle.ConstantTimeCompare(inboundHash, hashedPassword) == 1 {
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// EncryptWithAes encrypts bytes based on an AES-256 compatible hashed key.
 // If nonceSize is less than 12, the standard, 12, is used.
 func EncryptWithAes(data, hashedKey []byte, nonceSize int) ([]byte, error) {
 
@@ -40,12 +80,12 @@ func EncryptWithAes(data, hashedKey []byte, nonceSize int) ([]byte, error) {
 		return nil, errors.New("data or hash can't be zero length")
 	}
 
-	if nonceSize < 12 {
+	if nonceSize < 12 || nonceSize > 32 {
 		nonceSize = defaultNonceSize
 	}
 
 	block, err := aes.NewCipher(hashedKey)
-	if err != nil {
+	if err != nil { // will throw an Aes.NewCipher error if length is not 16, 24, or 32
 		return nil, err
 	}
 
@@ -84,11 +124,5 @@ func DecryptWithAes(cipherDataWithNonce, hashedKey []byte, nonceSize int) ([]byt
 		return nil, err
 	}
 
-	nonce, cipherData := cipherDataWithNonce[:nonceSize], cipherDataWithNonce[nonceSize:]
-	data, err := aesGcm.Open(nil, nonce, cipherData, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	return data, nil
+	return aesGcm.Open(nil, cipherDataWithNonce[:nonceSize], cipherDataWithNonce[nonceSize:], nil)
 }
