@@ -31,7 +31,7 @@ func BenchmarkGetHashWithArgon2(b *testing.B) {
 	salt := "MBisonDidNothingWrong"
 
 	for i := 0; i < 1000; i++ {
-		GetHashWithArgon(fmt.Sprintf(password+"-%d", i), salt, 1, 6, 64)
+		GetHashWithArgon(fmt.Sprintf(password+"-%d", i), salt, 1, 12, 32)
 	}
 }
 
