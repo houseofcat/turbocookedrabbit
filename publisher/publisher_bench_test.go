@@ -85,7 +85,7 @@ func BenchmarkAutoPublishRandomEncryptedLetters(b *testing.B) {
 	b.Logf("%s: Purging Queues...", time.Now())
 	purgeAllPublisherTestQueues(testQueuePrefix, ChannelPool)
 
-	messageCount := 10000
+	messageCount := 100
 	letters := make([]*models.Letter, messageCount)
 
 	pub, err := publisher.NewPublisher(Seasoning, ChannelPool, ConnectionPool)
@@ -160,7 +160,6 @@ func monitorLoop(b *testing.B, monitorLoopFinished chan bool, pub *publisher.Pub
 				break
 			}
 		}
-
 		testDuration := time.Since(startTime)
 
 		b.Logf("%s: Messages Published: %d\r\n", time.Now(), messagesPublished)
