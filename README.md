@@ -1328,7 +1328,9 @@ So what's the downside? It's slow, might need tweaking still... but ***it's slow
 
  ### SECURITY WARNING
  
- This doesn't really apply to my use cases, however, some forms of deflate/gzip combined some protocols created a vulnerability by compression and then encrypting. I would be terrible if I didn't make you aware of CRIME and BREACH attacks.
+ This doesn't really apply to my use cases, however, some forms of deflate/gzip, combined with some protocols, created a vulnerability by compressing and then encrypting. 
+
+ I would be terrible if I didn't make you aware of CRIME and BREACH attacks.
  https://crypto.stackexchange.com/questions/29972/is-there-an-existing-cryptography-algorithm-method-that-both-encrypts-and-comp/29974#29974
 
 So you can choose wisely :)
@@ -1343,7 +1345,7 @@ So you can choose wisely :)
 
 I knew I forgot something!
 
-Consider the following example, we are performing Compcryption.
+Consider the following example, here we are performing Compcryption.
 
 ```golang
 Service.Config.EncryptionConfig.Enabled = true
@@ -1357,9 +1359,10 @@ if err != nil {
 }
 ```
 
-The problem here in lies that the message could leave you slightly blind as to what is in your queue! I tried to enhance this process, by including a wrapper. If you wrap your message, it is always of type **models.ModdedLetter**.
+The problem here is that the message could leave you blinded by the dark! I tried to enhance this process, by wrapping your bits.  
+If you wrap your message, it is always of type **models.ModdedLetter**.  
 
-The following...
+The following change (with the above code)...
 
 ```golang
 wrapData = true
@@ -1381,11 +1384,11 @@ wrapData = true
 }
 ```
 
-You definitely can't tell this is MBison's Social Security Number.
+You definitely can't tell this is MBison's Social Security Number, but can see it's **metadata**.
 
-The idea around this *metadata* is that it could help identify which passphrase was used to create this based on ***UTCDateTime*** and how it was modified.
+The idea around this *metadata* is that it could help identify when a passphrase was used to create this, then you can determine which key was live based on ***UTCDateTime***.
 
-The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it is a compressed []byte and with what. Same goes for encryption - or neither.
+The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it is a compressed, encrypted, or just a JSON []byte.
 
 </p>
 </details>
