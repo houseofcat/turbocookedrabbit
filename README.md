@@ -1326,10 +1326,12 @@ Compcryption!
 
 So what's the downside? It's slow, might need tweaking still... but ***it's slow***. At least compared to plain publishing.
 
- ### SECURITY WARNING:
+ ### SECURITY WARNING
  
- This doesn't really apply to RabbitMQ stuff, however, some forms of deflate/gzip and HttpRequests created a vulnerability by compression and then encrypting. I would be terrible if I didn't make you aware of CRIME and BREACH attacks.
+ This doesn't really apply to my use cases, however, some forms of deflate/gzip combined some protocols created a vulnerability by compression and then encrypting. I would be terrible if I didn't make you aware of CRIME and BREACH attacks.
  https://crypto.stackexchange.com/questions/29972/is-there-an-existing-cryptography-algorithm-method-that-both-encrypts-and-comp/29974#29974
+
+So you can choose wisely :)
 
 </p>
 </details>
