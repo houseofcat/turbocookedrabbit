@@ -6,7 +6,8 @@
 <a title="" target="_blank" href="https://golangci.com/r/github.com/houseofcat/turbocookedrabbit"><img src="https://golangci.com/badges/github.com/houseofcat/turbocookedrabbit.svg"></a>  
 
 <a title="Release" target="_blank" href="https://github.com/houseofcat/turbocookedrabbit/releases"><img src="https://img.shields.io/github/release/houseofcat/turbocookedrabbit.svg?style=flat-square"></a>  
-[![Sourcegraph](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit/-/badge.svg)](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit?badge)
+[![Sourcegraph](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit/-/badge.svg)](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit?badge)  
+[![HitCount](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit.svg)](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit)
 
 ### Developer's Notes
 It was programmed against the following:
