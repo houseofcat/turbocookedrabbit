@@ -3,6 +3,7 @@ package utils
 import (
 	"bytes"
 	"io/ioutil"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 
@@ -62,7 +63,10 @@ func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 }
 
 // CreatePayload creates a JSON marshal and optionally compresses and encrypts the bytes.
-func CreatePayload(input interface{}, compression *models.CompressionConfig, encryption *models.EncryptionConfig) ([]byte, error) {
+func CreatePayload(
+	input interface{},
+	compression *models.CompressionConfig,
+	encryption *models.EncryptionConfig) ([]byte, error) {
 
 	var json = jsoniter.ConfigFastest
 	data, err := json.Marshal(&input)
@@ -89,6 +93,52 @@ func CreatePayload(input interface{}, compression *models.CompressionConfig, enc
 
 		// Update data - data is now encrypted
 		data = buffer.Bytes()
+	}
+
+	return data, nil
+}
+
+// CreateWrappedPayload wraps your data in a plaintext wrapper called ModdedLetter and performs the selected modifications to data.
+func CreateWrappedPayload(
+	input interface{},
+	compression *models.CompressionConfig,
+	encryption *models.EncryptionConfig) ([]byte, error) {
+
+	moddedLetter := &models.ModdedLetter{}
+	var data []byte
+
+	buffer := &bytes.Buffer{}
+	if compression.Enabled {
+		err := handleCompression(compression, data, buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update data - data is now compressed
+		moddedLetter.Body.Compressed = true
+		moddedLetter.Body.CType = compression.Type
+		data = buffer.Bytes()
+	}
+
+	if encryption.Enabled {
+		err := handleEncryption(encryption, data, buffer)
+		if err != nil {
+			return nil, err
+		}
+
+		// Update data - data is now encrypted
+		moddedLetter.Body.Encrypted = true
+		moddedLetter.Body.EType = encryption.Type
+		data = buffer.Bytes()
+	}
+
+	moddedLetter.Body.UtcDate = time.UTC.String()
+	moddedLetter.Body.Data = data
+
+	var json = jsoniter.ConfigFastest
+	data, err := json.Marshal(&moddedLetter)
+	if err != nil {
+		return nil, err
 	}
 
 	return data, nil

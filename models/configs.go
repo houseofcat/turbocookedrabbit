@@ -2,17 +2,17 @@ package models
 
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
-	ServiceConfig   *ServiceConfig             `json:"ServiceConfig"`
-	PoolConfig      *PoolConfig                `json:"PoolConfig"`
-	ConsumerConfigs map[string]*ConsumerConfig `json:"ConsumerConfigs"`
-	PublisherConfig *PublisherConfig           `json:"PublisherConfig"`
+	ServiceConfig     *ServiceConfig             `json:"ServiceConfig"`
+	EncryptionConfig  *EncryptionConfig          `json:"EncryptionConfig"`
+	CompressionConfig *CompressionConfig         `json:"CompressionConfig"`
+	PoolConfig        *PoolConfig                `json:"PoolConfig"`
+	ConsumerConfigs   map[string]*ConsumerConfig `json:"ConsumerConfigs"`
+	PublisherConfig   *PublisherConfig           `json:"PublisherConfig"`
 }
 
 // ServiceConfig represents settings for creating RabbitServices.
 type ServiceConfig struct {
-	ErrorBuffer       uint16             `json:"ErrorBuffer"`
-	EncryptionConfig  *EncryptionConfig  `json:"EncryptionConfig"`
-	CompressionConfig *CompressionConfig `json:"CompressionConfig"`
+	ErrorBuffer uint16 `json:"ErrorBuffer"`
 }
 
 // PoolConfig represents settings for creating/configuring pools.

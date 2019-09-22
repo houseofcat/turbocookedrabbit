@@ -17,9 +17,9 @@ const (
 )
 
 // GetHashWithArgon uses Argon2 version 0x13 to hash a plaintext password with a provided salt string and return hash as bytes.
-func GetHashWithArgon(password, salt string, timeConsideration uint32, threads uint8, hashLength uint32) []byte {
+func GetHashWithArgon(passphrase, salt string, timeConsideration uint32, threads uint8, hashLength uint32) []byte {
 
-	if password == "" || salt == "" {
+	if passphrase == "" || salt == "" {
 		return nil
 	}
 
@@ -31,13 +31,13 @@ func GetHashWithArgon(password, salt string, timeConsideration uint32, threads u
 		threads = 1
 	}
 
-	return argon2.IDKey([]byte(password), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
+	return argon2.IDKey([]byte(passphrase), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
 }
 
 // GetStringHashWithArgon uses Argon2 version 0x13 to hash a plaintext password with a provided salt string and return hash as base64 string.
-func GetStringHashWithArgon(password, salt string, timeConsideration uint32, threads uint8, hashLength uint32) string {
+func GetStringHashWithArgon(passphrase, salt string, timeConsideration uint32, threads uint8, hashLength uint32) string {
 
-	if password == "" || salt == "" {
+	if passphrase == "" || salt == "" {
 		return ""
 	}
 
@@ -49,7 +49,7 @@ func GetStringHashWithArgon(password, salt string, timeConsideration uint32, thr
 		threads = 1
 	}
 
-	hashy := argon2.IDKey([]byte(password), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
+	hashy := argon2.IDKey([]byte(passphrase), []byte(salt), timeConsideration, 64*1024, threads, hashLength)
 
 	base64Hash := make([]byte, base64.StdEncoding.EncodedLen(len(hashy)))
 	base64.StdEncoding.Encode(base64Hash, hashy)
@@ -58,9 +58,9 @@ func GetStringHashWithArgon(password, salt string, timeConsideration uint32, thr
 }
 
 // CompareArgon2Hash creates an Argon hash and then compares it to a provided hash.
-func CompareArgon2Hash(password, salt string, hashedPassword []byte) (bool, error) {
+func CompareArgon2Hash(passphrase, salt string, hashedPassword []byte) (bool, error) {
 
-	inboundHash := GetHashWithArgon(password, salt, 1, 1, uint32(len(hashedPassword)))
+	inboundHash := GetHashWithArgon(passphrase, salt, 1, 1, uint32(len(hashedPassword)))
 	if inboundHash != nil {
 		return false, errors.New("hash generated was nil")
 	}

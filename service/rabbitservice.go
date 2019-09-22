@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"os"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -11,14 +12,16 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/houseofcat/turbocookedrabbit/publisher"
 	"github.com/houseofcat/turbocookedrabbit/topology"
+	"github.com/houseofcat/turbocookedrabbit/utils"
 )
 
 // RabbitService is the struct for containing RabbitMQ management.
 type RabbitService struct {
-	Config               *models.RabbitSeasoning
+	Config               models.RabbitSeasoning
 	ChannelPool          *pools.ChannelPool
 	Topologer            *topology.Topologer
 	Publisher            *publisher.Publisher
+	encryptionConfigured bool
 	centralErr           chan error
 	consumers            map[string]*consumer.Consumer
 	stopServiceSignal    chan bool
@@ -26,6 +29,7 @@ type RabbitService struct {
 	retryCount           uint32
 	letterCount          uint64
 	monitorSleepInterval time.Duration
+	serviceLock          *sync.Mutex
 }
 
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
@@ -48,7 +52,7 @@ func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 
 	rs := &RabbitService{
 		ChannelPool:          channelPool,
-		Config:               config,
+		Config:               *config,
 		Publisher:            publisher,
 		Topologer:            topologer,
 		centralErr:           make(chan error, config.ServiceConfig.ErrorBuffer),
@@ -100,10 +104,41 @@ func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
 	return nil
 }
 
-// PublishWithRetry tries to publish with a retry mechanism.
-func (rs *RabbitService) PublishWithRetry(body []byte, exchangeName, routingKey string) error {
-	if body == nil || (exchangeName == "" && routingKey == "") {
+// SetHashForEncryption generates a hash key for encrypting/decrypting.
+func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
+	rs.serviceLock.Lock()
+	defer rs.serviceLock.Unlock()
+
+	if rs.Config.EncryptionConfig.Enabled {
+		rs.Config.EncryptionConfig.Hashkey = utils.GetHashWithArgon(
+			passphrase,
+			salt,
+			rs.Config.EncryptionConfig.TimeConsideration,
+			rs.Config.EncryptionConfig.Threads,
+			32)
+
+		rs.encryptionConfigured = true
+	}
+}
+
+// PublishWithRetry tries to publish with a retry mechanism and data optionally wrapped in a ModdedLetter.
+func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
+	}
+
+	var data []byte
+	var err error
+	if wrapPayload {
+		data, err = utils.CreateWrappedPayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err = utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		if err != nil {
+			return err
+		}
 	}
 
 	currentCount := atomic.LoadUint64(&rs.letterCount)
@@ -113,7 +148,7 @@ func (rs *RabbitService) PublishWithRetry(body []byte, exchangeName, routingKey 
 		&models.Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
-			Body:       body,
+			Body:       data,
 			Envelope: &models.Envelope{
 				Exchange:    exchangeName,
 				RoutingKey:  routingKey,
@@ -126,10 +161,15 @@ func (rs *RabbitService) PublishWithRetry(body []byte, exchangeName, routingKey 
 	return nil
 }
 
-// Publish tries to publish directly without retry.
-func (rs *RabbitService) Publish(body []byte, exchangeName, routingKey string) error {
-	if body == nil || (exchangeName == "" && routingKey == "") {
-		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
+// Publish tries to publish directly without retry with data optionally wrapped in a ModdedLetter.
+func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+	if input == nil || (exchangeName == "" && routingKey == "") {
+		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
+	}
+
+	data, err := utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+	if err != nil {
+		return err
 	}
 
 	currentCount := atomic.LoadUint64(&rs.letterCount)
@@ -139,7 +179,7 @@ func (rs *RabbitService) Publish(body []byte, exchangeName, routingKey string) e
 		&models.Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
-			Body:       body,
+			Body:       data,
 			Envelope: &models.Envelope{
 				Exchange:    exchangeName,
 				RoutingKey:  routingKey,

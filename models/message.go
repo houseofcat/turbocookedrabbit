@@ -162,3 +162,13 @@ func NewReturnMessage(amqpReturn *amqp.Return) *ReturnMessage {
 		AppID:           amqpReturn.AppId,
 	}
 }
+
+// TcrError is a custom TurboCookedRabbit error.
+type TcrError struct {
+	code    uint32
+	message string
+}
+
+func (te *TcrError) Error() string {
+	return fmt.Sprintf("[err: %d] - %s", te.code, te.message)
+}

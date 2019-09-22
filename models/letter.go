@@ -24,7 +24,6 @@ type ModdedLetter struct {
 	LetterID   uint64
 	RetryCount uint32
 	Body       *ModdedBody
-	Envelope   *Envelope
 }
 
 // ModdedBody is a payload with modifications and indicators of what was modified.
@@ -34,5 +33,5 @@ type ModdedBody struct {
 	Compressed bool
 	CType      string
 	UtcDate    string
-	Body       []byte
+	Data       []byte
 }
