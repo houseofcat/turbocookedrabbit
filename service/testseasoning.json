@@ -6,6 +6,7 @@
 		"Enabled": true,
 		"Type": "aes",
 		"TimeConsideration": 1,
+		"MemoryMultiplier": 64,
 		"Threads": 2
 	},
 	"CompressionConfig": {

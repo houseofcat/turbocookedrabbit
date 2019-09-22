@@ -13,7 +13,7 @@ func TestGetHashWithArgon2(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 64)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 64)
 	assert.NotNil(t, hashy)
 
 	t.Logf("Password: %s\tLength: %d\r\n", password, len(password))
@@ -31,7 +31,7 @@ func BenchmarkGetHashWithArgon2(b *testing.B) {
 	salt := "MBisonDidNothingWrong"
 
 	for i := 0; i < 1000; i++ {
-		GetHashWithArgon(fmt.Sprintf(password+"-%d", i), salt, 1, 12, 32)
+		GetHashWithArgon(fmt.Sprintf(password+"-%d", i), salt, 1, 12, 64, 32)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestHashAndAesEncrypt(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 	assert.NotNil(t, hashy)
 
 	base64Hash := make([]byte, base64.StdEncoding.EncodedLen(len(hashy)))
@@ -78,7 +78,7 @@ func TestHashAndAesEncryptAndDecrypt(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 	assert.NotNil(t, hashy)
 
 	base64Hash := make([]byte, base64.StdEncoding.EncodedLen(len(hashy)))

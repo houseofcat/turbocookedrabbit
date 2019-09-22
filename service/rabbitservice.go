@@ -117,6 +117,7 @@ func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
 			passphrase,
 			salt,
 			rs.Config.EncryptionConfig.TimeConsideration,
+			rs.Config.EncryptionConfig.MemoryMultiplier,
 			rs.Config.EncryptionConfig.Threads,
 			32)
 
@@ -210,7 +211,7 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 func (rs *RabbitService) StartService(allowRetry bool) {
 
 	// Start the background monitors and logging.
-	rs.collectPublisherErrors()
+	rs.collectAutoPublisherNotifications()
 	rs.collectChannelPoolErrors()
 	rs.collectConsumerErrors()
 
@@ -235,7 +236,7 @@ func (rs *RabbitService) monitorStopService() {
 	}()
 }
 
-func (rs *RabbitService) collectPublisherErrors() {
+func (rs *RabbitService) collectAutoPublisherNotifications() {
 
 	go func() {
 	MonitorLoop:

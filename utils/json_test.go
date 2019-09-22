@@ -21,7 +21,7 @@ func TestCreateAndReadCompressedPayload(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 
 	encrypt := &models.EncryptionConfig{
 		Enabled:           false,
@@ -69,7 +69,7 @@ func TestCreateAndReadEncryptedPayload(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 
 	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
@@ -117,7 +117,7 @@ func TestCreateAndReadCompressedEncryptedPayload(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 
 	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
@@ -165,7 +165,7 @@ func TestCreateAndReadLZCompressedEncryptedPayload(t *testing.T) {
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := GetHashWithArgon(password, salt, 1, 12, 64, 32)
 
 	encrypt := &models.EncryptionConfig{
 		Enabled:           true,

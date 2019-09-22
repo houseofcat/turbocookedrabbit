@@ -96,5 +96,6 @@ type EncryptionConfig struct {
 	Type              string `json:"Type,omitempty"`
 	Hashkey           []byte
 	TimeConsideration uint32 `json:"TimeConsideration,omitempty"`
+	MemoryMultiplier  uint32 `json:""`
 	Threads           uint8  `json:"Threads,omitempty"`
 }

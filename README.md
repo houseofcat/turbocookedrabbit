@@ -1117,3 +1117,271 @@ That's it really. In the future I will have more features. Just know that I thin
 </details>
 
 ---
+
+## The RabbitService
+
+<details><summary>Click here to see how RabbitService simplifies things even more!</summary>
+<p>
+
+Here I demonstrate the steps of loading the JSON configuration and creating a new RabbitService!
+
+```golang
+	var err error
+	Config, err = utils.ConvertJSONFileToConfig("testseasoning.json")
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	Service, err = NewRabbitService(Config)
+	if err != nil {
+		fmt.Print(err)
+		return
+	}
+
+	Service.StartService(false)
+```
+
+The **Service.StartService(true/false)** begins monitoring errors and notifications in the background while at the same time centralizing all the errors from the sub-processes. You should subscribe to these erros, and it is called **.CentralErr()**
+
+It also starts the internal Publisher's AutoPublisher.
+
+```golang
+func serviceMonitor(done chan bool, se   
+	go func() {
+	MonitorLoop:
+		for {
+			select {
+			case <-done:
+				break MonitorLoop
+			case <-service.CentralErr():
+			}
+		}
+
+	}()
+}
+```
+
+The service has direct access to a Publisher and Topologer
+
+```golang
+rs.Topologer.CreateExchangeFromConfig(exchange)
+rs.Publisher.Publish(letter)
+```
+
+The consumer section is more complicated but I read the map of consumers that were in config and built them out for you to use when ready:
+
+```golang
+var consumer *consumer.Consumer
+consumer, err := rs.GetConsumer("MyConsumer")
+consumer.StartConsuming()
+```
+
+And don't forget to subscribe to **Consumer.Messages()** when using **StartConsuming()** to actually get them out of the buffer!
+
+</p>
+</details>
+
+---
+
+<details><summary>But wait, there's more!</summary>
+<p>
+
+The service allows JSON Marshalling, Argon2 hashing, Aes-128/192/256 bit encryption, and GZIP/ZSTD compression. Note: ZSTD is from 3rd party library and it's working but in Beta - if worried use the standard vanilla GZIP.
+
+Setting Up Hashing (required for Encryption):
+```golang
+	password := "SuperStreetFighter2Turbo"
+	salt := "MBisonDidNothingWrong"
+
+	Service.SetHashForEncryption(password, salt)
+```
+
+The password/passphrase is your responsibility on keeping it safe. I recommend a Key Vault of some flavor.
+
+We set the **HashKey** internally to the Service so you can do seamless encryption during Service.Publish and what you have in the corresponding **Configs** added to **RabbitSeasoning**. Here are some decent settings for Argon2 hashing.
+
+```javascript
+"EncryptionConfig" : {
+	"Enabled": true,
+	"Type": "aes",
+	"TimeConsideration": 1,
+	"MemoryMultiplier": 64,
+	"Threads": 2
+},
+"CompressionConfig": {
+	"Enabled": true,
+	"Type": "gzip"
+},
+```
+
+And all of this is built-in into the Service level Publisher.
+
+Here are some examples...
+
+JSON Marshalled Data Example:
+```golang
+Service.Config.EncryptionConfig.Enabled = false
+Service.Config.CompressionConfig.Enabled = false
+
+wrapData := false
+data := interface{}
+err := Service.Publish(data, "", "MyQueue", wrapData)
+if err != nil {
+	
+}
+```
+Isn't that easy?
+
+Let's add compression!
+
+ 1. Marshal interface{} into bytes.
+ 2. Compress bytes.
+ 3. Publish.
+
+```golang
+Service.Config.EncryptionConfig.Enabled = false
+Service.Config.CompressionConfig.Enabled = true
+Service.Config.CompressionConfig.Type = "gzip"
+
+wrapData := false
+data := interface{}
+err := Service.Publish(data, "", "MyQueue", wrapData)
+if err != nil {
+	
+}
+```
+
+To reverse it into a struct!
+
+ * Consume Message (get your bytes)
+ * Decompress Bytes (with matching type)
+ * Unmarshal bytes to your struct!
+ * Profit!
+
+What about Encryption?
+
+Well if you are following my config example, we will encrypt using a SymmetricKey / AES-256 bit, with nonce and a salty 32-bit HashKey from Argon2.
+
+```golang
+Service.Config.EncryptionConfig.Enabled = true
+Service.Config.CompressionConfig.Enabled = false
+
+wrapData := false
+data := interface{}
+err := Service.Publish(data, "", "MyQueue", wrapData)
+if err != nil {
+	
+}
+```
+
+Boom, finished! That's it. You have encrypted your entire payload in the queue. Nobody can read it without your passphrase and salt.
+
+So to reverse it into a struct, you need to:
+
+ * Consume Message (get your bytes)
+ * Decrypt Bytes (with matching type)
+ * Unmarshal bytes to your struct!
+ * Profit!
+
+ What about Compcryption?
+
+ Good lord, fine!
+
+The steps this takes is this:
+  1. Marshal interface{} into bytes.
+  2. Compress bytes.
+  3. Encrypt bytes.
+  4. Publish.
+
+ ```golang
+Service.Config.EncryptionConfig.Enabled = true
+Service.Config.CompressionConfig.Enabled = true
+
+wrapData := false
+data := interface{}
+err := Service.Publish(data, "", "MyQueue", wrapData)
+if err != nil {
+	
+}
+```
+
+So to reverse compcryption, you need to:
+
+ * Consume Message (get your bytes)
+ * Decrypt Bytes (with matching type)
+ * Decompress bytes (with matching type)
+ * Unmarshal bytes to your struct!
+
+Depending on your payloads, if it's tons of random bytes/strings, compression won't do much for you - probably even increase size. AES encryption only adds little byte size overhead for the nonce I believe.
+
+Here is a possible ***good*** use case for compcryption. It is a beefy 5KB+ JSON string of dynamic, but not random, sensitive data. Quite possibly PII/PCI user data dump. Think list of Credit Cards, Transactions, or HIPAA data. Basically anything you would see in GDPR bingo!
+
+So healthy sized JSONs generally compress well ~ 85-97% at times.
+If it's sensitive, it needs to be encrypted.
+Smaller (compressed) bytes encrypt faster.
+Compcryption!
+
+So what's the downside? It's slow, might need tweaking still... but ***it's slow***. At least compared to plain publishing.
+
+ ### SECURITY WARNING:
+ 
+ This doesn't really apply to RabbitMQ stuff, however, some forms of deflate/gzip and HttpRequests created a vulnerability by compression and then encrypting. I would be terrible if I didn't make you aware of CRIME and BREACH attacks.
+ https://crypto.stackexchange.com/questions/29972/is-there-an-existing-cryptography-algorithm-method-that-both-encrypts-and-comp/29974#29974
+
+</p>
+</details>
+
+---
+
+<details><summary>Wait... what was that wrap boolean?</summary>
+<p>
+
+I knew I forgot something!
+
+Consider the following example, we are performing Compcryption.
+
+```golang
+Service.Config.EncryptionConfig.Enabled = true
+Service.Config.CompressionConfig.Enabled = true
+
+wrapData := false
+data := interface{}
+err := Service.Publish(data, "", "MyQueue", wrapData)
+if err != nil {
+	
+}
+```
+
+The problem here in lies that the message could leave you slightly blind as to what is in your queue! I tried to enhance this process, by including an object wrapper. If you wrap your message is always of type **models.ModdedLetter**.
+
+The following...
+
+```golang
+wrapData = true
+```
+
+...produces this message wrapper.
+
+```javascript
+{
+	"LetterID": 0,
+	"Body": {
+		"Encrypted": true,
+		"EncryptionType": "aes",
+		"Compressed": true,
+		"CompressionType": "gzip",
+		"UTCDateTime": "2019-09-22T19:13:55Z",
+		"Data": "+uLJxH1YC1u5KzJUGTImKcaTccSY3gXsMaCoHneJDF+9/9JDaX/Fort92w8VWyTiKqgQj+2gqIaAXyHwFObtjL3RAxTn5uF/QIguvuZ+/2X8qn/+QDByuCY3qkRKu3HHzmwd+GPfgNacyaQgS2/hD2uoFrwR67W332CHWA=="
+	}
+}
+```
+
+You definitely can't tell this is MBison's Social Security Number.
+
+The idea around this *metadata* is that it could help identify which passphrase was used to create this based on ***UTCDateTime***.
+
+The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it's compressed and with what. Same goes for encryption - or neither.
+
+</p>
+</details>
