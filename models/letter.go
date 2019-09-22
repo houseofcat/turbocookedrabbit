@@ -18,3 +18,21 @@ type Envelope struct {
 	Headers      map[string]interface{}
 	DeliveryMode uint8
 }
+
+// ModdedLetter is a letter with a modified body and indicators of what was done to it.
+type ModdedLetter struct {
+	LetterID   uint64
+	RetryCount uint32
+	Body       *ModdedBody
+	Envelope   *Envelope
+}
+
+// ModdedBody is a payload with modifications and indicators of what was modified.
+type ModdedBody struct {
+	Encrypted  bool
+	EType      string
+	Compressed bool
+	CType      string
+	UtcDate    string
+	Body       []byte
+}

@@ -23,7 +23,7 @@ func TestCreateAndReadCompressedPayload(t *testing.T) {
 
 	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
 
-	encrypt := &models.EncryptOptions{
+	encrypt := &models.EncryptionConfig{
 		Enabled:           false,
 		Hashkey:           hashy,
 		Type:              aesSymmetricType,
@@ -31,7 +31,7 @@ func TestCreateAndReadCompressedPayload(t *testing.T) {
 		Threads:           6,
 	}
 
-	compression := &models.CompressionOptions{
+	compression := &models.CompressionConfig{
 		Enabled: true,
 		Type:    gzipCompressionType,
 	}
@@ -71,7 +71,7 @@ func TestCreateAndReadEncryptedPayload(t *testing.T) {
 
 	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
 
-	encrypt := &models.EncryptOptions{
+	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
 		Hashkey:           hashy,
 		Type:              aesSymmetricType,
@@ -79,7 +79,7 @@ func TestCreateAndReadEncryptedPayload(t *testing.T) {
 		Threads:           6,
 	}
 
-	compression := &models.CompressionOptions{
+	compression := &models.CompressionConfig{
 		Enabled: false,
 		Type:    gzipCompressionType,
 	}
@@ -119,7 +119,7 @@ func TestCreateAndReadCompressedEncryptedPayload(t *testing.T) {
 
 	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
 
-	encrypt := &models.EncryptOptions{
+	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
 		Hashkey:           hashy,
 		Type:              aesSymmetricType,
@@ -127,7 +127,7 @@ func TestCreateAndReadCompressedEncryptedPayload(t *testing.T) {
 		Threads:           6,
 	}
 
-	compression := &models.CompressionOptions{
+	compression := &models.CompressionConfig{
 		Enabled: true,
 		Type:    gzipCompressionType,
 	}
@@ -167,7 +167,7 @@ func TestCreateAndReadLZCompressedEncryptedPayload(t *testing.T) {
 
 	hashy := GetHashWithArgon(password, salt, 1, 12, 32)
 
-	encrypt := &models.EncryptOptions{
+	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
 		Hashkey:           hashy,
 		Type:              aesSymmetricType,
@@ -175,7 +175,7 @@ func TestCreateAndReadLZCompressedEncryptedPayload(t *testing.T) {
 		Threads:           6,
 	}
 
-	compression := &models.CompressionOptions{
+	compression := &models.CompressionConfig{
 		Enabled: true,
 		Type:    zstdCompressionType,
 	}

@@ -75,3 +75,18 @@ type TopologyConfig struct {
 	QueueBindings    []*QueueBinding    `json:"QueueBindings"`
 	ExchangeBindings []*ExchangeBinding `json:"ExchangeBindings"`
 }
+
+// CompressionConfig allows you to configuration symmetric key encryption based on options
+type CompressionConfig struct {
+	Enabled bool   `json:"Enabled"`
+	Type    string `json:"Type,omitempty"`
+}
+
+// EncryptionConfig allows you to configuration symmetric key encryption based on options
+type EncryptionConfig struct {
+	Enabled           bool   `json:"Enabled"`
+	Type              string `json:"Type,omitempty"`
+	Hashkey           []byte
+	TimeConsideration uint32 `json:"TimeConsideration,omitempty"`
+	Threads           uint8  `json:"Threads,omitempty"`
+}

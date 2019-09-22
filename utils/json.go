@@ -62,7 +62,7 @@ func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 }
 
 // CreatePayload creates a JSON marshal and optionally compresses and encrypts the bytes.
-func CreatePayload(input interface{}, compression *models.CompressionOptions, encryption *models.EncryptOptions) ([]byte, error) {
+func CreatePayload(input interface{}, compression *models.CompressionConfig, encryption *models.EncryptionConfig) ([]byte, error) {
 
 	var json = jsoniter.ConfigFastest
 	data, err := json.Marshal(&input)
@@ -94,7 +94,7 @@ func CreatePayload(input interface{}, compression *models.CompressionOptions, en
 	return data, nil
 }
 
-func handleCompression(compression *models.CompressionOptions, data []byte, buffer *bytes.Buffer) error {
+func handleCompression(compression *models.CompressionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
 	case zstdCompressionType:
@@ -106,7 +106,7 @@ func handleCompression(compression *models.CompressionOptions, data []byte, buff
 	}
 }
 
-func handleEncryption(encryption *models.EncryptOptions, data []byte, buffer *bytes.Buffer) error {
+func handleEncryption(encryption *models.EncryptionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
 	case aesSymmetricType:
@@ -125,7 +125,7 @@ func handleEncryption(encryption *models.EncryptOptions, data []byte, buffer *by
 }
 
 // ReadPayload unencrypts and uncompresses payloads
-func ReadPayload(buffer *bytes.Buffer, compression *models.CompressionOptions, encryption *models.EncryptOptions) error {
+func ReadPayload(buffer *bytes.Buffer, compression *models.CompressionConfig, encryption *models.EncryptionConfig) error {
 
 	if encryption.Enabled {
 		if err := handleDecryption(encryption, buffer); err != nil {
@@ -142,7 +142,7 @@ func ReadPayload(buffer *bytes.Buffer, compression *models.CompressionOptions, e
 	return nil
 }
 
-func handleDecompression(compression *models.CompressionOptions, buffer *bytes.Buffer) error {
+func handleDecompression(compression *models.CompressionConfig, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
 	case zstdCompressionType:
@@ -154,7 +154,7 @@ func handleDecompression(compression *models.CompressionOptions, buffer *bytes.B
 	}
 }
 
-func handleDecryption(encryption *models.EncryptOptions, buffer *bytes.Buffer) error {
+func handleDecryption(encryption *models.EncryptionConfig, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
 	case aesSymmetricType:

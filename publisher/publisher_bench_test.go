@@ -172,14 +172,14 @@ func monitorLoop(b *testing.B, monitorLoopFinished chan bool, pub *publisher.Pub
 	}()
 }
 
-func setupEncryption() (*models.EncryptOptions, *models.CompressionOptions, *TestStruct) {
+func setupEncryption() (*models.EncryptionConfig, *models.CompressionConfig, *TestStruct) {
 
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
 	hashy := utils.GetHashWithArgon(password, salt, 1, 12, 32)
 
-	encrypt := &models.EncryptOptions{
+	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
 		Hashkey:           hashy,
 		Type:              "aes",
@@ -187,7 +187,7 @@ func setupEncryption() (*models.EncryptOptions, *models.CompressionOptions, *Tes
 		Threads:           2,
 	}
 
-	compression := &models.CompressionOptions{
+	compression := &models.CompressionConfig{
 		Enabled: true,
 		Type:    "zstd",
 	}
