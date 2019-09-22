@@ -17,7 +17,7 @@ It was programmed against the following:
  * Erlang v22.0 (OTP v10.4)
  * Streadway/Amqp Latest
  
-#### Minute Breaking Changes
+#### Minute Breaking Changes (9/22/2019)
 `v1.0.2 -> v1.1.0`  
 New RabbitService, Supporting Encryption, Compression   
 I will hotfix `v1.0.2` should anyone need fixes but not wanting to move to `v1.1.0`  
