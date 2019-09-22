@@ -57,6 +57,7 @@ func TestCreateAndReadCompressedPayload(t *testing.T) {
 	var json = jsoniter.ConfigFastest
 	outputData := &TestStruct{}
 	err = json.Unmarshal(buffer.Bytes(), outputData)
+	assert.NoError(t, err)
 	assert.Equal(t, test.PropertyString1, outputData.PropertyString1)
 	assert.Equal(t, test.PropertyString2, outputData.PropertyString2)
 	assert.Equal(t, test.PropertyString3, outputData.PropertyString3)
@@ -104,6 +105,7 @@ func TestCreateAndReadEncryptedPayload(t *testing.T) {
 	var json = jsoniter.ConfigFastest
 	outputData := &TestStruct{}
 	err = json.Unmarshal(buffer.Bytes(), outputData)
+	assert.NoError(t, err)
 	assert.Equal(t, test.PropertyString1, outputData.PropertyString1)
 	assert.Equal(t, test.PropertyString2, outputData.PropertyString2)
 	assert.Equal(t, test.PropertyString3, outputData.PropertyString3)
@@ -151,6 +153,7 @@ func TestCreateAndReadCompressedEncryptedPayload(t *testing.T) {
 	var json = jsoniter.ConfigFastest
 	outputData := &TestStruct{}
 	err = json.Unmarshal(buffer.Bytes(), outputData)
+	assert.NoError(t, err)
 	assert.Equal(t, test.PropertyString1, outputData.PropertyString1)
 	assert.Equal(t, test.PropertyString2, outputData.PropertyString2)
 	assert.Equal(t, test.PropertyString3, outputData.PropertyString3)
@@ -198,6 +201,7 @@ func TestCreateAndReadLZCompressedEncryptedPayload(t *testing.T) {
 	var json = jsoniter.ConfigFastest
 	outputData := &TestStruct{}
 	err = json.Unmarshal(buffer.Bytes(), outputData)
+	assert.NoError(t, err)
 	assert.Equal(t, test.PropertyString1, outputData.PropertyString1)
 	assert.Equal(t, test.PropertyString2, outputData.PropertyString2)
 	assert.Equal(t, test.PropertyString3, outputData.PropertyString3)

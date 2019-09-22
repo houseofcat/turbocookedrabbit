@@ -9,9 +9,7 @@ import (
 	"github.com/klauspost/compress/zstd"
 )
 
-var encoder, _ = zstd.NewWriter(nil)
-
-// CompressWithZstd uses an external dependency for Zstd to compress data.
+// CompressWithZstd uses an external dependency for Zstd to compress data and places data in the supplied buffer.
 func CompressWithZstd(data []byte, buffer *bytes.Buffer) error {
 
 	zstdWriter, err := zstd.NewWriter(buffer)
@@ -33,7 +31,7 @@ func CompressWithZstd(data []byte, buffer *bytes.Buffer) error {
 	return zstdWriter.Close()
 }
 
-// DecompressWithZstd uses an external dependency for Zstd to decompress data.
+// DecompressWithZstd uses an external dependency for Zstd to decompress data and places data in the supplied buffer.
 func DecompressWithZstd(buffer *bytes.Buffer) error {
 
 	zstdReader, err := zstd.NewReader(buffer)
@@ -52,7 +50,7 @@ func DecompressWithZstd(buffer *bytes.Buffer) error {
 	return nil
 }
 
-// CompressWithGzip uses the standard Gzip Writer to compress data.
+// CompressWithGzip uses the standard Gzip Writer to compress data and places data in the supplied buffer.
 func CompressWithGzip(data []byte, buffer *bytes.Buffer) error {
 
 	gzipWriter := gzip.NewWriter(buffer)
@@ -69,7 +67,7 @@ func CompressWithGzip(data []byte, buffer *bytes.Buffer) error {
 	return nil
 }
 
-// DecompressWithGzip uses the standard Gzip Reader to decompress data.
+// DecompressWithGzip uses the standard Gzip Reader to decompress data and places data in the supplied buffer.
 func DecompressWithGzip(buffer *bytes.Buffer) error {
 
 	gzipReader, err := gzip.NewReader(buffer)
