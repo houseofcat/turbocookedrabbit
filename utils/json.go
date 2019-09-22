@@ -101,41 +101,51 @@ func CreatePayload(
 // CreateWrappedPayload wraps your data in a plaintext wrapper called ModdedLetter and performs the selected modifications to data.
 func CreateWrappedPayload(
 	input interface{},
+	letterID uint64,
 	compression *models.CompressionConfig,
 	encryption *models.EncryptionConfig) ([]byte, error) {
 
-	moddedLetter := &models.ModdedLetter{}
-	var data []byte
+	moddedLetter := &models.ModdedLetter{
+		LetterID: letterID,
+		Body:     &models.ModdedBody{},
+	}
+
+	var json = jsoniter.ConfigFastest
+	var err error
+	var innerData []byte
+	innerData, err = json.Marshal(&input)
+	if err != nil {
+		return nil, err
+	}
 
 	buffer := &bytes.Buffer{}
 	if compression.Enabled {
-		err := handleCompression(compression, data, buffer)
+		err := handleCompression(compression, innerData, buffer)
 		if err != nil {
 			return nil, err
 		}
 
-		// Update data - data is now compressed
+		// Data is now compressed
 		moddedLetter.Body.Compressed = true
 		moddedLetter.Body.CType = compression.Type
-		data = buffer.Bytes()
+		innerData = buffer.Bytes()
 	}
 
 	if encryption.Enabled {
-		err := handleEncryption(encryption, data, buffer)
+		err := handleEncryption(encryption, innerData, buffer)
 		if err != nil {
 			return nil, err
 		}
 
-		// Update data - data is now encrypted
+		// Data is now encrypted
 		moddedLetter.Body.Encrypted = true
 		moddedLetter.Body.EType = encryption.Type
-		data = buffer.Bytes()
+		innerData = buffer.Bytes()
 	}
 
-	moddedLetter.Body.UtcDate = time.UTC.String()
-	moddedLetter.Body.Data = data
+	moddedLetter.Body.UTCDateTime = time.Now().UTC().Format(time.RFC3339)
+	moddedLetter.Body.Data = innerData
 
-	var json = jsoniter.ConfigFastest
 	data, err := json.Marshal(&moddedLetter)
 	if err != nil {
 		return nil, err

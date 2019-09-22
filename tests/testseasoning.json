@@ -1,4 +1,17 @@
 {
+	"ServiceConfig": {
+		"ErrorBuffer": 100
+	},
+	"EncryptionConfig" : {
+		"Enabled": true,
+		"Type": "aes",
+		"TimeConsideration": 1,
+		"Threads": 2
+	},
+	"CompressionConfig": {
+		"Enabled": true,
+		"Type": "gzip"
+	},
 	"PoolConfig": {
 		"ChannelPoolConfig": {
 			"ErrorBuffer": 10,

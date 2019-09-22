@@ -17,7 +17,7 @@ import (
 
 // RabbitService is the struct for containing RabbitMQ management.
 type RabbitService struct {
-	Config               models.RabbitSeasoning
+	Config               *models.RabbitSeasoning
 	ChannelPool          *pools.ChannelPool
 	Topologer            *topology.Topologer
 	Publisher            *publisher.Publisher
@@ -52,7 +52,7 @@ func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 
 	rs := &RabbitService{
 		ChannelPool:          channelPool,
-		Config:               *config,
+		Config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
 		centralErr:           make(chan error, config.ServiceConfig.ErrorBuffer),
@@ -60,6 +60,7 @@ func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 		consumers:            make(map[string]*consumer.Consumer),
 		retryCount:           10,
 		monitorSleepInterval: time.Duration(3) * time.Second,
+		serviceLock:          &sync.Mutex{},
 	}
 
 	err = rs.CreateConsumers(config.ConsumerConfigs)
@@ -93,6 +94,7 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*models.Cons
 
 // CreateConsumerFromConfig takes a config from the Config map and builds a consumer (errors if config is missing).
 func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
+
 	if consumerConfig, ok := rs.Config.ConsumerConfigs[consumerName]; ok {
 		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ChannelPool)
 		if err != nil {
@@ -106,6 +108,7 @@ func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
 
 // SetHashForEncryption generates a hash key for encrypting/decrypting.
 func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
+
 	rs.serviceLock.Lock()
 	defer rs.serviceLock.Unlock()
 
@@ -123,14 +126,18 @@ func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
 
 // PublishWithRetry tries to publish with a retry mechanism and data optionally wrapped in a ModdedLetter.
 func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
 	}
 
+	currentCount := atomic.LoadUint64(&rs.letterCount)
+	atomic.AddUint64(&rs.letterCount, 1)
+
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = utils.CreateWrappedPayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = utils.CreateWrappedPayload(input, currentCount, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -140,9 +147,6 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 			return err
 		}
 	}
-
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
 
 	rs.Publisher.PublishWithRetry(
 		&models.Letter{
@@ -161,19 +165,29 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 	return nil
 }
 
-// Publish tries to publish directly without retry with data optionally wrapped in a ModdedLetter.
+// Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
 func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
 	}
 
-	data, err := utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
-	if err != nil {
-		return err
-	}
-
 	currentCount := atomic.LoadUint64(&rs.letterCount)
 	atomic.AddUint64(&rs.letterCount, 1)
+
+	var data []byte
+	var err error
+	if wrapPayload {
+		data, err = utils.CreateWrappedPayload(input, currentCount, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		if err != nil {
+			return err
+		}
+	} else {
+		data, err = utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		if err != nil {
+			return err
+		}
+	}
 
 	rs.Publisher.Publish(
 		&models.Letter{
@@ -193,7 +207,7 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 }
 
 // StartService gets all the background internals and logging/monitoring started.
-func (rs *RabbitService) StartService() {
+func (rs *RabbitService) StartService(allowRetry bool) {
 
 	// Start the background monitors and logging.
 	rs.collectPublisherErrors()
@@ -201,10 +215,11 @@ func (rs *RabbitService) StartService() {
 	rs.collectConsumerErrors()
 
 	// Start the AutoPublisher
-	rs.Publisher.StartAutoPublish(false)
+	rs.Publisher.StartAutoPublish(allowRetry)
 }
 
 func (rs *RabbitService) monitorStopService() {
+
 	go func() {
 	MonitorLoop:
 		for {
@@ -221,6 +236,7 @@ func (rs *RabbitService) monitorStopService() {
 }
 
 func (rs *RabbitService) collectPublisherErrors() {
+
 	go func() {
 	MonitorLoop:
 		for {
@@ -244,6 +260,7 @@ func (rs *RabbitService) collectPublisherErrors() {
 }
 
 func (rs *RabbitService) collectChannelPoolErrors() {
+
 	go func() {
 	MonitorLoop:
 		for {
@@ -263,8 +280,8 @@ func (rs *RabbitService) collectChannelPoolErrors() {
 }
 
 func (rs *RabbitService) collectConsumerErrors() {
-	go func() {
 
+	go func() {
 	MonitorLoop:
 		for {
 
@@ -291,6 +308,7 @@ func (rs *RabbitService) collectConsumerErrors() {
 
 // GetConsumer allows you to get the individual consumer.
 func (rs *RabbitService) GetConsumer(consumerName string) (*consumer.Consumer, error) {
+
 	if consumer, ok := rs.consumers[consumerName]; ok {
 		return consumer, nil
 	}
@@ -300,6 +318,7 @@ func (rs *RabbitService) GetConsumer(consumerName string) (*consumer.Consumer, e
 
 // StopService stops the AutoPublisher, Consumer, and Monitoring.
 func (rs *RabbitService) StopService() {
+
 	rs.Publisher.StopAutoPublish()
 
 	time.Sleep(1 * time.Second)
@@ -309,6 +328,7 @@ func (rs *RabbitService) StopService() {
 
 // Shutdown stops the service and shuts down the ChannelPool.
 func (rs *RabbitService) Shutdown(stopConsumers bool) {
+
 	rs.StopService()
 
 	if stopConsumers {
@@ -321,4 +341,9 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 	}
 
 	rs.ChannelPool.Shutdown()
+}
+
+// CentralErr yields all the internal errs for sub-process.
+func (rs *RabbitService) CentralErr() <-chan error {
+	return rs.centralErr
 }

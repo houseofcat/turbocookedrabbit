@@ -2,6 +2,7 @@ package utils
 
 import (
 	"math/rand"
+	"strings"
 	"time"
 	"unsafe"
 )
@@ -62,4 +63,51 @@ func RandomString(size int) string {
 // RandomBytes returns a RandomString converted to bytes.
 func RandomBytes(size int) []byte {
 	return []byte(RandomStringFromSource(size, mockRandomSource))
+}
+
+// RepeatedBytes generates a RandomString and then repeats it up to size.
+func RepeatedBytes(size int, repeat int) []byte {
+
+	if repeat < 10 {
+		return nil
+	}
+
+	buffer := make([]byte, size)
+
+AddString:
+	for i := 0; i < size; i++ {
+		for j := 0; j < repeat; j++ {
+			if i+j == size {
+				break AddString
+			}
+
+			buffer[i] = byte(i)
+		}
+	}
+
+	return buffer
+}
+
+// RepeatedRandomString generates a RandomString and then repeats it up to size and repeat count.
+func RepeatedRandomString(size int, repeat int) string {
+
+	if repeat < 10 {
+		return ""
+	}
+
+	var builder strings.Builder
+
+AddString:
+	for i := 0; i < size; i++ {
+		char := RandomString(1)
+		for j := 0; j < repeat; j++ {
+			if i+j == size {
+				break AddString
+			}
+
+			builder.WriteString(char)
+		}
+	}
+
+	return builder.String()
 }
