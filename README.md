@@ -1126,20 +1126,20 @@ That's it really. In the future I will have more features. Just know that I thin
 Here I demonstrate the steps of loading the JSON configuration and creating a new RabbitService!
 
 ```golang
-	var err error
-	Config, err = utils.ConvertJSONFileToConfig("testseasoning.json")
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
+var err error
+Config, err = utils.ConvertJSONFileToConfig("testseasoning.json")
+if err != nil {
+	fmt.Print(err)
+	return
+}
 
-	Service, err = NewRabbitService(Config)
-	if err != nil {
-		fmt.Print(err)
-		return
-	}
+Service, err = NewRabbitService(Config)
+if err != nil {
+	fmt.Print(err)
+	return
+}
 
-	Service.StartService(false)
+Service.StartService(false)
 ```
 
 The **Service.StartService(true/false)** begins monitoring errors and notifications in the background while at the same time centralizing all the errors from the sub-processes. You should subscribe to these erros, and it is called **.CentralErr()**
@@ -1191,10 +1191,10 @@ The service allows JSON Marshalling, Argon2 hashing, Aes-128/192/256 bit encrypt
 
 Setting Up Hashing (required for Encryption):
 ```golang
-	password := "SuperStreetFighter2Turbo"
-	salt := "MBisonDidNothingWrong"
+password := "SuperStreetFighter2Turbo"
+salt := "MBisonDidNothingWrong"
 
-	Service.SetHashForEncryption(password, salt)
+Service.SetHashForEncryption(password, salt)
 ```
 
 The password/passphrase is your responsibility on keeping it safe. I recommend a Key Vault of some flavor.
