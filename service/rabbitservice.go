@@ -126,7 +126,7 @@ func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
 }
 
 // PublishWithRetry tries to publish with a retry mechanism and data optionally wrapped in a ModdedLetter.
-func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
@@ -138,7 +138,7 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = utils.CreateWrappedPayload(input, currentCount, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = utils.CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 }
 
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
-func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool) error {
+func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
@@ -179,7 +179,7 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = utils.CreateWrappedPayload(input, currentCount, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = utils.CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}

@@ -68,7 +68,7 @@ func TestPublishWithoutWrap(t *testing.T) {
 		time.UTC.String(),
 	}
 
-	err := Service.Publish(anonData, "", "ServiceTestQueue", false)
+	err := Service.Publish(anonData, "", "ServiceTestQueue", false, "")
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 }
@@ -84,7 +84,7 @@ func TestPublishWithWrap(t *testing.T) {
 		time.UTC.String(),
 	}
 
-	err := Service.Publish(anonData, "", "ServiceTestQueue", true)
+	err := Service.Publish(anonData, "", "ServiceTestQueue", true, "TestMetaData")
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 }
@@ -102,7 +102,7 @@ func TestPublishCompressionEncryptionWithoutWrap(t *testing.T) {
 		time.UTC.String(),
 	}
 
-	err := Service.Publish(anonData, "", "ServiceTestQueue", false)
+	err := Service.Publish(anonData, "", "ServiceTestQueue", false, "")
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 }
@@ -120,7 +120,7 @@ func TestPublishCompressionEncryptionWithWrap(t *testing.T) {
 		time.UTC.String(),
 	}
 
-	err := Service.Publish(anonData, "", "ServiceTestQueue", true)
+	err := Service.Publish(anonData, "", "ServiceTestQueue", true, "TestMetaData")
 	assert.NoError(t, err)
 	time.Sleep(1 * time.Second)
 }
@@ -257,7 +257,7 @@ func publishPayloads(t *testing.T, payloads []*AnonData, wrap bool) {
 
 	timeStart := time.Now()
 	for i := 0; i < len(payloads); i++ {
-		err := Service.Publish(payloads[i], "", "ServiceTestQueue", wrap)
+		err := Service.Publish(payloads[i], "", "ServiceTestQueue", wrap, "")
 		if err != nil {
 			t.Error(err)
 		}
@@ -305,7 +305,7 @@ func TestPublishCompressionEncryptionWithWrapAndConsume(t *testing.T) {
 		timeStamp,
 	}
 
-	err = Service.Publish(anonData, "", "ServiceTestQueue", true)
+	err = Service.Publish(anonData, "", "ServiceTestQueue", true, "TestMetaData")
 	if err != nil {
 		t.Error(err)
 	}

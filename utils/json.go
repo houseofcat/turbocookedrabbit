@@ -102,12 +102,14 @@ func CreatePayload(
 func CreateWrappedPayload(
 	input interface{},
 	letterID uint64,
+	metadata string,
 	compression *models.CompressionConfig,
 	encryption *models.EncryptionConfig) ([]byte, error) {
 
 	moddedLetter := &models.ModdedLetter{
-		LetterID: letterID,
-		Body:     &models.ModdedBody{},
+		LetterID:       letterID,
+		LetterMetadata: metadata,
+		Body:           &models.ModdedBody{},
 	}
 
 	var json = jsoniter.ConfigFastest
