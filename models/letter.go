@@ -21,8 +21,9 @@ type Envelope struct {
 
 // ModdedLetter is a letter with a modified body and indicators of what was done to it.
 type ModdedLetter struct {
-	LetterID uint64      `json:"LetterID"`
-	Body     *ModdedBody `json:"Body"`
+	LetterID       uint64      `json:"LetterID"`
+	Body           *ModdedBody `json:"Body"`
+	LetterMetadata string      `json:"LetterMetadata"`
 }
 
 // ModdedBody is a payload with modifications and indicators of what was modified.

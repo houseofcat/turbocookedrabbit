@@ -211,9 +211,9 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 func (rs *RabbitService) StartService(allowRetry bool) {
 
 	// Start the background monitors and logging.
-	rs.collectChannelPoolErrors()
-	rs.collectConsumerErrors()
-	rs.monitorStopService()
+	go rs.collectChannelPoolErrors()
+	go rs.collectConsumerErrors()
+	go rs.monitorStopService()
 
 	// Start the AutoPublisher
 	rs.Publisher.StartAutoPublish(allowRetry)
@@ -221,66 +221,60 @@ func (rs *RabbitService) StartService(allowRetry bool) {
 
 func (rs *RabbitService) monitorStopService() {
 
-	go func() {
-	MonitorLoop:
-		for {
-			select {
-			case <-rs.stopServiceSignal:
-				rs.stop = true
-				break MonitorLoop
-			default:
-				time.Sleep(rs.monitorSleepInterval)
-				break
-			}
+MonitorLoop:
+	for {
+		select {
+		case <-rs.stopServiceSignal:
+			rs.stop = true
+			break MonitorLoop
+		default:
+			time.Sleep(rs.monitorSleepInterval)
+			break
 		}
-	}()
+	}
 }
 
 func (rs *RabbitService) collectChannelPoolErrors() {
 
-	go func() {
-	MonitorLoop:
-		for {
-			if rs.stop {
-				break MonitorLoop
-			}
-
-			select {
-			case err := <-rs.ChannelPool.Errors():
-				rs.centralErr <- err
-			default:
-				time.Sleep(rs.monitorSleepInterval)
-				break
-			}
+MonitorLoop:
+	for {
+		if rs.stop {
+			break MonitorLoop
 		}
-	}()
+
+		select {
+		case err := <-rs.ChannelPool.Errors():
+			rs.centralErr <- err
+		default:
+			time.Sleep(rs.monitorSleepInterval)
+			break
+		}
+	}
 }
 
 func (rs *RabbitService) collectConsumerErrors() {
 
-	go func() {
-	MonitorLoop:
-		for {
+MonitorLoop:
+	for {
 
-			for _, consumer := range rs.consumers {
-			IndividualConsumerLoop:
-				for {
-					if rs.stop {
-						break MonitorLoop
-					}
+		for _, consumer := range rs.consumers {
+		IndividualConsumerLoop:
+			for {
+				if rs.stop {
+					break MonitorLoop
+				}
 
-					select {
-					case err := <-consumer.Errors():
-						rs.centralErr <- err
-					default:
-						break IndividualConsumerLoop
-					}
+				select {
+				case err := <-consumer.Errors():
+					rs.centralErr <- err
+				default:
+					break IndividualConsumerLoop
 				}
 			}
-
-			time.Sleep(rs.monitorSleepInterval)
 		}
-	}()
+
+		time.Sleep(rs.monitorSleepInterval)
+	}
 }
 
 // GetConsumer allows you to get the individual consumer.
