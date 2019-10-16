@@ -155,11 +155,12 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 			RetryCount: rs.retryCount,
 			Body:       data,
 			Envelope: &models.Envelope{
-				Exchange:    exchangeName,
-				RoutingKey:  routingKey,
-				ContentType: "application/json",
-				Mandatory:   false,
-				Immediate:   false,
+				Exchange:     exchangeName,
+				RoutingKey:   routingKey,
+				ContentType:  "application/json",
+				Mandatory:    false,
+				Immediate:    false,
+				DeliveryMode: 2,
 			},
 		})
 
@@ -196,11 +197,12 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 			RetryCount: rs.retryCount,
 			Body:       data,
 			Envelope: &models.Envelope{
-				Exchange:    exchangeName,
-				RoutingKey:  routingKey,
-				ContentType: "application/json",
-				Mandatory:   false,
-				Immediate:   false,
+				Exchange:     exchangeName,
+				RoutingKey:   routingKey,
+				ContentType:  "application/json",
+				Mandatory:    false,
+				Immediate:    false,
+				DeliveryMode: 2,
 			},
 		})
 
