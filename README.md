@@ -12,7 +12,7 @@
 ### Developer's Notes
 It was programmed against the following:
 
- * Golang 1.13.0
+ * Golang 1.13.4
  * RabbitMQ Server v3.7.17 (simple localhost)
  * Erlang v22.0 (OTP v10.4)
  * Streadway/Amqp Latest
