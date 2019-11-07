@@ -176,7 +176,7 @@ func setupEncryption() (*models.EncryptionConfig, *models.CompressionConfig, *Te
 	password := "SuperStreetFighter2Turbo"
 	salt := "MBisonDidNothingWrong"
 
-	hashy := utils.GetHashWithArgon(password, salt, 1, 12, 32)
+	hashy := utils.GetHashWithArgon(password, salt, 1, 12, 64, 32)
 
 	encrypt := &models.EncryptionConfig{
 		Enabled:           true,
