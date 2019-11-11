@@ -10,5 +10,5 @@ require (
 	github.com/klauspost/compress v1.9.1
 	github.com/streadway/amqp v0.0.0-20190827072141-edfb9018d271
 	github.com/stretchr/testify v1.4.0
-	golang.org/x/crypto v0.0.0-20191106202628-ed6320f186d4
+	golang.org/x/crypto v0.0.0-20191108234033-bd318be0434a
 )
