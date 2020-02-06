@@ -78,6 +78,13 @@ func NewConnectionPool(
 		maxChannelPerConnection = config.ChannelPoolConfig.MaxChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1
 	}
 
+	maxAckChannelPerConnection := uint64(1)
+	if config.ConnectionPoolConfig.MaxConnectionCount == 1 {
+		maxAckChannelPerConnection = config.ChannelPoolConfig.MaxAckChannelCount
+	} else if config.ChannelPoolConfig.MaxChannelCount > 1 {
+		maxAckChannelPerConnection = config.ChannelPoolConfig.MaxAckChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1
+	}
+
 	cp := &ConnectionPool{
 		config:                     *config,
 		uri:                        config.ConnectionPoolConfig.URI,
@@ -89,7 +96,7 @@ func NewConnectionPool(
 		connectionTimeout:          time.Duration(config.ConnectionPoolConfig.ConnectionTimeout) * time.Second,
 		maxConnections:             config.ConnectionPoolConfig.MaxConnectionCount,
 		maxChannelPerConnection:    maxChannelPerConnection,
-		maxAckChannelPerConnection: config.ChannelPoolConfig.MaxAckChannelCount/config.ConnectionPoolConfig.MaxConnectionCount + 1,
+		maxAckChannelPerConnection: maxAckChannelPerConnection,
 		connections:                queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
 		poolLock:                   &sync.Mutex{},
 		poolRWLock:                 &sync.RWMutex{},

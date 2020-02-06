@@ -144,17 +144,23 @@ func (cp *ChannelPool) initialize() bool {
 // CreateChannelHost creates the Channel (backed by a Connection) with RabbitMQ server.
 func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*ChannelHost, error) {
 
+	getConnectionCounter := 0
+GetNewConnection:
+	if getConnectionCounter > 3 {
+		return nil, errors.New("-1")
+	}
+
 	connHost, err := cp.connectionPool.GetConnection()
 	if err != nil {
 		return nil, err
 	}
 
-	defer cp.connectionPool.ReturnConnection(connHost)
-
 	if ackable && !connHost.CanAddAckChannel() {
 		return nil, errors.New("can't add more ackable channels to this connection")
 	} else if !ackable && !connHost.CanAddChannel() {
-		return nil, errors.New("can't add more channels to this connection")
+		getConnectionCounter++
+		cp.connectionPool.ReturnConnection(connHost)
+		goto GetNewConnection
 	}
 
 	channelHost, err := NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
@@ -179,6 +185,8 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*Chann
 			cp.handleError(err)
 		}
 	}
+
+	cp.connectionPool.ReturnConnection(connHost)
 
 	return channelHost, nil
 }
@@ -207,6 +215,7 @@ func (cp *ChannelPool) GetChannel() (*ChannelHost, error) {
 
 	// Pull from the queue.
 	// Pauses here if the queue is empty.
+DequeueChannel:
 	structs, err := cp.channels.Get(1)
 	if err != nil {
 		return nil, err
@@ -237,6 +246,9 @@ func (cp *ChannelPool) GetChannel() (*ChannelHost, error) {
 
 			channelHost, err = cp.createChannelHost(replacementChannelID, false)
 			if err != nil {
+				if err.Error() == "-1" { // A control error of "-1" indicates we can't create any more channels, try re-acquiring channels. Perhaps a refactor is due.
+					goto DequeueChannel
+				}
 				continue
 			}
 

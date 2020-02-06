@@ -3,6 +3,8 @@ package main_test
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -216,6 +218,33 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 
 	err = topologer.BuildToplogy(topologyConfig, true)
 	assert.NoError(t, err)
+}
+
+func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	assert.NoError(t, err)
+
+	topologer, err := topology.NewTopologer(channelPool)
+	assert.NoError(t, err)
+
+	topologyConfigs := make([]string, 0)
+	configRoot := "./"
+	err = filepath.Walk(configRoot, func(path string, info os.FileInfo, err error) error {
+		if strings.Contains(path, "topology") {
+			topologyConfigs = append(topologyConfigs, path)
+		}
+		return nil
+	})
+
+	for _, filePath := range topologyConfigs {
+		topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(filePath)
+		if err != nil {
+			assert.NoError(t, err)
+		} else {
+			topologer.BuildToplogy(topologyConfig, false)
+		}
+	}
 }
 
 func TestUnbindQueue(t *testing.T) {

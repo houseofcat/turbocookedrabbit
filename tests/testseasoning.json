@@ -16,8 +16,8 @@
 		"ChannelPoolConfig": {
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
-			"MaxChannelCount": 50,
-			"MaxAckChannelCount": 50,
+			"MaxChannelCount": 5,
+			"MaxAckChannelCount": 5,
 			"AckNoWait": false,
 			"GlobalQosCount": 5
 		},
@@ -26,7 +26,7 @@
 			"ConnectionName": "TurboCookedRabbit",
 			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
-			"MaxConnectionCount": 10,
+			"MaxConnectionCount": 1,
 			"Heartbeat": 5,
 			"ConnectionTimeout": 10,
 			"TLSConfig": {
