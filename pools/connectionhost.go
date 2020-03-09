@@ -127,7 +127,7 @@ func (ch *ConnectionHost) RemoveChannel() error {
 	ch.chanRWLock.Lock()
 	defer ch.chanRWLock.Unlock()
 
-	if ch.channelCount <= 0 {
+	if ch.channelCount == 0 {
 		return errors.New("can't remove any more channels from this connection host")
 	}
 
@@ -157,7 +157,7 @@ func (ch *ConnectionHost) RemoveAckChannel() error {
 	ch.ackChanRWLock.Lock()
 	defer ch.ackChanRWLock.Unlock()
 
-	if ch.ackChannelCount <= 0 {
+	if ch.ackChannelCount == 0 {
 		return errors.New("can't remove any more channels from this connection host")
 	}
 

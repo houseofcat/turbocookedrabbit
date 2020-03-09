@@ -236,13 +236,15 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 		}
 		return nil
 	})
+	assert.NoError(t, err)
 
 	for _, filePath := range topologyConfigs {
 		topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(filePath)
 		if err != nil {
 			assert.NoError(t, err)
 		} else {
-			topologer.BuildToplogy(topologyConfig, false)
+			err = topologer.BuildToplogy(topologyConfig, false)
+			assert.NoError(t, err)
 		}
 	}
 }
