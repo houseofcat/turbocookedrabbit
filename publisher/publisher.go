@@ -69,15 +69,15 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 
 	chanHost, err := pub.ChannelPool.GetChannel()
 	if err != nil {
-		pub.sendToNotifications(letter.LetterID, err)
+		pub.sendToNotifications(letter, err)
 		return // exit out if you can't get a channel
 	}
 
 	err = pub.simplePublish(chanHost.Channel, letter)
 	if err != nil {
-		pub.handleErrorAndChannel(err, letter.LetterID, chanHost)
+		pub.handleErrorAndChannel(err, letter, chanHost)
 	} else {
-		pub.sendToNotifications(letter.LetterID, err)
+		pub.sendToNotifications(letter, err)
 		pub.ChannelPool.ReturnChannel(chanHost, false)
 	}
 }
@@ -96,19 +96,19 @@ func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
 
 		err = pub.simplePublish(chanHost.Channel, letter)
 		if err != nil {
-			pub.handleErrorAndChannel(err, letter.LetterID, chanHost)
+			pub.handleErrorAndChannel(err, letter, chanHost)
 			continue // flag channel and try again
 		}
 
-		pub.sendToNotifications(letter.LetterID, err)
+		pub.sendToNotifications(letter, err)
 		pub.ChannelPool.ReturnChannel(chanHost, false)
 		break // finished
 	}
 }
 
-func (pub *Publisher) handleErrorAndChannel(err error, letterID uint64, chanHost *pools.ChannelHost) {
+func (pub *Publisher) handleErrorAndChannel(err error, letter *models.Letter, chanHost *pools.ChannelHost) {
 	pub.ChannelPool.ReturnChannel(chanHost, true)
-	pub.sendToNotifications(letterID, err)
+	pub.sendToNotifications(letter, err)
 	time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
 }
 
@@ -160,13 +160,13 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 		pub.autoPublishGroup.Wait() // let all remaining publishes finish.
 
 		pub.pubLock.Lock()
-		defer pub.pubLock.Unlock()
 		pub.autoStarted = false
+		pub.pubLock.Unlock()
 	}()
 
 	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
 	pub.autoStarted = true
+	pub.pubLock.Unlock()
 }
 
 // StopAutoPublish stops publishing letters queued up - is locking.
@@ -230,6 +230,7 @@ func (pub *Publisher) reduceLetterCount() {
 
 // SimplePublish performs the actual amqp.Publish.
 func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Letter) error {
+
 	return amqpChan.Publish(
 		letter.Envelope.Exchange,
 		letter.Envelope.RoutingKey,
@@ -245,15 +246,17 @@ func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Lette
 }
 
 // SendToNotifications sends the status to the notifications channel.
-func (pub *Publisher) sendToNotifications(letterID uint64, err error) {
+func (pub *Publisher) sendToNotifications(letter *models.Letter, err error) {
 
 	notification := &models.Notification{
-		LetterID: letterID,
+		LetterID: letter.LetterID,
 		Error:    err,
 	}
 
 	if err == nil {
 		notification.Success = true
+	} else {
+		notification.FailedLetter = letter
 	}
 
 	go func() { pub.notifications <- notification }()

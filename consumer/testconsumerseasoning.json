@@ -26,6 +26,7 @@
 	},
 	"ConsumerConfigs": {
 		"TurboCookedRabbitConsumer-Ackable": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
 			"AutoAck": false,
@@ -38,6 +39,7 @@
 			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
 			"AutoAck": true,
@@ -50,7 +52,7 @@
 			"SleepOnIdleInterval": 0
 		}
 	},
-	"PublisherConfig":{
+	"PublisherConfig": {
 		"SleepOnIdleInterval": 0,
 		"SleepOnQueueFullInterval": 1,
 		"SleepOnErrorInterval": 1,

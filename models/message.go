@@ -10,9 +10,10 @@ import (
 
 // Notification is a way to communicate between callers
 type Notification struct {
-	LetterID uint64
-	Success  bool
-	Error    error
+	LetterID     uint64
+	FailedLetter *Letter
+	Success      bool
+	Error        error
 }
 
 // ToString allows you to quickly log the Notification struct as a string.

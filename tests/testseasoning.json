@@ -2,7 +2,7 @@
 	"ServiceConfig": {
 		"ErrorBuffer": 100
 	},
-	"EncryptionConfig" : {
+	"EncryptionConfig": {
 		"Enabled": true,
 		"Type": "aes",
 		"TimeConsideration": 1,
@@ -39,6 +39,7 @@
 	},
 	"ConsumerConfigs": {
 		"TurboCookedRabbitConsumer-Ackable": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
 			"AutoAck": false,
@@ -51,6 +52,7 @@
 			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
 			"AutoAck": true,
@@ -63,7 +65,7 @@
 			"SleepOnIdleInterval": 1000
 		}
 	},
-	"PublisherConfig":{
+	"PublisherConfig": {
 		"SleepOnIdleInterval": 1000,
 		"SleepOnQueueFullInterval": 1000,
 		"SleepOnErrorInterval": 1000,

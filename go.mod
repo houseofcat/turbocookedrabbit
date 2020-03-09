@@ -3,7 +3,7 @@ module github.com/houseofcat/turbocookedrabbit
 go 1.13
 
 require (
-	github.com/Workiva/go-datastructures v1.0.51
+	github.com/Workiva/go-datastructures v1.0.52
 	github.com/fortytw2/leaktest v1.3.0
 	github.com/json-iterator/go v1.1.9
 	github.com/klauspost/compress v1.10.2

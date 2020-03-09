@@ -15,6 +15,7 @@ import (
 type Consumer struct {
 	Config               *models.RabbitSeasoning
 	channelPool          *pools.ChannelPool
+	Enabled              bool
 	QueueName            string
 	ConsumerName         string
 	errors               chan error
@@ -54,6 +55,7 @@ func NewConsumerFromConfig(
 	return &Consumer{
 		Config:               nil,
 		channelPool:          channelPool,
+		Enabled:              config.Enabled,
 		QueueName:            config.QueueName,
 		ConsumerName:         config.ConsumerName,
 		errors:               make(chan error, config.ErrorBuffer),
@@ -215,12 +217,17 @@ func (con *Consumer) StartConsuming() error {
 		return errors.New("can't start an already started consumer")
 	}
 
-	con.FlushErrors()
-	con.FlushStop()
+	if con.Enabled {
 
-	go con.startConsuming()
-	con.started = true
+		con.FlushErrors()
+		con.FlushStop()
+
+		go con.startConsuming()
+		con.started = true
+	}
+
 	return nil
+
 }
 
 func (con *Consumer) startConsuming() {

@@ -53,6 +53,7 @@ type TLSConfig struct {
 
 // ConsumerConfig represents settings for configuring a consumer with ease.
 type ConsumerConfig struct {
+	Enabled              bool                   `json:"Enabled"`
 	QueueName            string                 `json:"QueueName"`
 	ConsumerName         string                 `json:"ConsumerName"`
 	AutoAck              bool                   `json:"AutoAck"`

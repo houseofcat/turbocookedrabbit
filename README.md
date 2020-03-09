@@ -16,20 +16,14 @@ It was programmed against the following:
  * RabbitMQ Server v3.7.17 (simple localhost)
  * Erlang v22.0 (OTP v10.4)
  * Streadway/Amqp Latest
- 
-#### Minute Breaking Changes (9/22/2019)
-`v1.0.2 -> v1.1.0`  
-New RabbitService, Supporting Encryption, Compression   
-I will hotfix `v1.0.2` should anyone need fixes but not wanting to move to `v1.1.0`  
-***I apologize for any inconvenience and the changes are minute.***
 
-Having issues with more advanced setups? Open up and issue but I will need an intimate description of the setup. Without it, I more than likely won't be able to resolve it. I can accept PRs if you want to test out fixes that resolve things for yourself.
-
-If you see something syntactically wrong, do speak up! I am, relatively speaking, an idiot (^.^) and I am still new to golang.
-
-My background is in performant infrastructure development, using C# and the .NET/NetCore ecosystem... so if any ***golang wizards*** want to provide advice or criticism, please do!
-
-I also don't have the kind of free time I used to. I apologize in advance but, hey, that's life. So keep in mind that I am not paid to do this - this isn't my job or a fancy corporate sponsorship - this was being down with a plague for a couple of weekends. Suffice to say, the golden rule works wonders on me / mind your Ps and Qs.
+### Breaking Change Notice (v1.1.8 -> v1.2.0)
+I have added a configuration variable for consumers to be `Enabled`. Because its a new field, the default value  
+for `bool` is false so be sure to update your JSON configurations if you are using them. If the value is `false`,  
+then `StartConsuming()` will do nothing when called (and it will not error out). The benefit of this is the ability  
+to disable consumers without changing your code to handle an error. This allows for more easily configurable  
+workflows. In addition to that, `Notification` now has access to the Letter that failed to publish to make your  
+life easier on republishing. It still includes the LetterID and Err as separate entries so it's only additive.  
 
 ### Basic Performance
 
@@ -127,6 +121,7 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 	},
 	"ConsumerConfigs": {
 		"TurboCookedRabbitConsumer-Ackable": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
 			"AutoAck": false,
@@ -139,6 +134,7 @@ The full structure `RabbitSeasoning` is available under `models/configs.go`
 			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-AutoAck": {
+			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
 			"AutoAck": true,
