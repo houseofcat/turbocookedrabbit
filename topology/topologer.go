@@ -287,7 +287,7 @@ func (top *Topologer) CreateQueue(
 	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if passiveDeclare {
-		_, err = chanHost.Channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
+		_, err = chanHost.Channel.QueueDeclarePassive(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
 		if err != nil {
 			top.channelPool.FlagChannel(chanHost.ChannelID)
 			return err
@@ -296,7 +296,7 @@ func (top *Topologer) CreateQueue(
 		return nil
 	}
 
-	_, err = chanHost.Channel.QueueDeclarePassive(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
+	_, err = chanHost.Channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
 	if err != nil {
 		top.channelPool.FlagChannel(chanHost.ChannelID)
 		return err
@@ -316,7 +316,7 @@ func (top *Topologer) CreateQueueFromConfig(queue *models.Queue) error {
 	defer top.channelPool.ReturnChannel(chanHost, false)
 
 	if queue.PassiveDeclare {
-		_, err = chanHost.Channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
+		_, err = chanHost.Channel.QueueDeclarePassive(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
 		if err != nil {
 			top.channelPool.FlagChannel(chanHost.ChannelID)
 			return err
@@ -325,7 +325,7 @@ func (top *Topologer) CreateQueueFromConfig(queue *models.Queue) error {
 		return nil
 	}
 
-	_, err = chanHost.Channel.QueueDeclarePassive(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
+	_, err = chanHost.Channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
 	if err != nil {
 		top.channelPool.FlagChannel(chanHost.ChannelID)
 		return err
