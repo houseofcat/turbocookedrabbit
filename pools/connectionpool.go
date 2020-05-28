@@ -223,6 +223,7 @@ func (cp *ConnectionPool) Errors() <-chan error {
 // Outages/transient network outages block until success connecting.
 // Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
+
 	if atomic.LoadInt32(&cp.connectionLock) > 0 {
 		return nil, errors.New("can't get connection - connection pool has been shutdown")
 	}
@@ -243,10 +244,10 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 		return nil, errors.New("invalid struct type found in ConnectionPool queue")
 	}
 
-	notifiedClosed := false
+	healthy := true
 	select {
 	case <-connectionHost.CloseErrors():
-		notifiedClosed = true
+		healthy = false
 	default:
 		break
 	}
@@ -257,7 +258,7 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
 	// Between these three states we do our best to determine that a connection is dead in the various
 	// lifecycles.
-	if notifiedClosed || connectionClosed || connectionFlagged {
+	if connectionFlagged || !healthy || connectionClosed {
 
 		cp.FlagConnection(connectionHost.ConnectionID)
 

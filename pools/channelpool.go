@@ -146,7 +146,7 @@ func (cp *ChannelPool) createChannelHost(channelID uint64, ackable bool) (*Chann
 
 	getConnectionCounter := 0
 GetNewConnection:
-	if getConnectionCounter > 3 {
+	if getConnectionCounter > 3 { // we give up if we find 3 full connections in a row (means the ChannelPool may already be healed and we are in a race condition)
 		return nil, errors.New("-1")
 	}
 
@@ -155,16 +155,16 @@ GetNewConnection:
 		return nil, err
 	}
 
-	if ackable && !connHost.CanAddAckChannel() {
-		return nil, errors.New("can't add more ackable channels to this connection")
-	} else if !ackable && !connHost.CanAddChannel() {
+	if (ackable && !connHost.CanAddAckChannel()) || (!ackable && !connHost.CanAddChannel()) {
 		getConnectionCounter++
-		cp.connectionPool.ReturnConnection(connHost)
+		cp.connectionPool.ReturnConnection(connHost) // return connection or lose them
 		goto GetNewConnection
 	}
 
 	channelHost, err := NewChannelHost(connHost.Connection, channelID, connHost.ConnectionID, ackable)
 	if err != nil {
+		cp.connectionPool.FlagConnection(connHost.ConnectionID) // flag connection as a problem
+		cp.connectionPool.ReturnConnection(connHost)            // return connection or lose them
 		return nil, err
 	}
 
@@ -226,35 +226,38 @@ DequeueChannel:
 		return nil, errors.New("invalid struct type found in ChannelPool queue")
 	}
 
-	notifiedClosed := false
+	healthy := true
 	select {
 	case <-channelHost.CloseErrors():
-		notifiedClosed = true
+		healthy = false
 	default:
 		break
 	}
 
 	// Between these two states we do our best to determine that a channel is dead in the various
 	// lifecycles.
-	if notifiedClosed || cp.IsChannelFlagged(channelHost.ChannelID) {
+	if cp.IsChannelFlagged(channelHost.ChannelID) || !healthy {
 
 		replacementChannelID := channelHost.ChannelID
-		channelHost = nil
+		var newChannelHost *ChannelHost
 
 		// Do not leave without a good ChannelHost.
-		for channelHost == nil {
+		for newChannelHost == nil {
 
-			channelHost, err = cp.createChannelHost(replacementChannelID, false)
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+
+			newChannelHost, err = cp.createChannelHost(replacementChannelID, false)
 			if err != nil {
-				if err.Error() == "-1" { // A control error of "-1" indicates we can't create any more channels, try re-acquiring channels. Perhaps a refactor is due.
+				if err.Error() == "-1" { // A control error of "-1" indicates we are at max channels for 3 separate connections. Try with a new channel.
+					cp.ReturnChannel(channelHost, true) // return the bad channel since we don't want to lose our pool overtime
 					goto DequeueChannel
 				}
 				continue
 			}
 
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+			channelHost = newChannelHost
 		}
 
 		cp.UnflagChannel(replacementChannelID)
