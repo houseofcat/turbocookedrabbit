@@ -249,7 +249,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	t.Logf("%s: Benchmark started...", time.Now())
 
-	messageCount := 200000
+	messageCount := 10000
 
 	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 
@@ -353,7 +353,7 @@ ConsumeMessages:
 			}
 			channelPoolErrors++
 		default:
-			time.Sleep(100 * time.Nanosecond)
+			time.Sleep(5 * time.Second)
 			break
 		}
 

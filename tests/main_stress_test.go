@@ -107,7 +107,7 @@ ConsumeLoop:
 				}
 			}(message)
 		default:
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(100 * time.Nanosecond)
 		}
 	}
 
@@ -136,6 +136,8 @@ NoticeLoop:
 			} else {
 				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesFailedToPublish++
+				fmt.Printf("%s: Requeueing for Publish - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				publisher.QueueLetter(notice.FailedLetter)
 			}
 		case err := <-ChannelPool.Errors():
 			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
