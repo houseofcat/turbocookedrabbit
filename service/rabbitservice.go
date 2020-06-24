@@ -149,7 +149,7 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 		}
 	}
 
-	err = rs.Publisher.PublishWithConfirmation(
+	return rs.Publisher.PublishWithConfirmation(
 		&models.Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
@@ -163,8 +163,6 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 				DeliveryMode: 2,
 			},
 		})
-
-	return nil
 }
 
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.

@@ -3,6 +3,7 @@ package publisher_test
 import (
 	"fmt"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
@@ -621,4 +622,169 @@ AssertLoop:
 	}
 
 	time.Sleep(time.Millisecond * 100)
+}
+
+func TestCreatePublisherAndPublishManyWithConfirmation(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	ChannelPool.FlushErrors()
+
+	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, publisher)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:    "",
+		RoutingKey:  "ConfirmationTestQueue",
+		ContentType: "plain/text",
+		Mandatory:   false,
+		Immediate:   false,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	for i := 0; i < 1000; i++ {
+		publisher.PublishWithConfirmation(letter)
+	}
+
+	ChannelPool.Shutdown()
+
+	// Assert on all Notifications
+AssertLoop:
+	for {
+		select {
+		case chanErr := <-ChannelPool.Errors():
+			assert.NoError(t, chanErr) // This test fails on channel errors.
+			break AssertLoop
+		case notification := <-publisher.Notifications():
+			assert.True(t, notification.Success)
+			assert.Equal(t, letterID, notification.LetterID)
+			assert.NoError(t, notification.Error)
+			break AssertLoop
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+func BenchmarkCreatePublisherAndPublishManyWithConfirmation(b *testing.B) {
+
+	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:    "",
+		RoutingKey:  "ConfirmationTestQueue",
+		ContentType: "plain/text",
+		Mandatory:   false,
+		Immediate:   false,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	for i := 0; i < 1000; i++ {
+		publisher.PublishWithConfirmation(letter)
+	}
+}
+
+func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	ChannelPool.FlushErrors()
+
+	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, publisher)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:    "",
+		RoutingKey:  "ConfirmationTestQueue",
+		ContentType: "plain/text",
+		Mandatory:   false,
+		Immediate:   false,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.PublishWithConfirmation(letter)
+		}()
+	}
+	wg.Wait()
+
+	ChannelPool.Shutdown()
+
+	// Assert on all Notifications
+AssertLoop:
+	for {
+		select {
+		case chanErr := <-ChannelPool.Errors():
+			assert.NoError(t, chanErr) // This test fails on channel errors.
+			break AssertLoop
+		case notification := <-publisher.Notifications():
+			assert.True(t, notification.Success)
+			assert.Equal(t, letterID, notification.LetterID)
+			assert.NoError(t, notification.Error)
+			break AssertLoop
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B) {
+
+	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.PublishWithConfirmation(letter)
+		}()
+	}
+	wg.Wait()
 }

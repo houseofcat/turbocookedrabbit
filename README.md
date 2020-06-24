@@ -13,17 +13,12 @@
 It was programmed against the following:
 
  * Golang 1.14.1
- * RabbitMQ Server v3.7.17 (simple localhost)
- * Erlang v22.0 (OTP v10.4)
- * Streadway/Amqp Latest
+ * RabbitMQ Server v3.8.3 (simple localhost)
+ * Erlang v22.3 (OTP v10.4)
+ * Streadway/Amqp v1.0.0
 
-### Breaking Change Notice (v1.1.8 -> v1.2.0)
-I have added a configuration variable for consumers to be `Enabled`. Because its a new field, the default value  
-for `bool` is false so be sure to update your JSON configurations if you are using them. If the value is `false`,  
-then `StartConsuming()` will do nothing when called (and it will not error out). The benefit of this is the ability  
-to disable consumers without changing your code to handle an error. This allows for more easily configurable  
-workflows. In addition to that, `Notification` now has access to the Letter that failed to publish to make your  
-life easier on republishing. It still includes the LetterID and Err as separate entries so it's only additive.  
+### Breaking Change Notice (v1.2.x -> v1.3.0)
+I have added a configuration variable for Publishers to be `AutoAck`. This means the default scenario is `false` which means you will be performing publishing over ack channels. There's been a situation in rare instances (failover) of data loss on publish that I can't confirm at this time was library or server side. Just to be safe I am adding a little 
 
 ### Basic Performance
 

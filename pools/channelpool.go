@@ -345,6 +345,7 @@ func (cp *ChannelPool) GetTransientChannel(ackable bool) *ChannelHost {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
+			cp.connectionPool.ReturnConnection(connHost)
 			continue
 		}
 
@@ -353,9 +354,11 @@ func (cp *ChannelPool) GetTransientChannel(ackable bool) *ChannelHost {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
+			cp.connectionPool.ReturnConnection(connHost)
 			continue
 		}
 
+		cp.connectionPool.ReturnConnection(connHost)
 		return chanHost
 	}
 }

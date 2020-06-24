@@ -122,10 +122,12 @@ GetChannelAndPublish:
 			default:
 
 				if counter == 100 {
-					return fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner", letter.LetterID)
+					chanHost.Channel.Close()
+					// TODO: Send to notifications. Needs to be re-PublishWithConfirmation which isn't supported yet.
+					return fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (300ms) - recommend retry", letter.LetterID)
 				}
 				counter++
-				time.Sleep(time.Duration(time.Millisecond * 10))
+				time.Sleep(time.Duration(time.Millisecond * 3))
 			}
 		}
 	}
