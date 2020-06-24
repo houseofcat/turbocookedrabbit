@@ -125,8 +125,8 @@ func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
 	}
 }
 
-// PublishWithRetry tries to publish with a retry mechanism and data optionally wrapped in a ModdedLetter.
-func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
+// PublishWithConfirmation tries to publish and wait for a confirmation.
+func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
@@ -149,7 +149,7 @@ func (rs *RabbitService) PublishWithRetry(input interface{}, exchangeName, routi
 		}
 	}
 
-	rs.Publisher.PublishWithRetry(
+	err = rs.Publisher.PublishWithConfirmation(
 		&models.Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
@@ -210,7 +210,7 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 }
 
 // StartService gets all the background internals and logging/monitoring started.
-func (rs *RabbitService) StartService(allowRetry bool) {
+func (rs *RabbitService) StartService() {
 
 	// Start the background monitors and logging.
 	go rs.collectChannelPoolErrors()
@@ -218,7 +218,7 @@ func (rs *RabbitService) StartService(allowRetry bool) {
 	go rs.monitorStopService()
 
 	// Start the AutoPublisher
-	rs.Publisher.StartAutoPublish(allowRetry)
+	rs.Publisher.StartAutoPublish()
 }
 
 func (rs *RabbitService) monitorStopService() {

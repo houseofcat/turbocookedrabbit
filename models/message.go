@@ -173,3 +173,18 @@ type TcrError struct {
 func (te *TcrError) Error() string {
 	return fmt.Sprintf("[err: %d] - %s", te.code, te.message)
 }
+
+// PublishConfirmation aids in guaranteed Deliverability.
+type PublishConfirmation struct {
+	DeliveryTag uint64 // Delivery Tag Id
+	Acked       bool   // Acked Serverside
+}
+
+// NewPublishConfirmation creates a new PublishConfirmation.
+func NewPublishConfirmation(confirmation *amqp.Confirmation) *PublishConfirmation {
+
+	return &PublishConfirmation{
+		DeliveryTag: confirmation.DeliveryTag,
+		Acked:       confirmation.Ack,
+	}
+}

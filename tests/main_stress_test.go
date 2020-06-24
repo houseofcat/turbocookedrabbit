@@ -36,7 +36,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 		return
 	}
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	go publish(timeOut, publisher)
 

@@ -313,7 +313,7 @@ ProcessDeliveriesInnerLoop:
 		// Listen for channel closure (close errors).
 		// Highest priority so separated to it's own select.
 		select {
-		case errorMessage := <-chanHost.CloseErrors():
+		case errorMessage := <-chanHost.Errors():
 			if errorMessage != nil {
 				con.handleErrorAndChannel(fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code), chanHost)
 				break ProcessDeliveriesInnerLoop

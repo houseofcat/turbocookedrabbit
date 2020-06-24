@@ -34,7 +34,7 @@ func BenchmarkAutoPublishRandomLetters(b *testing.B) {
 	}
 
 	done := make(chan bool, 1)
-	pub.StartAutoPublish(false)
+	pub.StartAutoPublish()
 
 	// Build letters
 	b.Logf("%s: Building Letters", time.Now())
@@ -94,7 +94,7 @@ func BenchmarkAutoPublishRandomEncryptedLetters(b *testing.B) {
 	}
 
 	monitorLoopFinished := make(chan bool)
-	pub.StartAutoPublish(false)
+	pub.StartAutoPublish()
 
 	// Build letters
 	buildLetters(b, messageCount, testQueuePrefix, letters)

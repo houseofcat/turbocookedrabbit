@@ -180,12 +180,6 @@ GetNewConnection:
 		}
 	}
 
-	if ackable {
-		if err = channelHost.Channel.Confirm(cp.ackNoWait); err != nil {
-			cp.handleError(err)
-		}
-	}
-
 	cp.connectionPool.ReturnConnection(connHost)
 
 	return channelHost, nil
@@ -228,7 +222,7 @@ DequeueChannel:
 
 	healthy := true
 	select {
-	case <-channelHost.CloseErrors():
+	case <-channelHost.Errors():
 		healthy = false
 	default:
 		break
@@ -310,7 +304,7 @@ func (cp *ChannelPool) GetAckableChannel() (*ChannelHost, error) {
 
 	notifiedClosed := false
 	select {
-	case <-channelHost.CloseErrors():
+	case <-channelHost.Errors():
 		notifiedClosed = true
 	default:
 		break
@@ -339,13 +333,31 @@ func (cp *ChannelPool) GetAckableChannel() (*ChannelHost, error) {
 		cp.UnflagChannel(replacementChannelID)
 	}
 
-	// Puts the connection back in the queue while also returning a pointer to the caller.
-	// This creates a Round Robin on Connections and their resources.
-	if err := cp.ackChannels.Put(channelHost); err != nil {
-		cp.handleError(err)
-	}
-
 	return channelHost, nil
+}
+
+// GetTransientChannel allows you create an unmanaged RabbitMQ channel based on the ConnectionPool.
+func (cp *ChannelPool) GetTransientChannel(ackable bool) *ChannelHost {
+
+	for {
+		connHost, err := cp.connectionPool.GetConnection()
+		if err != nil {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+			continue
+		}
+
+		chanHost, err := NewChannelHost(connHost.Connection, 10000, connHost.ConnectionID, ackable)
+		if err != nil {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+			continue
+		}
+
+		return chanHost
+	}
 }
 
 // ChannelCount lets you know how many non-ackable channels you have to use.

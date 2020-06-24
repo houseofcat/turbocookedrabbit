@@ -38,7 +38,7 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 		return
 	}
 
-	Service.StartService(false)
+	Service.StartService()
 
 	os.Exit(m.Run())
 }

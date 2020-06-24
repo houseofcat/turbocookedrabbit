@@ -117,7 +117,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 
 	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	publisher.QueueLetter(letter)
 
@@ -171,7 +171,7 @@ func TestAutoPublishManyMessages(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	go func() {
 
@@ -259,8 +259,8 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish(false)
-	publisher2.StartAutoPublish(false)
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
 
 	go func() {
 
@@ -363,10 +363,10 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish(false)
-	publisher2.StartAutoPublish(false)
-	publisher3.StartAutoPublish(false)
-	publisher4.StartAutoPublish(false)
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
+	publisher3.StartAutoPublish()
+	publisher4.StartAutoPublish()
 
 	go func() {
 
@@ -488,10 +488,10 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	fmt.Printf("Time Elapsed Creating Letters: %s\r\n", elapsed)
 
 	timeStart = time.Now()
-	publisher1.StartAutoPublish(false)
-	publisher2.StartAutoPublish(false)
-	publisher3.StartAutoPublish(false)
-	publisher4.StartAutoPublish(false)
+	publisher1.StartAutoPublish()
+	publisher2.StartAutoPublish()
+	publisher3.StartAutoPublish()
+	publisher4.StartAutoPublish()
 
 	go func() {
 
@@ -569,4 +569,56 @@ func purgeAllPublisherTestQueues(queuePrefix string, channelPool *pools.ChannelP
 			}
 		}
 	}
+}
+
+func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	channelPool.FlushErrors()
+
+	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, publisher)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:    "",
+		RoutingKey:  "ConfirmationTestQueue",
+		ContentType: "plain/text",
+		Mandatory:   false,
+		Immediate:   false,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	publisher.PublishWithConfirmation(letter)
+	channelPool.Shutdown()
+
+	// Assert on all Notifications
+AssertLoop:
+	for {
+		select {
+		case chanErr := <-channelPool.Errors():
+			assert.NoError(t, chanErr) // This test fails on channel errors.
+			break AssertLoop
+		case notification := <-publisher.Notifications():
+			assert.True(t, notification.Success)
+			assert.Equal(t, letterID, notification.LetterID)
+			assert.NoError(t, notification.Error)
+			break AssertLoop
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	time.Sleep(time.Millisecond * 100)
 }

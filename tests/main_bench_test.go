@@ -32,7 +32,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	channelPool.FlushErrors()
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	counter := uint64(0)
 
@@ -123,7 +123,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	go publishLoop(timeOut, publisher)
 

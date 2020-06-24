@@ -192,7 +192,7 @@ func TestPublishAndConsume(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, consumer)
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	publisher.QueueLetter(utils.CreateMockRandomLetter("ConsumerTestQueue"))
 
@@ -258,7 +258,7 @@ func TestPublishAndConsumeMany(t *testing.T) {
 
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
 
-	publisher.StartAutoPublish(false)
+	publisher.StartAutoPublish()
 
 	createAndQueueLetters(t, messageCount, publisher)
 

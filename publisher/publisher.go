@@ -1,6 +1,7 @@
 package publisher
 
 import (
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -67,7 +68,14 @@ func NewPublisher(
 // Subscribe to Notifications to see success and errors.
 func (pub *Publisher) Publish(letter *models.Letter) {
 
-	chanHost, err := pub.ChannelPool.GetChannel()
+	var chanHost *pools.ChannelHost
+	var err error
+	if pub.Config.PublisherConfig.AutoAck {
+		chanHost, err = pub.ChannelPool.GetChannel()
+	} else {
+		chanHost, err = pub.ChannelPool.GetAckableChannel()
+	}
+
 	if err != nil {
 		pub.sendToNotifications(letter, err)
 		return // exit out if you can't get a channel
@@ -82,28 +90,47 @@ func (pub *Publisher) Publish(letter *models.Letter) {
 	}
 }
 
-// PublishWithRetry sends a single message to the address on the letter with retry capabilities.
-// Subscribe to Notifications to see success and errors.
-// RetryCount is based on the letter property. Zero means it will try once.
-func (pub *Publisher) PublishWithRetry(letter *models.Letter) {
+// PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.
+// This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+func (pub *Publisher) PublishWithConfirmation(letter *models.Letter) error {
 
-	for i := letter.RetryCount + 1; i > 0; i-- {
-		chanHost, err := pub.ChannelPool.GetChannel()
+GetChannelAndPublish:
+	for {
+		chanHost := pub.ChannelPool.GetTransientChannel(true)
+		chanHost.Channel.NotifyPublish(chanHost.Confirmations)
+
+		err := pub.simplePublish(chanHost.Channel, letter)
 		if err != nil {
-			time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
-			continue // can't get a channel
+			chanHost.Channel.Close()
+			goto GetChannelAndPublish
 		}
 
-		err = pub.simplePublish(chanHost.Channel, letter)
-		if err != nil {
-			pub.handleErrorAndChannel(err, letter, chanHost)
-			continue // flag channel and try again
-		}
+		counter := 0 // exit condition
+		for {
+			select {
+			case confirmation := <-chanHost.Confirmations:
 
-		pub.sendToNotifications(letter, err)
-		pub.ChannelPool.ReturnChannel(chanHost, false)
-		break // finished
+				if !confirmation.Ack { // retry publish
+					chanHost.Channel.Close()
+					goto GetChannelAndPublish
+				}
+
+				pub.sendToNotifications(letter, nil)
+				chanHost.Channel.Close()
+				break GetChannelAndPublish
+
+			default:
+
+				if counter == 100 {
+					return fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner", letter.LetterID)
+				}
+				counter++
+				time.Sleep(time.Duration(time.Millisecond * 10))
+			}
+		}
 	}
+
+	return nil
 }
 
 func (pub *Publisher) handleErrorAndChannel(err error, letter *models.Letter, chanHost *pools.ChannelHost) {
@@ -119,7 +146,7 @@ func (pub *Publisher) Notifications() <-chan *models.Notification {
 }
 
 // StartAutoPublish starts auto-publishing letters queued up - is locking.
-func (pub *Publisher) StartAutoPublish(allowRetry bool) {
+func (pub *Publisher) StartAutoPublish() {
 	pub.FlushStops()
 
 	go func() {
@@ -140,12 +167,7 @@ func (pub *Publisher) StartAutoPublish(allowRetry bool) {
 
 				go func() {
 					defer pub.autoPublishGroup.Done()
-					if allowRetry {
-						pub.PublishWithRetry(letter)
-					} else {
-						pub.Publish(letter)
-					}
-
+					pub.Publish(letter)
 					pub.reduceLetterCount()
 				}()
 
@@ -230,6 +252,23 @@ func (pub *Publisher) reduceLetterCount() {
 
 // SimplePublish performs the actual amqp.Publish.
 func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Letter) error {
+
+	return amqpChan.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
+		},
+	)
+}
+
+// TODO ConfirmationPublish
+func (pub *Publisher) complexPublish(amqpChan *amqp.Channel, letter *models.Letter) error {
 
 	return amqpChan.Publish(
 		letter.Envelope.Exchange,

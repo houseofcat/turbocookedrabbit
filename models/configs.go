@@ -69,6 +69,7 @@ type ConsumerConfig struct {
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.
 type PublisherConfig struct {
+	AutoAck                  bool   `json:"AutoAck"`
 	SleepOnIdleInterval      uint32 `json:"SleepOnIdleInterval"`
 	SleepOnQueueFullInterval uint32 `json:"SleepOnQueueFullInterval"`
 	SleepOnErrorInterval     uint32 `json:"SleepOnErrorInterval"`

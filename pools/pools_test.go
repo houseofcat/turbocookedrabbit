@@ -532,7 +532,7 @@ func TestGetChannelDuringOutage(t *testing.T) {
 			fmt.Printf("%s: GotChannelHost\r\n", time.Now())
 
 			select {
-			case <-chanHost.CloseErrors():
+			case <-chanHost.Errors():
 				fmt.Printf("%s: Error - ChannelClose: %s\r\n", time.Now(), err)
 			default:
 				break

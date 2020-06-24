@@ -53,6 +53,7 @@
 		}
 	},
 	"PublisherConfig": {
+		"AutoAck": false,
 		"SleepOnIdleInterval": 0,
 		"SleepOnQueueFullInterval": 1,
 		"SleepOnErrorInterval": 1000,
