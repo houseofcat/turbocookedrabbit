@@ -46,8 +46,6 @@ func TestCreateConsumer(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(t, ok)
 
@@ -78,8 +76,6 @@ func TestCreateConsumerAndGet(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(t, ok)
 
@@ -100,8 +96,6 @@ func TestCreateConsumerAndGet(t *testing.T) {
 func TestCreateConsumerAndGetBatch(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(t, ok)
@@ -124,8 +118,6 @@ func TestCreateConsumerAndPublisher(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -143,8 +135,6 @@ func TestCreateConsumerAndUncleanShutdown(t *testing.T) {
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -165,8 +155,6 @@ ErrorLoop:
 			fmt.Print(notice.ToString())
 		case err := <-consumer.Errors():
 			fmt.Printf("%s\r\n", err)
-		case err := <-channelPool.Errors():
-			fmt.Printf("%s\r\n", err)
 		default:
 			break ErrorLoop
 		}
@@ -178,8 +166,6 @@ func TestPublishAndConsume(t *testing.T) {
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -216,8 +202,6 @@ ConsumeMessages:
 			}
 			break ConsumeMessages
 		case err := <-consumer.Errors():
-			assert.NoError(t, err)
-		case err := <-channelPool.Errors():
 			assert.NoError(t, err)
 		default:
 			time.Sleep(100 * time.Millisecond)
@@ -345,11 +329,6 @@ ConsumeMessages:
 			consumerErrors++
 		case <-consumer.Messages():
 			messagesReceived++
-		case err := <-ChannelPool.Errors():
-			if err != nil {
-				t.Log(err)
-			}
-			channelPoolErrors++
 		default:
 			time.Sleep(5 * time.Second)
 			break

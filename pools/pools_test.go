@@ -228,8 +228,6 @@ func TestCreateConnectionPool(t *testing.T) {
 	fmt.Printf("Created %d connection(s) finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 
-	connectionPool.FlushErrors()
-
 	connectionPool.Shutdown()
 }
 
@@ -257,7 +255,6 @@ func TestCreateConnectionPoolAndShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
 
-	connectionPool.FlushErrors()
 	connectionPool.Shutdown()
 }
 
@@ -276,8 +273,6 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 	fmt.Printf("Created %d connection(s). Finished in %s.\r\n", connectionPool.ConnectionCount(), elapsed)
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 
-	connectionPool.FlushErrors()
-
 	connectionCount := connectionPool.ConnectionCount()
 	timeStart = time.Now()
 	connectionPool.Shutdown()
@@ -285,8 +280,6 @@ func TestGetConnectionAfterShutdown(t *testing.T) {
 
 	fmt.Printf("Shutdown %d connection(s). Finished in %s.\r\n", connectionCount, elapsed)
 	assert.Equal(t, int64(0), connectionPool.ConnectionCount())
-
-	connectionPool.FlushErrors()
 
 	connHost, err := connectionPool.GetConnection()
 	assert.Error(t, err)
@@ -316,9 +309,6 @@ func TestCreateChannelPool(t *testing.T) {
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
-
 	connectionPool.Shutdown()
 	channelPool.Shutdown()
 }
@@ -343,9 +333,6 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
-
 	channelCount := channelPool.ChannelCount()
 	timeStart = time.Now()
 	channelPool.Shutdown()
@@ -354,8 +341,6 @@ func TestCreateChannelPoolAndShutdown(t *testing.T) {
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
 
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
 	connectionPool.Shutdown()
 }
 
@@ -380,9 +365,6 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
-
 	channelCount := channelPool.ChannelCount()
 	timeStart = time.Now()
 	channelPool.Shutdown()
@@ -390,9 +372,6 @@ func TestGetChannelAfterShutdown(t *testing.T) {
 
 	fmt.Printf("Shutdown %d channel(s). Finished in %s.\r\n", channelCount, elapsed)
 	assert.Equal(t, int64(0), channelPool.ChannelCount())
-
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
 
 	channelHost, err := channelPool.GetChannel()
 	assert.Error(t, err)
@@ -423,9 +402,6 @@ func TestGetChannelAfterKillingConnectionPool(t *testing.T) {
 	assert.Equal(t, Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount, uint64(connectionPool.ConnectionCount()))
 	assert.Equal(t, Seasoning.PoolConfig.ChannelPoolConfig.MaxChannelCount, uint64(channelPool.ChannelCount()))
 
-	connectionPool.FlushErrors()
-	channelPool.FlushErrors()
-
 	connectionPool.Shutdown()
 
 	chanHost, err := channelPool.GetChannel()
@@ -445,8 +421,6 @@ func TestCreateChannelPoolSimple(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	chanHost, err := channelPool.GetChannel()
 	assert.NotNil(t, chanHost)
 	assert.NoError(t, err)
@@ -463,7 +437,6 @@ func TestGetChannelAfterKillingChannelPool(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
 	channelPool.Shutdown()
 
 	chanHost, err := channelPool.GetChannel()
@@ -564,5 +537,75 @@ func TestGetChannelDuringOutage(t *testing.T) {
 	}
 
 	assert.Equal(t, iterations, maxIterationCount)
+	channelPool.Shutdown()
+}
+
+func TestConnectionPoolAfterRepeatedDisconnects(t *testing.T) {
+
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
+	assert.NoError(t, err)
+
+	if !connectionPool.Initialized {
+		if err := connectionPool.Initialize(); err != nil {
+			t.Error(err)
+		}
+	}
+
+	count := connectionPool.ConnectionCount()
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 10000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			connHost, err := connectionPool.GetConnection()
+			if err != nil {
+				t.Error(err)
+			}
+
+			time.Sleep(time.Millisecond * 10)
+			connectionPool.ReturnConnection(connHost)
+		}()
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, count, connectionPool.ConnectionCount())
+
+	connectionPool.Shutdown()
+}
+
+func TestChannelPoolAfterRepeatedDisconnects(t *testing.T) {
+
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
+	assert.NoError(t, err)
+
+	count := channelPool.AckChannelCount()
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 10000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			chanHost, err := channelPool.GetAckableChannel()
+			if err != nil {
+				channelPool.ReturnChannel(chanHost, true)
+				t.Error(err)
+			}
+
+			time.Sleep(time.Millisecond * 10)
+			channelPool.ReturnChannel(chanHost, false)
+		}()
+	}
+	wg.Wait()
+
+	actual := channelPool.AckChannelCount()
+
+	message := fmt.Sprintf("Original Count: %d  Actual Count: %d\r\n", count, actual)
+	fmt.Print(message)
+	t.Log(message)
+	assert.EqualValues(t, count, channelPool.AckChannelCount())
+
 	channelPool.Shutdown()
 }

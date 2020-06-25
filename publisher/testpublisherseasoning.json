@@ -1,7 +1,6 @@
 {
 	"PoolConfig": {
 		"ChannelPoolConfig": {
-			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
 			"MaxChannelCount": 50,
 			"MaxAckChannelCount": 50,
@@ -11,7 +10,6 @@
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ConnectionName": "TurboCookedRabbit",
-			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
 			"MaxConnectionCount": 10,
 			"Heartbeat": 5,

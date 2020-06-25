@@ -759,3 +759,61 @@ func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B
 	}()
 	<-done
 }
+
+func TestCreatePublisherAndParallelPublishWithAutoAckFalse(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, publisher)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 100000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.Publish(letter)
+		}()
+	}
+	wg.Wait()
+
+	done := make(chan struct{}, 1)
+
+	go func() {
+	NotificationProcessLoop:
+		for {
+			select {
+			case notification := <-publisher.Notifications():
+				if !notification.Success && notification.FailedLetter != nil {
+					t.Logf("LetterID: %d failed to publish, retrying...", notification.LetterID)
+					publisher.Publish(notification.FailedLetter)
+				}
+			default:
+				done <- struct{}{}
+				break NotificationProcessLoop
+			}
+		}
+
+	}()
+	<-done
+
+	ChannelPool.Shutdown()
+}

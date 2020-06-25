@@ -30,8 +30,6 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
 
-	channelPool.FlushErrors()
-
 	publisher.StartAutoPublish()
 
 	counter := uint64(0)
@@ -74,9 +72,6 @@ ReceivePublishConfirmations:
 				//fmt.Printf("%s: Published Failed - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesFailedToPublish++
 			}
-		case err := <-channelPool.Errors():
-			fmt.Printf("%s: ChannelPool - Error: %s\r\n", time.Now(), err)
-			channelPoolErrors++
 		case err := <-consumer.Errors():
 			fmt.Printf("%s: Consumer - Error: %s\r\n", time.Now(), err)
 			consumerErrors++
@@ -190,12 +185,6 @@ ConsumeLoop:
 				messagesFailedToPublish++
 				notice = nil
 			}
-		case err := <-ChannelPool.Errors():
-			b.Logf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
-			channelPoolErrors++
-		case err := <-ConnectionPool.Errors():
-			b.Logf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
-			connectionPoolErrors++
 		case err := <-consumer.Errors():
 			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
