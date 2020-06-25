@@ -54,9 +54,6 @@
 		"AutoAck": false,
 		"SleepOnIdleInterval": 0,
 		"SleepOnQueueFullInterval": 1,
-		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 10000,
-		"MaxOverBuffer": 1000,
-		"NotificationBuffer": 1000
+		"SleepOnErrorInterval": 1000
 	}
 }

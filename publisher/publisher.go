@@ -3,7 +3,6 @@ package publisher
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/models"
@@ -17,11 +16,8 @@ type Publisher struct {
 	Config                   *models.RabbitSeasoning
 	ChannelPool              *pools.ChannelPool
 	letters                  chan *models.Letter
-	letterCount              uint64
-	letterBuffer             uint64
-	maxOverBuffer            uint64
 	autoStop                 chan bool
-	notifications            chan *models.Notification
+	publishReceipts          chan *models.PublishReceipt
 	autoStarted              bool
 	autoPublishGroup         *sync.WaitGroup
 	sleepOnIdleInterval      time.Duration
@@ -49,12 +45,10 @@ func NewPublisher(
 	return &Publisher{
 		Config:                   config,
 		ChannelPool:              chanPool,
-		letters:                  make(chan *models.Letter, config.PublisherConfig.LetterBuffer),
-		letterBuffer:             config.PublisherConfig.LetterBuffer,
-		maxOverBuffer:            config.PublisherConfig.MaxOverBuffer,
+		letters:                  make(chan *models.Letter),
 		autoStop:                 make(chan bool, 1),
 		autoPublishGroup:         &sync.WaitGroup{},
-		notifications:            make(chan *models.Notification, config.PublisherConfig.NotificationBuffer),
+		publishReceipts:          make(chan *models.PublishReceipt),
 		sleepOnIdleInterval:      time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnQueueFullInterval: time.Duration(config.PublisherConfig.SleepOnQueueFullInterval) * time.Millisecond,
 		sleepOnErrorInterval:     time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
@@ -65,33 +59,36 @@ func NewPublisher(
 }
 
 // Publish sends a single message to the address on the letter.
-// Subscribe to Notifications to see success and errors.
+// Subscribe to PublishReceipts to see success and errors.
+// For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *models.Letter) {
 
 	var chanHost *pools.ChannelHost
 	var err error
-	if pub.Config.PublisherConfig.AutoAck {
-		chanHost, err = pub.ChannelPool.GetChannel()
-	} else {
-		chanHost, err = pub.ChannelPool.GetAckableChannel()
-	}
 
-	if err != nil {
-		pub.sendToNotifications(letter, err)
-		return // exit out if you can't get a channel
+	// Loop till we can get a channel!
+	for {
+		if pub.Config.PublisherConfig.AutoAck {
+			chanHost, err = pub.ChannelPool.GetChannel()
+		} else {
+			chanHost, err = pub.ChannelPool.GetAckableChannel()
+		}
+
+		if err != nil {
+			// throttle on error
+			time.Sleep(time.Millisecond * pub.sleepOnErrorInterval)
+			continue
+		}
+		break
 	}
 
 	err = pub.simplePublish(chanHost.Channel, letter)
-	if err != nil {
-		pub.handleErrorAndChannel(err, letter, chanHost)
-	} else {
-		pub.sendToNotifications(letter, err)
-		pub.ChannelPool.ReturnChannel(chanHost, false)
-	}
+	pub.finalize(err, letter, chanHost)
 }
 
 // PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+// Only uses transient channels due to the complex nature of subcribing to the return notification.
 func (pub *Publisher) PublishWithConfirmation(letter *models.Letter) error {
 
 GetChannelAndPublish:
@@ -115,7 +112,7 @@ GetChannelAndPublish:
 					goto GetChannelAndPublish
 				}
 
-				pub.sendToNotifications(letter, nil)
+				pub.publishReceipt(letter, nil)
 				chanHost.Channel.Close()
 				break GetChannelAndPublish
 
@@ -135,62 +132,69 @@ GetChannelAndPublish:
 	return nil
 }
 
-func (pub *Publisher) handleErrorAndChannel(err error, letter *models.Letter, chanHost *pools.ChannelHost) {
-	pub.ChannelPool.ReturnChannel(chanHost, true)
-	pub.sendToNotifications(letter, err)
-	time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
+func (pub *Publisher) finalize(err error, letter *models.Letter, chanHost *pools.ChannelHost) {
+
+	errorOccurred := err != nil
+
+	pub.ChannelPool.ReturnChannel(chanHost, errorOccurred)
+	pub.publishReceipt(letter, err)
+
+	if errorOccurred {
+		time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
+	}
 }
 
-// Notifications yields all the success and failures during all publish events. Highly recommend susbscribing to this.
-// Buffer will block if not consumed and leave goroutines stuck.
-func (pub *Publisher) Notifications() <-chan *models.Notification {
-	return pub.notifications
+// PublishReceipts yields all the success and failures during all publish events. Highly recommend susbscribing to this.
+func (pub *Publisher) PublishReceipts() <-chan *models.PublishReceipt {
+	return pub.publishReceipts
 }
 
 // StartAutoPublish starts auto-publishing letters queued up - is locking.
 func (pub *Publisher) StartAutoPublish() {
 	pub.FlushStops()
 
-	go func() {
-	PublishLoop:
-		for {
-			select {
-			case stop := <-pub.autoStop:
-				if stop {
-					break PublishLoop
+	if !pub.autoStarted {
+
+		go func() {
+		PublishLoop:
+			for {
+				select {
+				case stop := <-pub.autoStop:
+					if stop {
+						break PublishLoop
+					}
+				default:
+					break
 				}
-			default:
-				break
+
+				select {
+				case letter := <-pub.letters:
+					pub.autoPublishGroup.Add(1)
+
+					go func() {
+						defer pub.autoPublishGroup.Done()
+						pub.Publish(letter)
+					}()
+
+				default:
+					if pub.sleepOnIdleInterval > 0 {
+						time.Sleep(pub.sleepOnIdleInterval)
+					}
+					break
+				}
 			}
 
-			select {
-			case letter := <-pub.letters:
-				pub.autoPublishGroup.Add(1)
+			pub.autoPublishGroup.Wait() // let all remaining publishes finish.
 
-				go func() {
-					defer pub.autoPublishGroup.Done()
-					pub.Publish(letter)
-					pub.reduceLetterCount()
-				}()
-
-			default:
-				if pub.sleepOnIdleInterval > 0 {
-					time.Sleep(pub.sleepOnIdleInterval)
-				}
-				break
-			}
-		}
-
-		pub.autoPublishGroup.Wait() // let all remaining publishes finish.
+			pub.pubLock.Lock()
+			pub.autoStarted = false
+			pub.pubLock.Unlock()
+		}()
 
 		pub.pubLock.Lock()
-		pub.autoStarted = false
+		pub.autoStarted = true
 		pub.pubLock.Unlock()
-	}()
-
-	pub.pubLock.Lock()
-	pub.autoStarted = true
-	pub.pubLock.Unlock()
+	}
 }
 
 // StopAutoPublish stops publishing letters queued up - is locking.
@@ -209,14 +213,9 @@ func (pub *Publisher) StopAutoPublish() {
 // Blocks on the Letter Buffer being full.
 func (pub *Publisher) QueueLetters(letters []*models.Letter) {
 
-	for i := 0; i < len(letters); i++ {
-		// Loop here until (buffer + maxOverBuffer) has room for you.
-		for atomic.LoadUint64(&pub.letterCount) >= (pub.letterBuffer + pub.maxOverBuffer) {
-			time.Sleep(pub.sleepOnQueueFullInterval)
-			continue
-		}
+	for _, letter := range letters {
 
-		pub.queueLetter(letters[i])
+		pub.letters <- letter
 	}
 }
 
@@ -224,32 +223,7 @@ func (pub *Publisher) QueueLetters(letters []*models.Letter) {
 // Blocks on the Letter Buffer being full.
 func (pub *Publisher) QueueLetter(letter *models.Letter) {
 
-	// Loop here until (buffer + maxOverBuffer) has room for you.
-	for atomic.LoadUint64(&pub.letterCount) >= (pub.letterBuffer + pub.maxOverBuffer) {
-		time.Sleep(pub.sleepOnQueueFullInterval)
-		continue
-	}
-
-	pub.queueLetter(letter)
-}
-
-func (pub *Publisher) queueLetter(letter *models.Letter) {
-	pub.increaseLetterCount()
 	pub.letters <- letter
-}
-
-// IncreaseLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
-func (pub *Publisher) increaseLetterCount() {
-	pub.pubRWLock.Lock()
-	pub.letterCount++
-	pub.pubRWLock.Unlock()
-}
-
-// ReduceLetterCount decreases internal letter count - used to minimize outage CPU/Mem spin up on a blocked channel.
-func (pub *Publisher) reduceLetterCount() {
-	pub.pubRWLock.Lock()
-	pub.letterCount--
-	pub.pubRWLock.Unlock()
 }
 
 // SimplePublish performs the actual amqp.Publish.
@@ -286,29 +260,21 @@ func (pub *Publisher) complexPublish(amqpChan *amqp.Channel, letter *models.Lett
 	)
 }
 
-// SendToNotifications sends the status to the notifications channel.
-func (pub *Publisher) sendToNotifications(letter *models.Letter, err error) {
+// publishReceipt sends the status to the receipt channel.
+func (pub *Publisher) publishReceipt(letter *models.Letter, err error) {
 
-	notification := &models.Notification{
+	publishReceipt := &models.PublishReceipt{
 		LetterID: letter.LetterID,
 		Error:    err,
 	}
 
 	if err == nil {
-		notification.Success = true
+		publishReceipt.Success = true
 	} else {
-		notification.FailedLetter = letter
+		publishReceipt.FailedLetter = letter
 	}
 
-	go func() { pub.notifications <- notification }()
-}
-
-// AutoPublishStarted allows you to see if the AutoPublish feature has started - is locking.
-func (pub *Publisher) AutoPublishStarted() bool {
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
-
-	return pub.autoStarted
+	pub.publishReceipts <- publishReceipt
 }
 
 // FlushStops flushes out all the AutoStop messages.
@@ -328,7 +294,7 @@ FlushLoop:
 func (pub *Publisher) Shutdown(shutdownPools bool) {
 	pub.StopAutoPublish()
 
-	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shuttingdown
+	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
 		pub.ChannelPool.Shutdown()
 	}
 }

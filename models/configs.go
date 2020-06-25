@@ -71,9 +71,6 @@ type PublisherConfig struct {
 	SleepOnIdleInterval      uint32 `json:"SleepOnIdleInterval"`
 	SleepOnQueueFullInterval uint32 `json:"SleepOnQueueFullInterval"`
 	SleepOnErrorInterval     uint32 `json:"SleepOnErrorInterval"`
-	LetterBuffer             uint64 `json:"LetterBuffer"`
-	MaxOverBuffer            uint64 `json:"MaxOverBuffer"`
-	NotificationBuffer       uint32 `json:"NotificationBuffer"`
 }
 
 // TopologyConfig allows you to build simple toplogies from a JSON file.

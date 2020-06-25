@@ -151,7 +151,7 @@ func TestCreateConsumerAndUncleanShutdown(t *testing.T) {
 ErrorLoop:
 	for {
 		select {
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			fmt.Print(notice.ToString())
 		case err := <-consumer.Errors():
 			fmt.Printf("%s\r\n", err)
@@ -193,7 +193,7 @@ ConsumeMessages:
 		case <-ctx.Done():
 			t.Log("\r\nContextTimeout\r\n")
 			break ConsumeMessages
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			t.Logf("UpperLoop: %s\r\n", notice.ToString())
 		case message := <-consumer.Messages():
 			fmt.Printf("Message Received: %s\r\n", string(message.Body))
@@ -215,7 +215,7 @@ ConsumeMessages:
 ErrorLoop:
 	for {
 		select {
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			fmt.Printf("LowerLoop: %s", notice.ToString())
 		case err := <-consumer.Errors():
 			fmt.Printf("%s\r\n", err)
@@ -286,7 +286,7 @@ MonitorMessages:
 		case <-ctx.Done():
 			t.Logf("%s\r\nContextTimeout\r\n", time.Now())
 			break MonitorMessages
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				messagesPublished++
 			} else {

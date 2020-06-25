@@ -77,11 +77,9 @@
 		}
 	},
 	"PublisherConfig": {
+		"AutoAck": false,
 		"SleepOnIdleInterval": 1000,
 		"SleepOnQueueFullInterval": 1000,
-		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 1000,
-		"MaxOverBuffer": 1000,
-		"NotificationBuffer": 1000
+		"SleepOnErrorInterval": 1000
 	}
 }

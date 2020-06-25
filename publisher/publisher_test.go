@@ -86,7 +86,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case notification := <-publisher.Notifications():
+		case notification := <-publisher.PublishReceipts():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
 			assert.NoError(t, notification.Error)
@@ -119,7 +119,7 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case notification := <-publisher.Notifications():
+		case notification := <-publisher.PublishReceipts():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letter.LetterID, notification.LetterID)
 			assert.NoError(t, notification.Error)
@@ -176,7 +176,7 @@ ListeningForNotificationsLoop:
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case notification := <-publisher.Notifications():
+		case notification := <-publisher.PublishReceipts():
 			if notification.Success {
 				successCount++
 			} else {
@@ -256,14 +256,14 @@ func TestTwoAutoPublishSameChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
-	var notification *models.Notification
+	var notification *models.PublishReceipt
 ListeningForNotificationsLoop:
 	for {
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case notification = <-publisher1.Notifications():
-		case notification = <-publisher2.Notifications():
+		case notification = <-publisher1.PublishReceipts():
+		case notification = <-publisher2.PublishReceipts():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
@@ -357,17 +357,17 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
-	var notification *models.Notification
+	var notification *models.PublishReceipt
 ListeningForNotificationsLoop:
 	for {
 		select {
 		case <-timer.C:
 			fmt.Printf(" == Timeout Occurred == ")
 			break ListeningForNotificationsLoop
-		case notification = <-publisher1.Notifications():
-		case notification = <-publisher2.Notifications():
-		case notification = <-publisher3.Notifications():
-		case notification = <-publisher4.Notifications():
+		case notification = <-publisher1.PublishReceipts():
+		case notification = <-publisher2.PublishReceipts():
+		case notification = <-publisher3.PublishReceipts():
+		case notification = <-publisher4.PublishReceipts():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
@@ -472,16 +472,16 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 	failureCount := 0
 	timer := time.NewTimer(1 * time.Minute)
 
-	var notification *models.Notification
+	var notification *models.PublishReceipt
 ListeningForNotificationsLoop:
 	for {
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case notification = <-publisher1.Notifications():
-		case notification = <-publisher2.Notifications():
-		case notification = <-publisher3.Notifications():
-		case notification = <-publisher4.Notifications():
+		case notification = <-publisher1.PublishReceipts():
+		case notification = <-publisher2.PublishReceipts():
+		case notification = <-publisher3.PublishReceipts():
+		case notification = <-publisher4.PublishReceipts():
 		default:
 			time.Sleep(1 * time.Millisecond)
 			break
@@ -571,7 +571,7 @@ func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case notification := <-publisher.Notifications():
+		case notification := <-publisher.PublishReceipts():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
 			assert.NoError(t, notification.Error)
@@ -619,7 +619,7 @@ func TestCreatePublisherAndPublishManyWithConfirmation(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case notification := <-publisher.Notifications():
+		case notification := <-publisher.PublishReceipts():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
 			assert.NoError(t, notification.Error)
@@ -698,7 +698,7 @@ func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
 	NotificationProcessLoop:
 		for {
 			select {
-			case <-publisher.Notifications():
+			case <-publisher.PublishReceipts():
 
 			default:
 				done <- struct{}{}
@@ -748,7 +748,7 @@ func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B
 	go func() {
 		for {
 			select {
-			case <-publisher.Notifications():
+			case <-publisher.PublishReceipts():
 
 			default:
 				done <- struct{}{}
@@ -763,6 +763,7 @@ func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B
 func TestCreatePublisherAndParallelPublishWithAutoAckFalse(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
+	Seasoning.PublisherConfig.AutoAck = false
 	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -801,11 +802,77 @@ func TestCreatePublisherAndParallelPublishWithAutoAckFalse(t *testing.T) {
 	NotificationProcessLoop:
 		for {
 			select {
-			case notification := <-publisher.Notifications():
+			case notification := <-publisher.PublishReceipts():
 				if !notification.Success && notification.FailedLetter != nil {
 					t.Logf("LetterID: %d failed to publish, retrying...", notification.LetterID)
 					publisher.Publish(notification.FailedLetter)
 				}
+			default:
+				done <- struct{}{}
+				break NotificationProcessLoop
+			}
+		}
+
+	}()
+	<-done
+
+	ChannelPool.Shutdown()
+}
+
+func TestForPublishingLeaksAndLoss(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	timeout := time.After(60 * time.Second)
+	Seasoning.PublisherConfig.AutoAck = true
+	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, publisher)
+
+	letterID := uint64(1)
+	body := "\xFF\xFF\x89\xFF\xFF"
+	envelope := &models.Envelope{
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
+	}
+
+	letter := &models.Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(3),
+		Body:       []byte(body),
+		Envelope:   envelope,
+	}
+
+	wg := &sync.WaitGroup{}
+	for i := 0; i < 100000; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			publisher.Publish(letter)
+		}()
+	}
+	wg.Wait()
+
+	done := make(chan struct{}, 1)
+
+	count := 0
+	go func() {
+	NotificationProcessLoop:
+		for {
+			select {
+			case <-timeout:
+				t.Log("test timed out")
+				done <- struct{}{} // not t.Fatal because we want the leak test to show us the problem
+			case notification := <-publisher.PublishReceipts():
+				if !notification.Success && notification.FailedLetter != nil {
+					t.Logf("LetterID: %d failed to publish, retrying...", notification.LetterID)
+					publisher.Publish(notification.FailedLetter)
+					break
+				}
+				count++
 			default:
 				done <- struct{}{}
 				break NotificationProcessLoop

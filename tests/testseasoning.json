@@ -14,7 +14,6 @@
 	},
 	"PoolConfig": {
 		"ChannelPoolConfig": {
-			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 1000,
 			"MaxChannelCount": 25,
 			"MaxAckChannelCount": 5,
@@ -24,7 +23,6 @@
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ConnectionName": "TurboCookedRabbit",
-			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 5000,
 			"MaxConnectionCount": 5,
 			"Heartbeat": 5,
@@ -66,11 +64,9 @@
 		}
 	},
 	"PublisherConfig": {
+		"AutoAck": false,
 		"SleepOnIdleInterval": 1000,
 		"SleepOnQueueFullInterval": 1000,
-		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 1000,
-		"MaxOverBuffer": 1000,
-		"NotificationBuffer": 1000
+		"SleepOnErrorInterval": 1000
 	}
 }

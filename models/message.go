@@ -8,16 +8,16 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// Notification is a way to communicate between callers
-type Notification struct {
+// PublishReceipt is a way to communicate between callers
+type PublishReceipt struct {
 	LetterID     uint64
 	FailedLetter *Letter
 	Success      bool
 	Error        error
 }
 
-// ToString allows you to quickly log the Notification struct as a string.
-func (not *Notification) ToString() string {
+// ToString allows you to quickly log the PublishReceipt struct as a string.
+func (not *PublishReceipt) ToString() string {
 	if not.Success {
 		return fmt.Sprintf("[LetterID: %d] - Successful.\r\n", not.LetterID)
 	}

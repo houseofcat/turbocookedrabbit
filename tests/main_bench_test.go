@@ -64,7 +64,7 @@ ReceivePublishConfirmations:
 		case <-ctx.Done():
 			fmt.Print("\r\nContextTimeout\r\n")
 			break ReceivePublishConfirmations
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				//fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesPublished++
@@ -177,7 +177,7 @@ ConsumeLoop:
 		select {
 		case <-timeOut:
 			break ConsumeLoop
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				messagesPublished++
 				notice = nil

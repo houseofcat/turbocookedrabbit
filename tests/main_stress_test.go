@@ -129,7 +129,7 @@ NoticeLoop:
 		select {
 		case <-finish:
 			break NoticeLoop
-		case notice := <-publisher.Notifications():
+		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				//fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesPublished++
