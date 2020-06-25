@@ -19,7 +19,6 @@ import (
 
 var Seasoning *models.RabbitSeasoning
 var ConnectionPool *pools.ConnectionPool
-var ChannelPool *pools.ChannelPool
 
 func TestMain(m *testing.M) { // Load Configuration On Startup
 
@@ -29,12 +28,7 @@ func TestMain(m *testing.M) { // Load Configuration On Startup
 		fmt.Print(err.Error())
 		return
 	}
-	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig, true)
-	if err != nil {
-		fmt.Print(err.Error())
-		return
-	}
-	ChannelPool, err = pools.NewChannelPool(Seasoning.PoolConfig, ConnectionPool, true)
+	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig)
 	if err != nil {
 		fmt.Print(err.Error())
 		return
@@ -210,11 +204,10 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
 	assert.NoError(t, err)
 
-	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer, err := topology.NewTopologer(channelPool)
-	assert.NoError(t, err)
+	topologer := topology.NewTopologer(connectionPool)
 
 	err = topologer.BuildToplogy(topologyConfig, true)
 	assert.NoError(t, err)
@@ -222,11 +215,10 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 
 func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 
-	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer, err := topology.NewTopologer(channelPool)
-	assert.NoError(t, err)
+	topologer := topology.NewTopologer(connectionPool)
 
 	topologyConfigs := make([]string, 0)
 	configRoot := "./"
@@ -251,11 +243,10 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 
 func TestUnbindQueue(t *testing.T) {
 
-	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer, err := topology.NewTopologer(channelPool)
-	assert.NoError(t, err)
+	topologer := topology.NewTopologer(connectionPool)
 
 	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
 	assert.NoError(t, err)

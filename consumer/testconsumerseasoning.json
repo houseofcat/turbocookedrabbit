@@ -31,8 +31,6 @@
 			"Exclusive": false,
 			"NoWait": false,
 			"QosCountOverride": 20,
-			"MessageBuffer": 1000,
-			"ErrorBuffer": 100,
 			"SleepOnErrorInterval": 1,
 			"SleepOnIdleInterval": 0
 		},

@@ -20,98 +20,11 @@ type TestStruct struct {
 func BenchmarkAutoPublishRandomLetters(b *testing.B) {
 	b.ReportAllocs()
 
-	testQueuePrefix := "PubTQ"
-	b.Logf("%s: Purging Queues...", time.Now())
-	purgeAllPublisherTestQueues(testQueuePrefix, ChannelPool)
-
-	messageCount := 100000
-	letters := make([]*models.Letter, messageCount)
-	totalBytes := uint64(0)
-
-	pub, err := publisher.NewPublisher(Seasoning, ChannelPool, ConnectionPool)
-	if err != nil {
-		b.Log(err.Error())
-	}
-
-	done := make(chan bool, 1)
-	pub.StartAutoPublish()
-
-	// Build letters
-	b.Logf("%s: Building Letters", time.Now())
-	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateMockRandomLetter(fmt.Sprintf("%s-%d", testQueuePrefix, i%10))
-		totalBytes += uint64(len(letters[i].Body))
-	}
-	b.Logf("%s: Finished Building Letters", time.Now())
-	b.Logf("%s: Total Size Created: %f MB", time.Now(), float64(totalBytes)/1000000.0)
-
-	go func() {
-	NotificationMonitor:
-		for {
-			select {
-			case <-done:
-				break NotificationMonitor
-			case <-pub.Notifications():
-				break
-			default:
-				break
-			}
-		}
-
-	}()
-
-	// Queue letters
-	startTime := time.Now()
-	b.Logf("%s: Queueing Letters", time.Now())
-	for i := 0; i < messageCount; i++ {
-		pub.QueueLetter(letters[i])
-	}
-	testDuration := time.Since(startTime)
-	b.Logf("%s: Finished Queueing letters after %s", time.Now(), testDuration)
-	b.Logf("%s: %f Msg/s", time.Now(), float64(messageCount)/testDuration.Seconds())
-
-	pub.StopAutoPublish()
-	done <- true
-	time.Sleep(2 * time.Second)
-
-	b.Logf("%s: Purging Queues...", time.Now())
-	//purgeAllPublisherTestQueues(testQueuePrefix, ChannelPool)
 }
 
 func BenchmarkAutoPublishRandomEncryptedLetters(b *testing.B) {
 	b.ReportAllocs()
 
-	testQueuePrefix := "PubTQ"
-	b.Logf("%s: Purging Queues...", time.Now())
-	purgeAllPublisherTestQueues(testQueuePrefix, ChannelPool)
-
-	messageCount := 100
-	letters := make([]*models.Letter, messageCount)
-
-	pub, err := publisher.NewPublisher(Seasoning, ChannelPool, ConnectionPool)
-	if err != nil {
-		b.Log(err.Error())
-	}
-
-	monitorLoopFinished := make(chan bool)
-	pub.StartAutoPublish()
-
-	// Build letters
-	buildLetters(b, messageCount, testQueuePrefix, letters)
-	go monitorLoop(b, monitorLoopFinished, pub, messageCount)
-
-	// Queue letters
-	startTime := time.Now()
-	b.Logf("%s: Queueing Letters", time.Now())
-	for i := 0; i < messageCount; i++ {
-		pub.QueueLetter(letters[i])
-	}
-	b.Logf("%s: Finished Queueing letters after %s", time.Now(), time.Since(startTime))
-
-	<-monitorLoopFinished
-
-	b.Logf("%s: Purging Queues...", time.Now())
-	//purgeAllPublisherTestQueues(testQueuePrefix, ChannelPool)
 }
 
 func buildLetters(b *testing.B, messageCount int, testQueuePrefix string, letters []*models.Letter) {
@@ -144,7 +57,7 @@ func monitorLoop(b *testing.B, monitorLoopFinished chan bool, pub *publisher.Pub
 	MonitorLoop:
 		for {
 			select {
-			case notification := <-pub.Notifications():
+			case notification := <-pub.PublishReceipts():
 				if notification.Success {
 					messagesPublished++
 				} else {

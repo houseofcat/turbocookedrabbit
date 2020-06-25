@@ -37,13 +37,13 @@ type ConnectionPoolConfig struct {
 	Heartbeat            uint32     `json:"Heartbeat"`
 	ConnectionTimeout    uint32     `json:"ConnectionTimeout"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
-	EnableTLS            bool       `json:"EnableTLS"`            // Use TLSConfig to create connections with AMQPS uri.
 	MaxConnectionCount   uint64     `json:"MaxConnectionCount"`   // number of connections to create in the pool
 	TLSConfig            *TLSConfig `json:"TLSConfig"`            // TLS settings for connection with AMQPS.
 }
 
 // TLSConfig represents settings for configuring TLS.
 type TLSConfig struct {
+	EnableTLS         bool   `json:"EnableTLS"` // Use TLSConfig to create connections with AMQPS uri.
 	PEMCertLocation   string `json:"PEMCertLocation"`
 	LocalCertLocation string `json:"LocalCertLocation"`
 	CertServerName    string `json:"CertServerName"`
@@ -58,9 +58,7 @@ type ConsumerConfig struct {
 	Exclusive            bool                   `json:"Exclusive"`
 	NoWait               bool                   `json:"NoWait"`
 	Args                 map[string]interface{} `json:"Args"`
-	QosCountOverride     int                    `json:"QosCountOverride"` // if zero ignored
-	MessageBuffer        uint32                 `json:"MessageBuffer"`
-	ErrorBuffer          uint32                 `json:"ErrorBuffer"`
+	QosCountOverride     int                    `json:"QosCountOverride"`     // if zero ignored
 	SleepOnErrorInterval uint32                 `json:"SleepOnErrorInterval"` // sleep on error
 	SleepOnIdleInterval  uint32                 `json:"SleepOnIdleInterval"`  // sleep on idle
 }

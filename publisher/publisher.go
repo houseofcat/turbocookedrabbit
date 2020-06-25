@@ -14,7 +14,8 @@ import (
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
 	Config                   *models.RabbitSeasoning
-	ChannelPool              *pools.ChannelPool
+	ConnectionPool           *pools.ConnectionPool
+	errors                   chan error
 	letters                  chan *models.Letter
 	autoStop                 chan bool
 	publishReceipts          chan *models.PublishReceipt
@@ -27,34 +28,44 @@ type Publisher struct {
 	pubRWLock                *sync.RWMutex
 }
 
-// NewPublisher creates and configures a new Publisher.
-func NewPublisher(
+// NewPublisherWithConfig creates and configures a new Publisher.
+func NewPublisherWithConfig(
 	config *models.RabbitSeasoning,
-	chanPool *pools.ChannelPool,
-	connPool *pools.ConnectionPool) (*Publisher, error) {
-
-	// If nil, create your own isolated ChannelPool based on configuration settings.
-	if chanPool == nil {
-		var err error
-		chanPool, err = pools.NewChannelPool(config.PoolConfig, connPool, true)
-		if err != nil {
-			return nil, err
-		}
-	}
+	cp *pools.ConnectionPool) (*Publisher, error) {
 
 	return &Publisher{
-		Config:                   config,
-		ChannelPool:              chanPool,
-		letters:                  make(chan *models.Letter),
-		autoStop:                 make(chan bool, 1),
-		autoPublishGroup:         &sync.WaitGroup{},
-		publishReceipts:          make(chan *models.PublishReceipt),
-		sleepOnIdleInterval:      time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
-		sleepOnQueueFullInterval: time.Duration(config.PublisherConfig.SleepOnQueueFullInterval) * time.Millisecond,
-		sleepOnErrorInterval:     time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
-		pubLock:                  &sync.Mutex{},
-		pubRWLock:                &sync.RWMutex{},
-		autoStarted:              false,
+		Config:               config,
+		ConnectionPool:       cp,
+		errors:               make(chan error),
+		letters:              make(chan *models.Letter),
+		autoStop:             make(chan bool, 1),
+		autoPublishGroup:     &sync.WaitGroup{},
+		publishReceipts:      make(chan *models.PublishReceipt),
+		sleepOnIdleInterval:  time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
+		sleepOnErrorInterval: time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
+		pubLock:              &sync.Mutex{},
+		pubRWLock:            &sync.RWMutex{},
+		autoStarted:          false,
+	}, nil
+}
+
+// NewPublisher creates and configures a new Publisher.
+func NewPublisher(
+	cp *pools.ConnectionPool,
+	sleepOnIdleInterval time.Duration,
+	sleepOnErrorInterval time.Duration) (*Publisher, error) {
+
+	return &Publisher{
+		ConnectionPool:       cp,
+		letters:              make(chan *models.Letter),
+		autoStop:             make(chan bool, 1),
+		autoPublishGroup:     &sync.WaitGroup{},
+		publishReceipts:      make(chan *models.PublishReceipt),
+		sleepOnIdleInterval:  sleepOnIdleInterval,
+		sleepOnErrorInterval: sleepOnErrorInterval,
+		pubLock:              &sync.Mutex{},
+		pubRWLock:            &sync.RWMutex{},
+		autoStarted:          false,
 	}, nil
 }
 
@@ -63,84 +74,85 @@ func NewPublisher(
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *models.Letter) {
 
-	var chanHost *pools.ChannelHost
-	var err error
+	chanHost := pub.ConnectionPool.GetChannel(!pub.Config.PublisherConfig.AutoAck)
 
-	// Loop till we can get a channel!
-	for {
-		if pub.Config.PublisherConfig.AutoAck {
-			chanHost, err = pub.ChannelPool.GetChannel()
-		} else {
-			chanHost, err = pub.ChannelPool.GetAckableChannel()
-		}
+	pub.simplePublish(chanHost, letter)
+}
 
-		if err != nil {
-			// throttle on error
-			time.Sleep(time.Millisecond * pub.sleepOnErrorInterval)
-			continue
-		}
-		break
-	}
+func (pub *Publisher) simplePublish(chanHost *pools.ChannelHost, letter *models.Letter) {
 
-	err = pub.simplePublish(chanHost.Channel, letter)
-	pub.finalize(err, letter, chanHost)
+	err := chanHost.Channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
+		},
+	)
+
+	chanHost.Close()
+	pub.publishReceipt(letter, err)
 }
 
 // PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
-// Only uses transient channels due to the complex nature of subcribing to the return notification.
-func (pub *Publisher) PublishWithConfirmation(letter *models.Letter) error {
+// A timeout failure drops the letter back in the PublishReceipts.
+// A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
+func (pub *Publisher) PublishWithConfirmation(letter *models.Letter, timeout time.Duration) {
+
+	timeoutAfter := time.After(timeout)
 
 GetChannelAndPublish:
 	for {
-		chanHost := pub.ChannelPool.GetTransientChannel(true)
+		// Has to use an Ackable channel for Publish Confirmations.
+		chanHost := pub.ConnectionPool.GetChannel(true)
+
+		// Subscribe to publish confirmations
 		chanHost.Channel.NotifyPublish(chanHost.Confirmations)
 
-		err := pub.simplePublish(chanHost.Channel, letter)
+	Publish:
+		err := chanHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      amqp.Table(letter.Envelope.Headers),
+				DeliveryMode: letter.Envelope.DeliveryMode,
+			},
+		)
 		if err != nil {
-			chanHost.Channel.Close()
-			goto GetChannelAndPublish
+			chanHost.Close()
+			continue // Take it again! From the top!
 		}
 
-		counter := 0 // exit condition
+		// Wait for Publish Confirmations
 		for {
 			select {
+			case <-timeoutAfter:
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (300ms) - recommend manual retry", letter.LetterID))
+				break
+
 			case confirmation := <-chanHost.Confirmations:
 
 				if !confirmation.Ack { // retry publish
-					chanHost.Channel.Close()
-					goto GetChannelAndPublish
+					goto Publish
 				}
 
 				pub.publishReceipt(letter, nil)
-				chanHost.Channel.Close()
 				break GetChannelAndPublish
 
 			default:
 
-				if counter == 100 {
-					chanHost.Channel.Close()
-					// TODO: Send to notifications. Needs to be re-PublishWithConfirmation which isn't supported yet.
-					return fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (300ms) - recommend retry", letter.LetterID)
-				}
-				counter++
 				time.Sleep(time.Duration(time.Millisecond * 3))
 			}
 		}
-	}
-
-	return nil
-}
-
-func (pub *Publisher) finalize(err error, letter *models.Letter, chanHost *pools.ChannelHost) {
-
-	errorOccurred := err != nil
-
-	pub.ChannelPool.ReturnChannel(chanHost, errorOccurred)
-	pub.publishReceipt(letter, err)
-
-	if errorOccurred {
-		time.Sleep(pub.sleepOnErrorInterval * time.Millisecond)
 	}
 }
 
@@ -149,55 +161,93 @@ func (pub *Publisher) PublishReceipts() <-chan *models.PublishReceipt {
 	return pub.publishReceipts
 }
 
-// StartAutoPublish starts auto-publishing letters queued up - is locking.
-func (pub *Publisher) StartAutoPublish() {
-	pub.FlushStops()
+// StartAutoPublishing starts the Publisher's auto-publishing capabilities.
+func (pub *Publisher) StartAutoPublishing() {
+	pub.pubLock.Lock()
+	defer pub.pubLock.Unlock()
 
 	if !pub.autoStarted {
+		pub.FlushStops()
 
-		go func() {
-		PublishLoop:
-			for {
-				select {
-				case stop := <-pub.autoStop:
-					if stop {
-						break PublishLoop
-					}
-				default:
-					break
-				}
-
-				select {
-				case letter := <-pub.letters:
-					pub.autoPublishGroup.Add(1)
-
-					go func() {
-						defer pub.autoPublishGroup.Done()
-						pub.Publish(letter)
-					}()
-
-				default:
-					if pub.sleepOnIdleInterval > 0 {
-						time.Sleep(pub.sleepOnIdleInterval)
-					}
-					break
-				}
-			}
-
-			pub.autoPublishGroup.Wait() // let all remaining publishes finish.
-
-			pub.pubLock.Lock()
-			pub.autoStarted = false
-			pub.pubLock.Unlock()
-		}()
-
-		pub.pubLock.Lock()
 		pub.autoStarted = true
-		pub.pubLock.Unlock()
+		go pub.startAutoPublishingLoop()
 	}
 }
 
-// StopAutoPublish stops publishing letters queued up - is locking.
+// StartAutoPublish starts auto-publishing letters queued up - is locking.
+func (pub *Publisher) startAutoPublishingLoop() {
+
+AutoPublishLoop:
+	for {
+		// Detect if we should stop publishing.
+		select {
+		case stop := <-pub.autoStop:
+			if stop {
+				break AutoPublishLoop
+			}
+		default:
+			break
+		}
+
+		// Get ChannelHost
+		chanHost := pub.ConnectionPool.GetChannel(true)
+
+		// Deliver letters queued in the publisher, returns true when we are to stop publishing.
+		if pub.deliverLetters(chanHost) {
+			chanHost.Close()
+			break AutoPublishLoop
+		}
+
+		chanHost.Close()
+	}
+
+	pub.pubLock.Lock()
+	pub.autoStarted = false
+	pub.pubLock.Unlock()
+}
+
+func (pub *Publisher) deliverLetters(chanHost *pools.ChannelHost) bool {
+
+DeliverLettersLoop:
+	for {
+		// Listen for channel closure (close errors).
+		// Highest priority so separated to it's own select.
+		select {
+		case errorMessage := <-chanHost.Errors():
+			if errorMessage != nil {
+				pub.errors <- fmt.Errorf("autopublisher's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
+				break DeliverLettersLoop
+			}
+		default:
+			break
+		}
+
+		// Publish the letter.
+		select {
+		case letter := <-pub.letters:
+			pub.simplePublish(chanHost, letter)
+		default:
+			if pub.sleepOnIdleInterval > 0 {
+				time.Sleep(pub.sleepOnIdleInterval)
+			}
+			break
+		}
+
+		// Detect if we should stop publishing.
+		select {
+		case stop := <-pub.autoStop:
+			if stop {
+				break DeliverLettersLoop
+			}
+		default:
+			break
+		}
+	}
+
+	return false
+}
+
+// StopAutoPublish stops publishing letters queued up.
 func (pub *Publisher) StopAutoPublish() {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
@@ -226,40 +276,6 @@ func (pub *Publisher) QueueLetter(letter *models.Letter) {
 	pub.letters <- letter
 }
 
-// SimplePublish performs the actual amqp.Publish.
-func (pub *Publisher) simplePublish(amqpChan *amqp.Channel, letter *models.Letter) error {
-
-	return amqpChan.Publish(
-		letter.Envelope.Exchange,
-		letter.Envelope.RoutingKey,
-		letter.Envelope.Mandatory,
-		letter.Envelope.Immediate,
-		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      amqp.Table(letter.Envelope.Headers),
-			DeliveryMode: letter.Envelope.DeliveryMode,
-		},
-	)
-}
-
-// TODO ConfirmationPublish
-func (pub *Publisher) complexPublish(amqpChan *amqp.Channel, letter *models.Letter) error {
-
-	return amqpChan.Publish(
-		letter.Envelope.Exchange,
-		letter.Envelope.RoutingKey,
-		letter.Envelope.Mandatory,
-		letter.Envelope.Immediate,
-		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      amqp.Table(letter.Envelope.Headers),
-			DeliveryMode: letter.Envelope.DeliveryMode,
-		},
-	)
-}
-
 // publishReceipt sends the status to the receipt channel.
 func (pub *Publisher) publishReceipt(letter *models.Letter, err error) {
 
@@ -275,6 +291,11 @@ func (pub *Publisher) publishReceipt(letter *models.Letter, err error) {
 	}
 
 	pub.publishReceipts <- publishReceipt
+}
+
+// Errors yields all the internal errs for delivering letters.
+func (pub *Publisher) Errors() <-chan error {
+	return pub.errors
 }
 
 // FlushStops flushes out all the AutoStop messages.
@@ -295,6 +316,6 @@ func (pub *Publisher) Shutdown(shutdownPools bool) {
 	pub.StopAutoPublish()
 
 	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
-		pub.ChannelPool.Shutdown()
+		pub.ConnectionPool.Shutdown()
 	}
 }

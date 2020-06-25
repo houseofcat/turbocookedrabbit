@@ -22,15 +22,15 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	messageCount := 1000
-	channelPool, _ := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-	publisher, _ := publisher.NewPublisher(Seasoning, channelPool, nil)
+	connectionPool, _ := pools.NewConnectionPool(Seasoning.PoolConfig)
+	publisher, _ := publisher.NewPublisherWithConfig(Seasoning, connectionPool)
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(b, ok)
 
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, connectionPool)
 
-	publisher.StartAutoPublish()
+	publisher.StartAutoPublishing()
 
 	counter := uint64(0)
 
@@ -47,9 +47,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 		}
 	}()
 
-	if err := consumer.StartConsuming(); err != nil {
-		b.Error(err)
-	}
+	consumer.StartConsuming()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1*time.Minute))
 	messagesReceived := 0
@@ -100,7 +98,7 @@ ReceivePublishConfirmations:
 	if err := consumer.StopConsuming(true, true); err != nil {
 		b.Error(err)
 	}
-	channelPool.Shutdown()
+	connectionPool.Shutdown()
 	cancel()
 }
 
@@ -112,19 +110,17 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	publisher, _ := publisher.NewPublisherWithConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(b, ok)
 
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 
-	publisher.StartAutoPublish()
+	publisher.StartAutoPublishing()
 
 	go publishLoop(timeOut, publisher)
 
-	if err := consumer.StartConsuming(); err != nil {
-		b.Error(err)
-	}
+	consumer.StartConsuming()
 
 	consumeLoop(b, timeOut, publisher, consumer)
 
@@ -134,7 +130,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 		b.Error(err)
 	}
 
-	ChannelPool.Shutdown()
+	ConnectionPool.Shutdown()
 }
 
 func publishLoop(timeOut <-chan time.Time, publisher *publisher.Publisher) {
@@ -190,7 +186,7 @@ ConsumeLoop:
 			consumerErrors++
 		case message := <-consumer.Messages():
 			messagesReceived++
-			go func(msg *models.Message) {
+			go func(msg *models.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					messagesFailedToAck++

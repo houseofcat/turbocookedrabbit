@@ -19,7 +19,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 	fmt.Printf("%s: Benchmark Starts\r\n", time.Now())
 	fmt.Printf("%s: Est. Benchmark End\r\n", time.Now().Add(timeDuration))
 
-	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
+	publisher, err := publisher.NewPublisherWithConfig(Seasoning, ConnectionPool)
 	if err != nil {
 		assert.NoError(t, err)
 		return
@@ -30,19 +30,17 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 		assert.True(t, ok)
 		return
 	}
-	consumer, conErr := consumer.NewConsumerFromConfig(consumerConfig, ChannelPool)
+	consumer, conErr := consumer.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 	if conErr != nil {
 		assert.NoError(t, conErr)
 		return
 	}
 
-	publisher.StartAutoPublish()
+	publisher.StartAutoPublishing()
 
 	go publish(timeOut, publisher)
 
-	if err = consumer.StartConsuming(); err != nil {
-		t.Error(err)
-	}
+	consumer.StartConsuming()
 
 	done := make(chan bool, 1)
 	go monitor(done, publisher, consumer)
@@ -58,7 +56,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 		t.Error(err)
 	}
 
-	ChannelPool.Shutdown()
+	ConnectionPool.Shutdown()
 
 	fmt.Printf("%s: Benchmark Finished\r\n", time.Now())
 }
@@ -96,7 +94,7 @@ ConsumeLoop:
 		case message := <-consumer.Messages():
 			messagesReceived++
 			//fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
-			go func(msg *models.Message) {
+			go func(msg *models.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					//fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)

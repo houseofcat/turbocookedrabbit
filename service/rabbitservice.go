@@ -18,7 +18,7 @@ import (
 // RabbitService is the struct for containing RabbitMQ management.
 type RabbitService struct {
 	Config               *models.RabbitSeasoning
-	ChannelPool          *pools.ChannelPool
+	ConnectionPool       *pools.ConnectionPool
 	Topologer            *topology.Topologer
 	Publisher            *publisher.Publisher
 	encryptionConfigured bool
@@ -35,23 +35,23 @@ type RabbitService struct {
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
 func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 
-	channelPool, err := pools.NewChannelPool(config.PoolConfig, nil, true)
+	connectionPool, err := pools.NewConnectionPool(config.PoolConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	publisher, err := publisher.NewPublisher(config, channelPool, nil)
+	publisher, err := publisher.NewPublisherWithConfig(config, connectionPool)
 	if err != nil {
 		return nil, err
 	}
 
-	topologer, err := topology.NewTopologer(channelPool)
+	topologer := topology.NewTopologer(connectionPool)
 	if err != nil {
 		return nil, err
 	}
 
 	rs := &RabbitService{
-		ChannelPool:          channelPool,
+		ConnectionPool:       connectionPool,
 		Config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
@@ -76,7 +76,7 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*models.Cons
 
 	for consumerName, consumerConfig := range consumerConfigs {
 
-		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ChannelPool)
+		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
 		if err != nil {
 			return err
 		}
@@ -96,7 +96,7 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*models.Cons
 func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
 
 	if consumerConfig, ok := rs.Config.ConsumerConfigs[consumerName]; ok {
-		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ChannelPool)
+		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
 		if err != nil {
 			return err
 		}
@@ -149,7 +149,7 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 		}
 	}
 
-	return rs.Publisher.PublishWithConfirmation(
+	rs.Publisher.PublishWithConfirmation(
 		&models.Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
@@ -162,7 +162,10 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 				Immediate:    false,
 				DeliveryMode: 2,
 			},
-		})
+		},
+		time.Duration(time.Millisecond*300))
+
+	return nil
 }
 
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
@@ -212,10 +215,11 @@ func (rs *RabbitService) StartService() {
 
 	// Start the background monitors and logging.
 	go rs.collectConsumerErrors()
+	go rs.collectAutoPublisherErrors()
 	go rs.monitorStopService()
 
 	// Start the AutoPublisher
-	rs.Publisher.StartAutoPublish()
+	rs.Publisher.StartAutoPublishing()
 }
 
 func (rs *RabbitService) monitorStopService() {
@@ -225,7 +229,7 @@ MonitorLoop:
 		select {
 		case <-rs.stopServiceSignal:
 			rs.stop = true
-			break MonitorLoop
+			break MonitorLoop // Prevent leaking goroutine
 		default:
 			time.Sleep(rs.monitorSleepInterval)
 			break
@@ -242,7 +246,7 @@ MonitorLoop:
 		IndividualConsumerLoop:
 			for {
 				if rs.stop {
-					break MonitorLoop
+					break MonitorLoop // Prevent leaking goroutine
 				}
 
 				select {
@@ -258,6 +262,24 @@ MonitorLoop:
 	}
 }
 
+func (rs *RabbitService) collectAutoPublisherErrors() {
+
+MonitorLoop:
+	for {
+		if rs.stop {
+			break MonitorLoop // Prevent leaking goroutine
+		}
+
+		select {
+		case err := <-rs.Publisher.Errors():
+			rs.centralErr <- err
+		default:
+			time.Sleep(rs.monitorSleepInterval)
+			break
+		}
+	}
+}
+
 // GetConsumer allows you to get the individual consumer.
 func (rs *RabbitService) GetConsumer(consumerName string) (*consumer.Consumer, error) {
 
@@ -268,20 +290,14 @@ func (rs *RabbitService) GetConsumer(consumerName string) (*consumer.Consumer, e
 	return nil, errors.New("consumer was not found")
 }
 
-// StopService stops the AutoPublisher, Consumer, and Monitoring.
-func (rs *RabbitService) StopService() {
+// Shutdown stops the service and shuts down the ChannelPool.
+func (rs *RabbitService) Shutdown(stopConsumers bool) {
 
 	rs.Publisher.StopAutoPublish()
 
 	time.Sleep(1 * time.Second)
 	rs.stopServiceSignal <- true
 	time.Sleep(1 * time.Second)
-}
-
-// Shutdown stops the service and shuts down the ChannelPool.
-func (rs *RabbitService) Shutdown(stopConsumers bool) {
-
-	rs.StopService()
 
 	if stopConsumers {
 		for _, consumer := range rs.consumers {
@@ -292,7 +308,7 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 		}
 	}
 
-	rs.ChannelPool.Shutdown()
+	rs.ConnectionPool.Shutdown()
 }
 
 // CentralErr yields all the internal errs for sub-processes.
