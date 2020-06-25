@@ -139,12 +139,6 @@ NoticeLoop:
 				fmt.Printf("%s: Requeueing for Publish - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				publisher.QueueLetter(notice.FailedLetter)
 			}
-		case err := <-ChannelPool.Errors():
-			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
-			channelPoolErrors++
-		case err := <-ConnectionPool.Errors():
-			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
-			connectionPoolErrors++
 		case err := <-consumer.Errors():
 			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++

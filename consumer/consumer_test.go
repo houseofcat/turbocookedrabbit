@@ -235,8 +235,6 @@ ErrorLoop:
 			fmt.Printf("LowerLoop: %s", notice.ToString())
 		case err := <-consumer.Errors():
 			fmt.Printf("%s\r\n", err)
-		case err := <-channelPool.Errors():
-			fmt.Printf("%s\r\n", err)
 		default:
 			break ErrorLoop
 		}

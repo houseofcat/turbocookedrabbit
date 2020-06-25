@@ -22,7 +22,6 @@ type ConnectionPool struct {
 	uri                        string
 	enableTLS                  bool
 	tlsConfig                  *tls.Config
-	errors                     chan error
 	heartbeat                  time.Duration
 	connectionTimeout          time.Duration
 	connections                *queue.Queue
@@ -67,10 +66,6 @@ func NewConnectionPool(
 		}
 	}
 
-	if config.ConnectionPoolConfig.ErrorBuffer == 0 {
-		return nil, errors.New("can't create a ConnectionPool when the ErrorBuffer value is 0")
-	}
-
 	maxChannelPerConnection := uint64(1)
 	if config.ConnectionPoolConfig.MaxConnectionCount == 1 {
 		maxChannelPerConnection = config.ChannelPoolConfig.MaxChannelCount
@@ -91,7 +86,6 @@ func NewConnectionPool(
 		connectionName:             config.ConnectionPoolConfig.ConnectionName,
 		enableTLS:                  config.ConnectionPoolConfig.EnableTLS,
 		tlsConfig:                  tlsConfig,
-		errors:                     make(chan error, config.ConnectionPoolConfig.ErrorBuffer),
 		heartbeat:                  time.Duration(config.ConnectionPoolConfig.Heartbeat) * time.Second,
 		connectionTimeout:          time.Duration(config.ConnectionPoolConfig.ConnectionTimeout) * time.Second,
 		maxConnections:             config.ConnectionPoolConfig.MaxConnectionCount,
@@ -210,15 +204,6 @@ func (cp *ConnectionPool) createConnectionHostWithTLS(connectionID uint64) (*Con
 		cp.tlsConfig)
 }
 
-func (cp *ConnectionPool) handleError(err error) {
-	go func() { cp.errors <- err }()
-}
-
-// Errors yields all the internal errs for creating connections.
-func (cp *ConnectionPool) Errors() <-chan error {
-	return cp.errors
-}
-
 // GetConnection gets a connection based on whats in the ConnectionPool (blocking under bad network conditions).
 // Outages/transient network outages block until success connecting.
 // Uses the SleepOnErrorInterval to pause between retries.
@@ -295,9 +280,7 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 // ReturnConnection puts the connection back in the queue.
 // This helps maintain a Round Robin on Connections and their resources.
 func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost) {
-	if err := cp.connections.Put(connHost); err != nil {
-		cp.handleError(err)
-	}
+	cp.connections.Put(connHost)
 }
 
 // ConnectionCount flags that connection as usable in the future. Careful, locking call.
@@ -345,8 +328,6 @@ func (cp *ConnectionPool) Shutdown() {
 		cp.flaggedConnections = make(map[uint64]bool)
 		cp.connectionID = 0
 		cp.Initialized = false
-
-		cp.FlushErrors()
 	}
 
 	// Release connection lock (0)
@@ -363,19 +344,6 @@ func (cp *ConnectionPool) shutdownConnections() {
 			if !connectionHost.Connection.IsClosed() {
 				connectionHost.Connection.Close()
 			}
-		}
-	}
-}
-
-// FlushErrors empties all current errors in the error channel.
-func (cp *ConnectionPool) FlushErrors() {
-
-FlushLoop:
-	for {
-		select {
-		case <-cp.Errors():
-		default:
-			break FlushLoop
 		}
 	}
 }

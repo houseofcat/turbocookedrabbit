@@ -48,8 +48,6 @@ func TestCreatePublisher(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -60,8 +58,6 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
@@ -90,9 +86,6 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case chanErr := <-channelPool.Errors():
-			assert.NoError(t, chanErr) // This test fails on channel errors.
-			break AssertLoop
 		case notification := <-publisher.Notifications():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
@@ -111,8 +104,6 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 
@@ -128,9 +119,6 @@ func TestAutoPublishSingleMessage(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case chanErr := <-channelPool.Errors():
-			assert.NoError(t, chanErr) // This test fails on channel errors.
-			break AssertLoop
 		case notification := <-publisher.Notifications():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letter.LetterID, notification.LetterID)
@@ -151,8 +139,6 @@ func TestAutoPublishManyMessages(t *testing.T) {
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	// Purge all queues first.
 	purgeAllPublisherTestQueues("PubTQ", channelPool)
@@ -190,11 +176,6 @@ ListeningForNotificationsLoop:
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case chanErr := <-channelPool.Errors():
-			if chanErr != nil {
-				failureCount++
-			}
-			break
 		case notification := <-publisher.Notifications():
 			if notification.Success {
 				successCount++
@@ -281,11 +262,6 @@ ListeningForNotificationsLoop:
 		select {
 		case <-timer.C:
 			break ListeningForNotificationsLoop
-		case chanErr := <-channelPool.Errors():
-			if chanErr != nil {
-				failureCount++
-			}
-			break
 		case notification = <-publisher1.Notifications():
 		case notification = <-publisher2.Notifications():
 		default:
@@ -334,8 +310,6 @@ func TestFourAutoPublishSameChannelPool(t *testing.T) {
 
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool.FlushErrors()
 
 	// Purge all queues first.
 	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
@@ -390,11 +364,6 @@ ListeningForNotificationsLoop:
 		case <-timer.C:
 			fmt.Printf(" == Timeout Occurred == ")
 			break ListeningForNotificationsLoop
-		case chanErr := <-channelPool.Errors():
-			if chanErr != nil {
-				failureCount++
-			}
-			break
 		case notification = <-publisher1.Notifications():
 		case notification = <-publisher2.Notifications():
 		case notification = <-publisher3.Notifications():
@@ -456,11 +425,6 @@ func TestFourAutoPublishFourChannelPool(t *testing.T) {
 
 	channelPool4, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
-
-	channelPool1.FlushErrors()
-	channelPool2.FlushErrors()
-	channelPool3.FlushErrors()
-	channelPool4.FlushErrors()
 
 	// Purge all queues first.
 	purgeAllPublisherTestQueues("PubTQ", ChannelPool)
@@ -578,8 +542,6 @@ func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 	channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
 	assert.NoError(t, err)
 
-	channelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -587,11 +549,12 @@ func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 	letterID := uint64(1)
 	body := "\xFF\xFF\x89\xFF\xFF"
 	envelope := &models.Envelope{
-		Exchange:    "",
-		RoutingKey:  "ConfirmationTestQueue",
-		ContentType: "plain/text",
-		Mandatory:   false,
-		Immediate:   false,
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
 	}
 
 	letter := &models.Letter{
@@ -608,9 +571,6 @@ func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case chanErr := <-channelPool.Errors():
-			assert.NoError(t, chanErr) // This test fails on channel errors.
-			break AssertLoop
 		case notification := <-publisher.Notifications():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
@@ -627,8 +587,6 @@ AssertLoop:
 func TestCreatePublisherAndPublishManyWithConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	ChannelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -636,11 +594,12 @@ func TestCreatePublisherAndPublishManyWithConfirmation(t *testing.T) {
 	letterID := uint64(1)
 	body := "\xFF\xFF\x89\xFF\xFF"
 	envelope := &models.Envelope{
-		Exchange:    "",
-		RoutingKey:  "ConfirmationTestQueue",
-		ContentType: "plain/text",
-		Mandatory:   false,
-		Immediate:   false,
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
 	}
 
 	letter := &models.Letter{
@@ -660,9 +619,6 @@ func TestCreatePublisherAndPublishManyWithConfirmation(t *testing.T) {
 AssertLoop:
 	for {
 		select {
-		case chanErr := <-ChannelPool.Errors():
-			assert.NoError(t, chanErr) // This test fails on channel errors.
-			break AssertLoop
 		case notification := <-publisher.Notifications():
 			assert.True(t, notification.Success)
 			assert.Equal(t, letterID, notification.LetterID)
@@ -681,11 +637,12 @@ func BenchmarkCreatePublisherAndPublishManyWithConfirmation(b *testing.B) {
 	letterID := uint64(1)
 	body := "\xFF\xFF\x89\xFF\xFF"
 	envelope := &models.Envelope{
-		Exchange:    "",
-		RoutingKey:  "ConfirmationTestQueue",
-		ContentType: "plain/text",
-		Mandatory:   false,
-		Immediate:   false,
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
 	}
 
 	letter := &models.Letter{
@@ -703,8 +660,6 @@ func BenchmarkCreatePublisherAndPublishManyWithConfirmation(b *testing.B) {
 func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	ChannelPool.FlushErrors()
-
 	publisher, err := publisher.NewPublisher(Seasoning, ChannelPool, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, publisher)
@@ -712,11 +667,12 @@ func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
 	letterID := uint64(1)
 	body := "\xFF\xFF\x89\xFF\xFF"
 	envelope := &models.Envelope{
-		Exchange:    "",
-		RoutingKey:  "ConfirmationTestQueue",
-		ContentType: "plain/text",
-		Mandatory:   false,
-		Immediate:   false,
+		Exchange:     "",
+		RoutingKey:   "ConfirmationTestQueue",
+		ContentType:  "plain/text",
+		Mandatory:    false,
+		Immediate:    false,
+		DeliveryMode: 2,
 	}
 
 	letter := &models.Letter{
@@ -727,7 +683,7 @@ func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
 	}
 
 	wg := &sync.WaitGroup{}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 100000; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
@@ -736,24 +692,24 @@ func TestCreatePublisherAndParallelPublishManyWithConfirmation(t *testing.T) {
 	}
 	wg.Wait()
 
-	ChannelPool.Shutdown()
+	done := make(chan struct{}, 1)
 
-	// Assert on all Notifications
-AssertLoop:
-	for {
-		select {
-		case chanErr := <-ChannelPool.Errors():
-			assert.NoError(t, chanErr) // This test fails on channel errors.
-			break AssertLoop
-		case notification := <-publisher.Notifications():
-			assert.True(t, notification.Success)
-			assert.Equal(t, letterID, notification.LetterID)
-			assert.NoError(t, notification.Error)
-			break AssertLoop
-		default:
-			time.Sleep(100 * time.Millisecond)
+	go func() {
+	NotificationProcessLoop:
+		for {
+			select {
+			case <-publisher.Notifications():
+
+			default:
+				done <- struct{}{}
+				break NotificationProcessLoop
+			}
 		}
-	}
+
+	}()
+	<-done
+
+	ChannelPool.Shutdown()
 }
 
 func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B) {
@@ -787,4 +743,19 @@ func BenchmarkCreatePublisherAndParallelPublishManyWithConfirmation(b *testing.B
 		}()
 	}
 	wg.Wait()
+
+	done := make(chan struct{}, 1)
+	go func() {
+		for {
+			select {
+			case <-publisher.Notifications():
+
+			default:
+				done <- struct{}{}
+				break
+			}
+		}
+
+	}()
+	<-done
 }

@@ -23,7 +23,6 @@ type PoolConfig struct {
 
 // ChannelPoolConfig represents settings for creating channel pools.
 type ChannelPoolConfig struct {
-	ErrorBuffer          uint16 `json:"ErrorBuffer"`
 	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"` // sleep length on errors
 	MaxChannelCount      uint64 `json:"MaxChannelCount"`
 	MaxAckChannelCount   uint64 `json:"MaxAckChannelCount"`
@@ -37,7 +36,6 @@ type ConnectionPoolConfig struct {
 	URI                  string     `json:"URI"`
 	Heartbeat            uint32     `json:"Heartbeat"`
 	ConnectionTimeout    uint32     `json:"ConnectionTimeout"`
-	ErrorBuffer          uint16     `json:"ErrorBuffer"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
 	EnableTLS            bool       `json:"EnableTLS"`            // Use TLSConfig to create connections with AMQPS uri.
 	MaxConnectionCount   uint64     `json:"MaxConnectionCount"`   // number of connections to create in the pool

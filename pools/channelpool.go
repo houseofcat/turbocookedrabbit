@@ -18,7 +18,6 @@ type ChannelPool struct {
 	Config               models.PoolConfig
 	connectionPool       *ConnectionPool
 	Initialized          bool
-	errors               chan error
 	channels             *queue.Queue
 	ackChannels          *queue.Queue
 	maxChannels          uint64
@@ -54,7 +53,6 @@ func NewChannelPool(
 	cp := &ChannelPool{
 		Config:               *config,
 		connectionPool:       connPool,
-		errors:               make(chan error, config.ChannelPoolConfig.ErrorBuffer),
 		maxChannels:          config.ChannelPoolConfig.MaxChannelCount,
 		maxAckChannels:       config.ChannelPoolConfig.MaxAckChannelCount,
 		channels:             queue.New(int64(config.ChannelPoolConfig.MaxChannelCount)),
@@ -176,22 +174,13 @@ GetNewConnection:
 
 	if cp.globalQosCount > 0 {
 		if err = channelHost.Channel.Qos(cp.globalQosCount, 0, true); err != nil {
-			cp.handleError(err)
+			return nil, err
 		}
 	}
 
 	cp.connectionPool.ReturnConnection(connHost)
 
 	return channelHost, nil
-}
-
-func (cp *ChannelPool) handleError(err error) {
-	go func() { cp.errors <- err }()
-}
-
-// Errors yields all the internal err chan for managing the ChannelPool.
-func (cp *ChannelPool) Errors() <-chan error {
-	return cp.errors
 }
 
 // GetChannel gets a channel based on whats ChannelPool queue (blocking under bad network conditions).
@@ -265,13 +254,9 @@ DequeueChannel:
 // Optional parameter allows you to flag a Channel as dead.
 func (cp *ChannelPool) ReturnChannel(chanHost *ChannelHost, flagChannel bool) {
 	if chanHost.IsAckable() {
-		if err := cp.ackChannels.Put(chanHost); err != nil {
-			cp.handleError(err)
-		}
+		cp.ackChannels.Put(chanHost)
 	} else {
-		if err := cp.channels.Put(chanHost); err != nil {
-			cp.handleError(err)
-		}
+		cp.channels.Put(chanHost)
 	}
 
 	if flagChannel {
@@ -453,17 +438,4 @@ func (cp *ChannelPool) shutdownAckChannels(done chan bool) {
 	}
 
 	done <- true
-}
-
-// FlushErrors empties all current errors in the error channel.
-func (cp *ChannelPool) FlushErrors() {
-
-FlushLoop:
-	for {
-		select {
-		case <-cp.Errors():
-		default:
-			break FlushLoop
-		}
-	}
 }

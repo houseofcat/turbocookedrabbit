@@ -211,7 +211,6 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 func (rs *RabbitService) StartService() {
 
 	// Start the background monitors and logging.
-	go rs.collectChannelPoolErrors()
 	go rs.collectConsumerErrors()
 	go rs.monitorStopService()
 
@@ -227,24 +226,6 @@ MonitorLoop:
 		case <-rs.stopServiceSignal:
 			rs.stop = true
 			break MonitorLoop
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
-		}
-	}
-}
-
-func (rs *RabbitService) collectChannelPoolErrors() {
-
-MonitorLoop:
-	for {
-		if rs.stop {
-			break MonitorLoop
-		}
-
-		select {
-		case err := <-rs.ChannelPool.Errors():
-			rs.centralErr <- err
 		default:
 			time.Sleep(rs.monitorSleepInterval)
 			break
