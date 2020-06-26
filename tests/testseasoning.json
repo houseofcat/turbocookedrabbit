@@ -53,6 +53,7 @@
 	"PublisherConfig": {
 		"AutoAck": false,
 		"SleepOnIdleInterval": 0,
-		"SleepOnErrorInterval": 0
+		"SleepOnErrorInterval": 0,
+		"PublishTimeOutInterval": 1000
 	}
 }

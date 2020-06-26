@@ -10,19 +10,19 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config                   *RabbitSeasoning
-	ConnectionPool           *ConnectionPool
-	errors                   chan error
-	letters                  chan *Letter
-	autoStop                 chan bool
-	publishReceipts          chan *PublishReceipt
-	autoStarted              bool
-	autoPublishGroup         *sync.WaitGroup
-	sleepOnIdleInterval      time.Duration
-	sleepOnQueueFullInterval time.Duration
-	sleepOnErrorInterval     time.Duration
-	pubLock                  *sync.Mutex
-	pubRWLock                *sync.RWMutex
+	Config                 *RabbitSeasoning
+	ConnectionPool         *ConnectionPool
+	errors                 chan error
+	letters                chan *Letter
+	autoStop               chan bool
+	publishReceipts        chan *PublishReceipt
+	autoStarted            bool
+	autoPublishGroup       *sync.WaitGroup
+	sleepOnIdleInterval    time.Duration
+	sleepOnErrorInterval   time.Duration
+	publishTimeOutDuration time.Duration
+	pubLock                *sync.Mutex
+	pubRWLock              *sync.RWMutex
 }
 
 // NewPublisherWithConfig creates and configures a new Publisher.
@@ -31,18 +31,19 @@ func NewPublisherWithConfig(
 	cp *ConnectionPool) (*Publisher, error) {
 
 	return &Publisher{
-		Config:               config,
-		ConnectionPool:       cp,
-		errors:               make(chan error),
-		letters:              make(chan *Letter),
-		autoStop:             make(chan bool, 1),
-		autoPublishGroup:     &sync.WaitGroup{},
-		publishReceipts:      make(chan *PublishReceipt),
-		sleepOnIdleInterval:  time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
-		sleepOnErrorInterval: time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
-		pubLock:              &sync.Mutex{},
-		pubRWLock:            &sync.RWMutex{},
-		autoStarted:          false,
+		Config:                 config,
+		ConnectionPool:         cp,
+		errors:                 make(chan error),
+		letters:                make(chan *Letter),
+		autoStop:               make(chan bool, 1),
+		autoPublishGroup:       &sync.WaitGroup{},
+		publishReceipts:        make(chan *PublishReceipt),
+		sleepOnIdleInterval:    time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
+		sleepOnErrorInterval:   time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
+		publishTimeOutDuration: time.Duration(config.PublisherConfig.PublishTimeOutInterval) * time.Millisecond,
+		pubLock:                &sync.Mutex{},
+		pubRWLock:              &sync.RWMutex{},
+		autoStarted:            false,
 	}, nil
 }
 
@@ -102,6 +103,10 @@ func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) error
 // A timeout failure drops the letter back in the PublishReceipts.
 // A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
 func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Duration) {
+
+	if timeout == 0 {
+		timeout = pub.publishTimeOutDuration
+	}
 
 	timeoutAfter := time.After(timeout)
 
@@ -202,32 +207,12 @@ AutoPublishLoop:
 
 func (pub *Publisher) deliverLetters() bool {
 
-DeliverLettersLoop:
 	for {
-		// Get ChannelHost
-		chanHost := pub.ConnectionPool.GetChannel(true)
-
-		// Listen for channel closure (close errors).
-		// Highest priority so separated to it's own select.
-		select {
-		case errorMessage := <-chanHost.Errors():
-			if errorMessage != nil {
-				pub.ConnectionPool.ReturnChannel(chanHost, true)
-				pub.errors <- fmt.Errorf("autopublisher's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
-				break DeliverLettersLoop
-			}
-		default:
-			break
-		}
 
 		// Publish the letter.
 		select {
 		case letter := <-pub.letters:
-			err := pub.simplePublish(chanHost, letter)
-			if err != nil {
-				pub.ConnectionPool.ReturnChannel(chanHost, true)
-				continue
-			}
+			pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
 		default:
 			if pub.sleepOnIdleInterval > 0 {
 				time.Sleep(pub.sleepOnIdleInterval)
@@ -239,15 +224,12 @@ DeliverLettersLoop:
 		select {
 		case stop := <-pub.autoStop:
 			if stop {
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
 				return true
 			}
 		default:
 			break
 		}
 	}
-
-	return false
 }
 
 // StopAutoPublish stops publishing letters queued up.
@@ -262,8 +244,7 @@ func (pub *Publisher) StopAutoPublish() {
 	go func() { pub.autoStop <- true }() // signal auto publish to stop
 }
 
-// QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish.
-// Blocks on the Letter Buffer being full.
+// QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish. By default, AutoPublish uses PublishWithConfirmation as the mechanism for publishing.
 func (pub *Publisher) QueueLetters(letters []*Letter) {
 
 	for _, letter := range letters {
@@ -272,10 +253,8 @@ func (pub *Publisher) QueueLetters(letters []*Letter) {
 	}
 }
 
-// QueueLetter queues up a letter that will be consumed by AutoPublish.
-// Blocks on the Letter Buffer being full.
+// QueueLetter queues up a letter that will be consumed by AutoPublish. By default, AutoPublish uses PublishWithConfirmation as the mechanism for publishing.
 func (pub *Publisher) QueueLetter(letter *Letter) {
-
 	pub.letters <- letter
 }
 
