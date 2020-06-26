@@ -102,7 +102,8 @@ GetConnectionHost:
 			return nil, err
 		}
 
-		connectionHost, ok := structs[0].(*ConnectionHost)
+		var ok bool
+		connectionHost, ok = structs[0].(*ConnectionHost)
 		if !ok {
 			return nil, errors.New("invalid struct type found in ConnectionPool queue")
 		}

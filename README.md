@@ -31,31 +31,6 @@ Code has changed. I am sorry, but it is better for the both of us.
 
 ### Basic Performance
 
-JSON Config Used: `testseason.json`
-Benchmark Ran: `BenchmarkPublishConsumeAckForDuration` in `main_bench_test.go`
-
-    1x Publisher AutoPublish ~ 21000 msg/s - Single Queue - Small Message Sizes
-    1x Consumer Consumption ~ 15-17000 msg/s - Single Queue - Small Message Sizes
-
-Stress Test - 2 hours of Publish/Consume
-
-	PS C:\GitHub\personal\turbocookedrabbit> go test -timeout 121m -run "^(TestStressPublishConsumeAckForDuration)$" -v
-
-	=== RUN   TestStressPublishConsumeAckForDuration
-	2019-09-15 12:07:08.9556184 -0400 EDT m=+0.100359901: Benchmark Starts
-	2019-09-15 14:07:08.9566168 -0400 EDT m=+7200.101358301: Est. Benchmark End
-	Messages Acked: 3662418
-	Messages Failed to Ack: 0
-	Messages Received: 3662418
-	ChannelPool Errors: 0
-	ConnectionPool Errors: 0
-	Consumer Errors: 0
-	Messages Published: 3662418
-	Messages Failed to Publish: 0
-	2019-09-15 14:07:08.9711087 -0400 EDT m=+7200.115850201: Benchmark Finished
-	--- PASS: TestStressPublishConsumeAckForDuration (7200.02s)
-	PASS
-	ok      github.com/houseofcat/turbocookedrabbit 7201.863s
 
 ### Work Recently Finished
  * Solidify Connections/Pools outage handling.

@@ -12,16 +12,15 @@ import (
 )
 
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
+
 	b.ReportAllocs()
-	//ctx, task := trace.NewTask(context.Background(), "BenchmarkPublishAndConsumeMany")
-	//defer task.End()
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	messageCount := 1000
+	messageCount := 10000
 	connectionPool, _ := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, connectionPool)
 
-	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer"]
 	assert.True(b, ok)
 
 	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, connectionPool)
@@ -36,10 +35,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 			letter.LetterID = counter
 			counter++
 
-			go publisher.QueueLetter(letter)
-			//fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), letter.LetterID)
-
-			time.Sleep(1 * time.Millisecond)
+			publisher.QueueLetter(letter)
 		}
 	}()
 
@@ -58,8 +54,8 @@ ReceivePublishConfirmations:
 		case <-ctx.Done():
 			fmt.Print("\r\nContextTimeout\r\n")
 			break ReceivePublishConfirmations
-		case notice := <-publisher.PublishReceipts():
-			if notice.Success {
+		case publish := <-publisher.PublishReceipts():
+			if publish.Success {
 				//fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
 				messagesPublished++
 			} else {
@@ -73,7 +69,7 @@ ReceivePublishConfirmations:
 			//fmt.Printf("%s: MessageReceived\r\n", time.Now())
 			messagesReceived++
 		default:
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(10 * time.Microsecond)
 			break
 		}
 
@@ -141,9 +137,7 @@ func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 			default:
 				newLetter := tcr.Letter(*letterTemplate)
 				publisher.QueueLetter(&newLetter)
-				//fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
 				letterTemplate.LetterID++
-				time.Sleep(5 * time.Microsecond)
 			}
 		}
 	}()
@@ -161,14 +155,13 @@ func consumeLoop(
 	messagesAcked := 0
 	messagesFailedToAck := 0
 	consumerErrors := 0
-	channelPoolErrors := 0
 	connectionPoolErrors := 0
 
-ConsumeLoop:
+MonitorLoop:
 	for {
 		select {
 		case <-timeOut:
-			break ConsumeLoop
+			break MonitorLoop
 		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				messagesPublished++
@@ -191,12 +184,11 @@ ConsumeLoop:
 				}
 			}(message)
 		default:
-			time.Sleep(50 * time.Microsecond)
+			time.Sleep(1 * time.Microsecond)
 			break
 		}
 	}
 
-	b.Logf("ChannelPool Errors: %d\r\n", channelPoolErrors)
 	b.Logf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
 
 	b.Logf("Consumer Errors: %d\r\n", consumerErrors)

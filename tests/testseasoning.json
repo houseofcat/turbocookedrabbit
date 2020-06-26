@@ -14,7 +14,7 @@
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ConnectionName": "TurboCookedRabbit",
 			"SleepOnErrorInterval": 5000,
-			"MaxConnectionCount": 5,
+			"MaxConnectionCount": 10,
 			"Heartbeat": 5,
 			"ConnectionTimeout": 10,
 			"TLSConfig": {
@@ -33,9 +33,9 @@
 			"AutoAck": true,
 			"Exclusive": false,
 			"NoWait": false,
-			"QosCountOverride": 5,
-			"SleepOnErrorInterval": 1000,
-			"SleepOnIdleInterval": 1000
+			"QosCountOverride": 100,
+			"SleepOnErrorInterval": 0,
+			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-Ackable": {
 			"Enabled": true,
@@ -44,14 +44,14 @@
 			"AutoAck": false,
 			"Exclusive": false,
 			"NoWait": false,
-			"QosCountOverride": 10,
-			"SleepOnErrorInterval": 100,
+			"QosCountOverride": 100,
+			"SleepOnErrorInterval": 0,
 			"SleepOnIdleInterval": 0
 		}
 	},
 	"PublisherConfig": {
 		"AutoAck": false,
-		"SleepOnIdleInterval": 1000,
-		"SleepOnErrorInterval": 1000
+		"SleepOnIdleInterval": 0,
+		"SleepOnErrorInterval": 0
 	}
 }

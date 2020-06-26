@@ -74,6 +74,8 @@ func (pub *Publisher) Publish(letter *Letter) {
 	chanHost := pub.ConnectionPool.GetChannel(!pub.Config.PublisherConfig.AutoAck)
 
 	pub.simplePublish(chanHost, letter)
+
+	chanHost.Close()
 }
 
 func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) {
@@ -91,7 +93,6 @@ func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) {
 		},
 	)
 
-	chanHost.Close()
 	pub.publishReceipt(letter, err)
 }
 
@@ -234,7 +235,7 @@ DeliverLettersLoop:
 		select {
 		case stop := <-pub.autoStop:
 			if stop {
-				break DeliverLettersLoop
+				return true
 			}
 		default:
 			break
