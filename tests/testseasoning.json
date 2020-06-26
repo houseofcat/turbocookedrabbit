@@ -1,6 +1,6 @@
 {
 	"EncryptionConfig": {
-		"Enabled": true,
+		"Enabled": false,
 		"Type": "aes",
 		"TimeConsideration": 1,
 		"Threads": 2

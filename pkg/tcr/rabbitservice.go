@@ -200,6 +200,46 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 	return nil
 }
 
+// PublishData tries to publish.
+func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
+
+	if data == nil || (exchangeName == "" && routingKey == "") {
+		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
+	}
+
+	currentCount := atomic.LoadUint64(&rs.letterCount)
+	atomic.AddUint64(&rs.letterCount, 1)
+
+	rs.Publisher.Publish(
+		&Letter{
+			LetterID: currentCount,
+			Body:     data,
+			Envelope: &Envelope{
+				Exchange:     exchangeName,
+				RoutingKey:   routingKey,
+				ContentType:  "application/json",
+				Mandatory:    false,
+				Immediate:    false,
+				DeliveryMode: 2,
+			},
+		})
+
+	return nil
+}
+
+// PublishLetter wraps around Publisher to simply Publish.
+func (rs *RabbitService) PublishLetter(letter *Letter) error {
+
+	currentCount := atomic.LoadUint64(&rs.letterCount)
+	atomic.AddUint64(&rs.letterCount, 1)
+
+	letter.LetterID = currentCount
+
+	rs.Publisher.Publish(letter)
+
+	return nil
+}
+
 // GetConsumer allows you to get the individual
 func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 
