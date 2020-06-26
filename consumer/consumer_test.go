@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/consumer"
 	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
@@ -42,6 +43,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestCreateConsumer(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	consumer1, err1 := consumer.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
 	assert.NoError(t, err1)
@@ -51,9 +53,11 @@ func TestCreateConsumer(t *testing.T) {
 	assert.NoError(t, err2)
 	assert.NotNil(t, consumer2)
 
+	ConnectionPool.Shutdown()
 }
 
 func TestStartStopConsumer(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	consumer, err := consumer.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NoError(t, err)
@@ -63,4 +67,5 @@ func TestStartStopConsumer(t *testing.T) {
 	err = consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
+	ConnectionPool.Shutdown()
 }
