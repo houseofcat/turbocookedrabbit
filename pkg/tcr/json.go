@@ -9,9 +9,13 @@ import (
 )
 
 const (
+	// GzipCompressionType helps identify which compression/decompression to use.
 	GzipCompressionType = "gzip"
+
+	// ZstdCompressionType helps identify which compression/decompression to use.
 	ZstdCompressionType = "zstd"
 
+	//AesSymmetricType helps identity which encryption/decryption to use.
 	AesSymmetricType = "aes"
 )
 
