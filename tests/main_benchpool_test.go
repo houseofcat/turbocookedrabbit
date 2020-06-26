@@ -23,7 +23,7 @@ func BenchmarkGetMultiChannelAndPublish(b *testing.B) {
 		channelHost := connectionPool.GetChannel(false)
 
 		go func() {
-			err := channelHost.Channel.Publish(
+			_ = channelHost.Channel.Publish(
 				letter.Envelope.Exchange,
 				letter.Envelope.RoutingKey,
 				letter.Envelope.Mandatory,
@@ -32,10 +32,6 @@ func BenchmarkGetMultiChannelAndPublish(b *testing.B) {
 					ContentType: letter.Envelope.ContentType,
 					Body:        letter.Body,
 				})
-
-			if err != nil {
-				b.Fatal(err)
-			}
 		}()
 
 		channelHost.Close()

@@ -82,6 +82,9 @@ func (cp *ConnectionPool) Initialize() error {
 
 func (cp *ConnectionPool) initialize() bool {
 
+	cp.connectionID = 0
+	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+
 	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxConnectionCount; i++ {
 
 		connectionHost, err := NewConnectionHost(
@@ -93,14 +96,10 @@ func (cp *ConnectionPool) initialize() bool {
 			cp.config.ConnectionPoolConfig.TLSConfig)
 
 		if err != nil {
-			cp.connectionID = 0
-			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
 			return false
 		}
 
 		if err = cp.connections.Put(connectionHost); err != nil {
-			cp.connectionID = 0
-			cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
 			return false
 		}
 

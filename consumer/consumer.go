@@ -37,6 +37,10 @@ type Consumer struct {
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
 func NewConsumerFromConfig(config *models.ConsumerConfig, cp *pools.ConnectionPool) (*Consumer, error) {
 
+	if config == nil || cp == nil {
+		return nil, fmt.Errorf("config or connection pool was nil")
+	}
+
 	return &Consumer{
 		Config:               nil,
 		ConnectionPool:       cp,

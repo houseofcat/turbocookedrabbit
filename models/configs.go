@@ -17,17 +17,7 @@ type ServiceConfig struct {
 
 // PoolConfig represents settings for creating/configuring pools.
 type PoolConfig struct {
-	ChannelPoolConfig    *ChannelPoolConfig    `json:"ChannelPoolConfig"`
 	ConnectionPoolConfig *ConnectionPoolConfig `json:"ConnectionPoolConfig"`
-}
-
-// ChannelPoolConfig represents settings for creating channel pools.
-type ChannelPoolConfig struct {
-	SleepOnErrorInterval uint32 `json:"SleepOnErrorInterval"` // sleep length on errors
-	MaxChannelCount      uint64 `json:"MaxChannelCount"`
-	MaxAckChannelCount   uint64 `json:"MaxAckChannelCount"`
-	AckNoWait            bool   `json:"AckNoWait"`
-	GlobalQosCount       int    `json:"GlobalQosCount"` // Leave at 0 if you want to ignore them.
 }
 
 // ConnectionPoolConfig represents settings for creating connection pools.

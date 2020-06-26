@@ -8,7 +8,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// Topologer allows you to build RabbitMQ topology backed by a ChannelPool.
+// Topologer allows you to build RabbitMQ topology backed by a ConnectionPool.
 type Topologer struct {
 	ConnectionPool *pools.ConnectionPool
 }
