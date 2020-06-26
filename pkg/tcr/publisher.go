@@ -211,6 +211,7 @@ AutoPublishLoop:
 
 func (pub *Publisher) deliverLetters() bool {
 
+	// Allow parallel publishing with unique channels (upto n/2 + 1).
 	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.ConnectionPoolConfig.MaxCacheChannelCount/2+1)
 
 	for {

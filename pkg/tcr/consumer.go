@@ -77,6 +77,7 @@ func NewConsumer(
 	return &Consumer{
 		Config:               config,
 		ConnectionPool:       cp,
+		Enabled:              true,
 		QueueName:            queuename,
 		ConsumerName:         consumerName,
 		errors:               make(chan error, 1000),

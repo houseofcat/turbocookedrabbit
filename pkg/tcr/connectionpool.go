@@ -283,16 +283,56 @@ func (cp *ConnectionPool) Shutdown() {
 	// Create connection lock (> 0)
 	atomic.AddInt32(&cp.connectionLock, 1)
 
+	wg := &sync.WaitGroup{}
+
+ChannelFlushLoop:
+	for {
+		select {
+		case chanHost := <-cp.channels:
+			wg.Add(1)
+			// Started receiving panics on Channel.Close()
+			go func(*ChannelHost) {
+				defer wg.Done()
+				defer func() {
+					_ = recover()
+					//fmt.Printf("recovered panic channel closed: %v\r\n", v)
+				}()
+
+				chanHost.Close()
+			}(chanHost)
+
+		default:
+			break ChannelFlushLoop
+		}
+	}
+
+	wg.Wait()
+
 	for !cp.connections.Empty() {
 		items, _ := cp.connections.Get(cp.connections.Len())
 
 		for _, item := range items {
+			wg.Add(1)
+
 			connectionHost := item.(*ConnectionHost)
-			if !connectionHost.Connection.IsClosed() {
-				connectionHost.Connection.Close()
-			}
+
+			// Started receiving panics on Connection.Close()
+			go func(*ConnectionHost) {
+				defer wg.Done()
+				defer func() {
+					_ = recover()
+					//fmt.Printf("recovered panic connection closed: %v\r\n", v)
+				}()
+
+				if !connectionHost.Connection.IsClosed() {
+					connectionHost.Connection.Close()
+				}
+			}(connectionHost)
+
 		}
 	}
+
+	wg.Wait()
 
 	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
 	cp.flaggedConnections = make(map[uint64]bool)
