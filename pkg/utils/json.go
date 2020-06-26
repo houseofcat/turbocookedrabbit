@@ -7,7 +7,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 )
 
 const (
@@ -18,14 +18,14 @@ const (
 )
 
 // ConvertJSONFileToConfig opens a file.json and converts to RabbitSeasoning.
-func ConvertJSONFileToConfig(fileNamePath string) (*models.RabbitSeasoning, error) {
+func ConvertJSONFileToConfig(fileNamePath string) (*tcr.RabbitSeasoning, error) {
 
 	byteValue, err := ioutil.ReadFile(fileNamePath)
 	if err != nil {
 		return nil, err
 	}
 
-	config := &models.RabbitSeasoning{}
+	config := &tcr.RabbitSeasoning{}
 	var json = jsoniter.ConfigFastest
 	err = json.Unmarshal(byteValue, config)
 
@@ -33,14 +33,14 @@ func ConvertJSONFileToConfig(fileNamePath string) (*models.RabbitSeasoning, erro
 }
 
 // ConvertJSONFileToTopologyConfig opens a file.json and converts to Topology.
-func ConvertJSONFileToTopologyConfig(fileNamePath string) (*models.TopologyConfig, error) {
+func ConvertJSONFileToTopologyConfig(fileNamePath string) (*tcr.TopologyConfig, error) {
 
 	byteValue, err := ioutil.ReadFile(fileNamePath)
 	if err != nil {
 		return nil, err
 	}
 
-	config := &models.TopologyConfig{}
+	config := &tcr.TopologyConfig{}
 	var json = jsoniter.ConfigFastest
 	err = json.Unmarshal(byteValue, config)
 
@@ -65,8 +65,8 @@ func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 // CreatePayload creates a JSON marshal and optionally compresses and encrypts the bytes.
 func CreatePayload(
 	input interface{},
-	compression *models.CompressionConfig,
-	encryption *models.EncryptionConfig) ([]byte, error) {
+	compression *tcr.CompressionConfig,
+	encryption *tcr.EncryptionConfig) ([]byte, error) {
 
 	var json = jsoniter.ConfigFastest
 	data, err := json.Marshal(&input)
@@ -103,13 +103,13 @@ func CreateWrappedPayload(
 	input interface{},
 	letterID uint64,
 	metadata string,
-	compression *models.CompressionConfig,
-	encryption *models.EncryptionConfig) ([]byte, error) {
+	compression *tcr.CompressionConfig,
+	encryption *tcr.EncryptionConfig) ([]byte, error) {
 
-	moddedLetter := &models.ModdedLetter{
+	moddedLetter := &tcr.ModdedLetter{
 		LetterID:       letterID,
 		LetterMetadata: metadata,
-		Body:           &models.ModdedBody{},
+		Body:           &tcr.ModdedBody{},
 	}
 
 	var json = jsoniter.ConfigFastest
@@ -156,7 +156,7 @@ func CreateWrappedPayload(
 	return data, nil
 }
 
-func handleCompression(compression *models.CompressionConfig, data []byte, buffer *bytes.Buffer) error {
+func handleCompression(compression *tcr.CompressionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
 	case zstdCompressionType:
@@ -168,7 +168,7 @@ func handleCompression(compression *models.CompressionConfig, data []byte, buffe
 	}
 }
 
-func handleEncryption(encryption *models.EncryptionConfig, data []byte, buffer *bytes.Buffer) error {
+func handleEncryption(encryption *tcr.EncryptionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
 	case aesSymmetricType:
@@ -187,7 +187,7 @@ func handleEncryption(encryption *models.EncryptionConfig, data []byte, buffer *
 }
 
 // ReadPayload unencrypts and uncompresses payloads
-func ReadPayload(buffer *bytes.Buffer, compression *models.CompressionConfig, encryption *models.EncryptionConfig) error {
+func ReadPayload(buffer *bytes.Buffer, compression *tcr.CompressionConfig, encryption *tcr.EncryptionConfig) error {
 
 	if encryption.Enabled {
 		if err := handleDecryption(encryption, buffer); err != nil {
@@ -204,7 +204,7 @@ func ReadPayload(buffer *bytes.Buffer, compression *models.CompressionConfig, en
 	return nil
 }
 
-func handleDecompression(compression *models.CompressionConfig, buffer *bytes.Buffer) error {
+func handleDecompression(compression *tcr.CompressionConfig, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
 	case zstdCompressionType:
@@ -216,7 +216,7 @@ func handleDecompression(compression *models.CompressionConfig, buffer *bytes.Bu
 	}
 }
 
-func handleDecryption(encryption *models.EncryptionConfig, buffer *bytes.Buffer) error {
+func handleDecryption(encryption *tcr.EncryptionConfig, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
 	case aesSymmetricType:

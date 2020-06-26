@@ -5,15 +5,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pools"
-
 	"github.com/streadway/amqp"
 )
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
 	Config                   *RabbitSeasoning
-	ConnectionPool           *pools.ConnectionPool
+	ConnectionPool           *ConnectionPool
 	errors                   chan error
 	letters                  chan *Letter
 	autoStop                 chan bool
@@ -30,7 +28,7 @@ type Publisher struct {
 // NewPublisherWithConfig creates and configures a new Publisher.
 func NewPublisherWithConfig(
 	config *RabbitSeasoning,
-	cp *pools.ConnectionPool) (*Publisher, error) {
+	cp *ConnectionPool) (*Publisher, error) {
 
 	return &Publisher{
 		Config:               config,
@@ -50,7 +48,7 @@ func NewPublisherWithConfig(
 
 // NewPublisher creates and configures a new Publisher.
 func NewPublisher(
-	cp *pools.ConnectionPool,
+	cp *ConnectionPool,
 	sleepOnIdleInterval time.Duration,
 	sleepOnErrorInterval time.Duration) (*Publisher, error) {
 
@@ -78,7 +76,7 @@ func (pub *Publisher) Publish(letter *Letter) {
 	pub.simplePublish(chanHost, letter)
 }
 
-func (pub *Publisher) simplePublish(chanHost *pools.ChannelHost, letter *Letter) {
+func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) {
 
 	err := chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
@@ -205,7 +203,7 @@ AutoPublishLoop:
 	pub.pubLock.Unlock()
 }
 
-func (pub *Publisher) deliverLetters(chanHost *pools.ChannelHost) bool {
+func (pub *Publisher) deliverLetters(chanHost *ChannelHost) bool {
 
 DeliverLettersLoop:
 	for {

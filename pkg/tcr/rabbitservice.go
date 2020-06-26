@@ -1,4 +1,4 @@
-package services
+package tcr
 
 import (
 	"errors"
@@ -7,14 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
 	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 // RabbitService is the struct for containing RabbitMQ management.
 type RabbitService struct {
 	Config               *RabbitSeasoning
-	ConnectionPool       *pools.ConnectionPool
+	ConnectionPool       *ConnectionPool
 	Topologer            *Topologer
 	Publisher            *Publisher
 	encryptionConfigured bool
@@ -31,7 +30,7 @@ type RabbitService struct {
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
 func NewRabbitService(config *RabbitSeasoning) (*RabbitService, error) {
 
-	connectionPool, err := pools.NewConnectionPool(config.PoolConfig)
+	connectionPool, err := NewConnectionPool(config.PoolConfig)
 	if err != nil {
 		return nil, err
 	}

@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
 	"github.com/streadway/amqp"
 )
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
 	Config               *RabbitSeasoning
-	ConnectionPool       *pools.ConnectionPool
+	ConnectionPool       *ConnectionPool
 	Enabled              bool
 	QueueName            string
 	ConsumerName         string
@@ -34,7 +33,7 @@ type Consumer struct {
 }
 
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
-func NewConsumerFromConfig(config *ConsumerConfig, cp *pools.ConnectionPool) (*Consumer, error) {
+func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consumer, error) {
 
 	if config == nil || cp == nil {
 		return nil, fmt.Errorf("config or connection pool was nil")
@@ -64,7 +63,7 @@ func NewConsumerFromConfig(config *ConsumerConfig, cp *pools.ConnectionPool) (*C
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.
 func NewConsumer(
 	config *RabbitSeasoning,
-	cp *pools.ConnectionPool,
+	cp *ConnectionPool,
 	queuename string,
 	consumerName string,
 	autoAck bool,
@@ -221,7 +220,7 @@ ConsumeLoop:
 }
 
 // ProcessDeliveries is the inner loop for processing the deliveries and returns true to break outer loop.
-func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *pools.ChannelHost) bool {
+func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *ChannelHost) bool {
 
 ProcessDeliveriesInnerLoop:
 	for {

@@ -1,4 +1,4 @@
-package pools
+package tcr
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	config               tcr.PoolConfig
+	config               PoolConfig
 	Initialized          bool
 	connectionName       string
 	uri                  string
@@ -28,7 +28,7 @@ type ConnectionPool struct {
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
-func NewConnectionPool(config *tcr.PoolConfig) (*ConnectionPool, error) {
+func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 
 	var err error
 
