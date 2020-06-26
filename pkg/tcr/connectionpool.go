@@ -85,7 +85,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 		cp.connectionID++
 	}
 
-	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxConnectionCount; i++ {
+	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxCacheChannelCount; i++ {
 		cp.channels <- cp.CreateChannel(i, true)
 	}
 

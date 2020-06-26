@@ -34,10 +34,10 @@ func NewPublisherWithConfig(
 		Config:                 config,
 		ConnectionPool:         cp,
 		errors:                 make(chan error),
-		letters:                make(chan *Letter),
+		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
 		autoPublishGroup:       &sync.WaitGroup{},
-		publishReceipts:        make(chan *PublishReceipt),
+		publishReceipts:        make(chan *PublishReceipt, 1000),
 		sleepOnIdleInterval:    time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnErrorInterval:   time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
 		publishTimeOutDuration: time.Duration(config.PublisherConfig.PublishTimeOutInterval) * time.Millisecond,
@@ -55,10 +55,10 @@ func NewPublisher(
 
 	return &Publisher{
 		ConnectionPool:       cp,
-		letters:              make(chan *Letter),
+		letters:              make(chan *Letter, 1000),
 		autoStop:             make(chan bool, 1),
 		autoPublishGroup:     &sync.WaitGroup{},
-		publishReceipts:      make(chan *PublishReceipt),
+		publishReceipts:      make(chan *PublishReceipt, 1000),
 		sleepOnIdleInterval:  sleepOnIdleInterval,
 		sleepOnErrorInterval: sleepOnErrorInterval,
 		pubLock:              &sync.Mutex{},
@@ -140,12 +140,13 @@ GetChannelAndPublish:
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (300ms) - recommend manual retry", letter.LetterID))
-				break
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (%dms) - recommend retry/requeue", letter.LetterID, timeout))
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				return
 
 			case confirmation := <-chanHost.Confirmations:
 
-				if !confirmation.Ack { // retry publish
+				if !confirmation.Ack { // retry publishing
 					goto Publish
 				}
 
@@ -207,17 +208,27 @@ AutoPublishLoop:
 
 func (pub *Publisher) deliverLetters() bool {
 
+	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.ConnectionPoolConfig.MaxCacheChannelCount/2+1)
+
 	for {
 
 		// Publish the letter.
 		select {
 		case letter := <-pub.letters:
-			pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
+
+			parallelPublishSemaphore <- struct{}{}
+			go func() {
+				pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
+				<-parallelPublishSemaphore
+			}()
+
 		default:
+
 			if pub.sleepOnIdleInterval > 0 {
 				time.Sleep(pub.sleepOnIdleInterval)
 			}
 			break
+
 		}
 
 		// Detect if we should stop publishing.

@@ -52,7 +52,7 @@ func NewRabbitService(
 		Config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
-		centralErr:           make(chan error),
+		centralErr:           make(chan error, 1000),
 		shutdownSignal:       make(chan bool, 1),
 		consumers:            make(map[string]*Consumer),
 		monitorSleepInterval: time.Duration(200) * time.Millisecond,

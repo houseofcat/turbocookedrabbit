@@ -136,7 +136,7 @@ func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 				break PublishLoop
 			default:
 				newLetter := tcr.Letter(*letterTemplate)
-				publisher.Publish(&newLetter)
+				publisher.QueueLetter(&newLetter)
 				letterTemplate.LetterID++
 			}
 		}
@@ -157,11 +157,11 @@ func consumeLoop(
 	consumerErrors := 0
 	connectionPoolErrors := 0
 
-MonitorLoop:
+ConsumeLoop:
 	for {
 		select {
 		case <-timeOut:
-			break MonitorLoop
+			break ConsumeLoop
 		case notice := <-publisher.PublishReceipts():
 			if notice.Success {
 				messagesPublished++

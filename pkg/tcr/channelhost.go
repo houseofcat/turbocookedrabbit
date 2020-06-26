@@ -34,10 +34,11 @@ func NewChannelHost(
 	}
 
 	channelHost := &ChannelHost{
-		Channel:      amqpChan,
-		ConnectionID: connectionID,
-		Ackable:      ackable,
-		errors:       make(chan *amqp.Error, 1),
+		Channel:       amqpChan,
+		ConnectionID:  connectionID,
+		Ackable:       ackable,
+		Confirmations: make(chan amqp.Confirmation, 100),
+		errors:        make(chan *amqp.Error, 100),
 	}
 
 	channelHost.Channel.NotifyClose(channelHost.errors)

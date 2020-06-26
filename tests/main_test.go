@@ -209,4 +209,11 @@ func TestStartStopConsumer(t *testing.T) {
 func TestCreatePublisherAndPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
+	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	assert.NoError(t, err)
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	publisher.Publish(letter)
+
+	ConnectionPool.Shutdown()
 }
