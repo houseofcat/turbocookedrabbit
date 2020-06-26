@@ -8,19 +8,19 @@ import (
 	"testing"
 	"time"
 
+	"github.com/fortytw2/leaktest"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 	"github.com/houseofcat/turbocookedrabbit/topology"
-	"github.com/houseofcat/turbocookedrabbit/utils"
 )
 
-var Seasoning *models.RabbitSeasoning
-var ConnectionPool *pools.ConnectionPool
-var AckableConsumerConfig *models.ConsumerConfig
-var ConsumerConfig *models.ConsumerConfig
+var Seasoning *tcr.RabbitSeasoning
+var ConnectionPool *tcr.ConnectionPool
+var AckableConsumerConfig *tcr.ConsumerConfig
+var ConsumerConfig *tcr.ConsumerConfig
 
 func TestMain(m *testing.M) {
 
@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig)
+	ConnectionPool, err = tcr.NewConnectionPool(Seasoning.PoolConfig)
 	if err != nil {
 		fmt.Print(err.Error())
 		return
@@ -64,7 +64,7 @@ func TestBasicPublish(t *testing.T) {
 
 	// Pre-create test messages
 	timeStart := time.Now()
-	letters := make([]*models.Letter, messageCount)
+	letters := make([]*tcr.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
 		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("TestQueue-%d", i%10), nil)
@@ -213,7 +213,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
 	assert.NoError(t, err)
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	topologer := topology.NewTopologer(connectionPool)
@@ -224,10 +224,10 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 
 func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer := topology.NewTopologer(connectionPool)
+	topologer := tcr.NewTopologer(connectionPool)
 
 	topologyConfigs := make([]string, 0)
 	configRoot := "./"
@@ -252,11 +252,44 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 
 func TestUnbindQueue(t *testing.T) {
 
-	connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer := topology.NewTopologer(connectionPool)
+	topologer := tcr.NewTopologer(connectionPool)
 
 	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
 	assert.NoError(t, err)
+}
+
+func TestCreateConsumer(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	consumer1, err1 := tcr.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
+	assert.NoError(t, err1)
+	assert.NotNil(t, consumer1)
+
+	consumer2, err2 := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	assert.NoError(t, err2)
+	assert.NotNil(t, consumer2)
+
+	ConnectionPool.Shutdown()
+}
+
+func TestStartStopConsumer(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	consumer.StartConsuming()
+	err = consumer.StopConsuming(false, false)
+	assert.NoError(t, err)
+
+	ConnectionPool.Shutdown()
+}
+
+func TestCreatePublisherAndPublish(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
 }

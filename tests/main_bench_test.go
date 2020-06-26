@@ -8,11 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/houseofcat/turbocookedrabbit/consumer"
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
-	"github.com/houseofcat/turbocookedrabbit/publisher"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
@@ -22,13 +19,13 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	messageCount := 1000
-	connectionPool, _ := pools.NewConnectionPool(Seasoning.PoolConfig)
-	publisher, _ := publisher.NewPublisherWithConfig(Seasoning, connectionPool)
+	connectionPool, _ := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, connectionPool)
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 	assert.True(b, ok)
 
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, connectionPool)
+	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, connectionPool)
 
 	publisher.StartAutoPublishing()
 
@@ -110,11 +107,11 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := publisher.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(b, ok)
 
-	consumer, _ := consumer.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 
 	publisher.StartAutoPublishing()
 
@@ -133,7 +130,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	ConnectionPool.Shutdown()
 }
 
-func publishLoop(timeOut <-chan time.Time, publisher *publisher.Publisher) {
+func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 	letterTemplate := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
 	go func() {
@@ -143,7 +140,7 @@ func publishLoop(timeOut <-chan time.Time, publisher *publisher.Publisher) {
 			case <-timeOut:
 				break PublishLoop
 			default:
-				newLetter := models.Letter(*letterTemplate)
+				newLetter := tcr.Letter(*letterTemplate)
 				publisher.QueueLetter(&newLetter)
 				//fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
 				letterTemplate.LetterID++
@@ -156,8 +153,8 @@ func publishLoop(timeOut <-chan time.Time, publisher *publisher.Publisher) {
 func consumeLoop(
 	b *testing.B,
 	timeOut <-chan time.Time,
-	publisher *publisher.Publisher,
-	consumer *consumer.Consumer) {
+	publisher *tcr.Publisher,
+	consumer *tcr.Consumer) {
 
 	messagesReceived := 0
 	messagesPublished := 0
@@ -186,7 +183,7 @@ ConsumeLoop:
 			consumerErrors++
 		case message := <-consumer.Messages():
 			messagesReceived++
-			go func(msg *models.ReceivedMessage) {
+			go func(msg *tcr.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					messagesFailedToAck++

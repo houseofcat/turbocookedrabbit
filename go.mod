@@ -4,7 +4,7 @@ go 1.14
 
 require (
 	github.com/Workiva/go-datastructures v1.0.52
-	github.com/fortytw2/leaktest v1.3.0
+	github.com/fortytw2/leaktest v1.3.0 // indirect
 	github.com/json-iterator/go v1.1.10
 	github.com/klauspost/compress v1.10.10
 	github.com/streadway/amqp v1.0.0

@@ -78,7 +78,7 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*ConsumerCon
 
 		hostName, err := os.Hostname()
 		if err == nil {
-			ConsumerName = hostName + "-" + ConsumerName
+			consumer.ConsumerName = hostName + "-" + consumer.ConsumerName
 		}
 
 		rs.consumers[consumerName] = consumer
@@ -245,7 +245,7 @@ MonitorLoop:
 				}
 
 				select {
-				case err := <-Errors():
+				case err := <-consumer.Errors():
 					rs.centralErr <- err
 				default:
 					break IndividualConsumerLoop
@@ -296,7 +296,7 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 
 	if stopConsumers {
 		for _, consumer := range rs.consumers {
-			err := StopConsuming(true, true)
+			err := consumer.StopConsuming(true, true)
 			if err != nil {
 				rs.centralErr <- err
 			}

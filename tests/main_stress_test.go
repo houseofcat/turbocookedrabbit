@@ -5,10 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/consumer"
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/publisher"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +17,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 	fmt.Printf("%s: Benchmark Starts\r\n", time.Now())
 	fmt.Printf("%s: Est. Benchmark End\r\n", time.Now().Add(timeDuration))
 
-	publisher, err := publisher.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
 	if err != nil {
 		assert.NoError(t, err)
 		return
@@ -30,7 +28,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 		assert.True(t, ok)
 		return
 	}
-	consumer, conErr := consumer.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer, conErr := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 	if conErr != nil {
 		assert.NoError(t, conErr)
 		return
@@ -61,7 +59,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 	fmt.Printf("%s: Benchmark Finished\r\n", time.Now())
 }
 
-func publish(timeOut <-chan time.Time, publisher *publisher.Publisher) {
+func publish(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 
 	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
 
@@ -71,7 +69,7 @@ PublishLoop:
 		case <-timeOut:
 			break PublishLoop
 		default:
-			newLetter := models.Letter(*letter)
+			newLetter := tcr.Letter(*letter)
 			publisher.QueueLetter(&newLetter)
 			//fmt.Printf("%s: Letter Queued - LetterID: %d\r\n", time.Now(), newLetter.LetterID)
 			letter.LetterID++
@@ -80,7 +78,7 @@ PublishLoop:
 	}
 }
 
-func processConsumerMessages(timeOut <-chan time.Time, consumer *consumer.Consumer) {
+func processConsumerMessages(timeOut <-chan time.Time, consumer *tcr.Consumer) {
 
 	messagesReceived := 0
 	messagesAcked := 0
@@ -94,7 +92,7 @@ ConsumeLoop:
 		case message := <-consumer.Messages():
 			messagesReceived++
 			//fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
-			go func(msg *models.ReceivedMessage) {
+			go func(msg *tcr.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					//fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
@@ -114,7 +112,7 @@ ConsumeLoop:
 	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
 }
 
-func monitor(finish <-chan bool, publisher *publisher.Publisher, consumer *consumer.Consumer) {
+func monitor(finish <-chan bool, publisher *tcr.Publisher, consumer *tcr.Consumer) {
 
 	messagesPublished := 0
 	messagesFailedToPublish := 0

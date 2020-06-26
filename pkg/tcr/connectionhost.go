@@ -1,10 +1,9 @@
-package pools
+package tcr
 
 import (
 	"crypto/tls"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 	"github.com/streadway/amqp"
 )
@@ -24,7 +23,7 @@ func NewConnectionHost(
 	connectionID uint64,
 	heartbeatInterval time.Duration,
 	connectionTimeout time.Duration,
-	tlsConfig *tcr.TLSConfig) (*ConnectionHost, error) {
+	tlsConfig *TLSConfig) (*ConnectionHost, error) {
 
 	var amqpConn *amqp.Connection
 	var actualTLSConfig *tls.Config
