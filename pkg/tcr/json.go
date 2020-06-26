@@ -9,10 +9,10 @@ import (
 )
 
 const (
-	gzipCompressionType = "gzip"
-	zstdCompressionType = "zstd"
+	GzipCompressionType = "gzip"
+	ZstdCompressionType = "zstd"
 
-	aesSymmetricType = "aes"
+	AesSymmetricType = "aes"
 )
 
 // ConvertJSONFileToConfig opens a file.json and converts to RabbitSeasoning.
@@ -157,9 +157,9 @@ func CreateWrappedPayload(
 func handleCompression(compression *CompressionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
-	case zstdCompressionType:
+	case ZstdCompressionType:
 		return CompressWithZstd(data, buffer)
-	case gzipCompressionType:
+	case GzipCompressionType:
 		fallthrough
 	default:
 		return CompressWithGzip(data, buffer)
@@ -169,7 +169,7 @@ func handleCompression(compression *CompressionConfig, data []byte, buffer *byte
 func handleEncryption(encryption *EncryptionConfig, data []byte, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
-	case aesSymmetricType:
+	case AesSymmetricType:
 		fallthrough
 	default:
 		data, err := EncryptWithAes(data, encryption.Hashkey, 12)
@@ -205,9 +205,9 @@ func ReadPayload(buffer *bytes.Buffer, compression *CompressionConfig, encryptio
 func handleDecompression(compression *CompressionConfig, buffer *bytes.Buffer) error {
 
 	switch compression.Type {
-	case zstdCompressionType:
+	case ZstdCompressionType:
 		return DecompressWithZstd(buffer)
-	case gzipCompressionType:
+	case GzipCompressionType:
 		fallthrough
 	default:
 		return DecompressWithGzip(buffer)
@@ -217,7 +217,7 @@ func handleDecompression(compression *CompressionConfig, buffer *bytes.Buffer) e
 func handleDecryption(encryption *EncryptionConfig, buffer *bytes.Buffer) error {
 
 	switch encryption.Type {
-	case aesSymmetricType:
+	case AesSymmetricType:
 		fallthrough
 	default:
 		data, err := DecryptWithAes(buffer.Bytes(), encryption.Hashkey, 12)
