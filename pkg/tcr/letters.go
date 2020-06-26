@@ -1,11 +1,9 @@
-package utils
+package tcr
 
 import (
 	"math/rand"
 	"sync/atomic"
 	"time"
-
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 )
 
 var globalLetterID uint64
@@ -13,15 +11,15 @@ var mockRandomSource = rand.NewSource(time.Now().UnixNano())
 var mockRandom = rand.New(mockRandomSource)
 
 // CreateLetter creates a simple letter for publishing.
-func CreateLetter(letterID uint64, exchangeName string, queueName string, body []byte) *tcr.Letter {
+func CreateLetter(letterID uint64, exchangeName string, queueName string, body []byte) *Letter {
 
-	envelope := &tcr.Envelope{
+	envelope := &Envelope{
 		Exchange:    exchangeName,
 		RoutingKey:  queueName,
 		ContentType: "application/json",
 	}
 
-	return &tcr.Letter{
+	return &Letter{
 		LetterID:   letterID,
 		RetryCount: uint32(3),
 		Body:       body,
@@ -30,7 +28,7 @@ func CreateLetter(letterID uint64, exchangeName string, queueName string, body [
 }
 
 // CreateMockLetter creates a mock letter for publishing.
-func CreateMockLetter(letterID uint64, exchangeName string, queueName string, body []byte) *tcr.Letter {
+func CreateMockLetter(letterID uint64, exchangeName string, queueName string, body []byte) *Letter {
 
 	if letterID == 0 {
 		letterID = uint64(1)
@@ -40,13 +38,13 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 		body = []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
 	}
 
-	envelope := &tcr.Envelope{
+	envelope := &Envelope{
 		Exchange:    exchangeName,
 		RoutingKey:  queueName,
 		ContentType: "application/json",
 	}
 
-	return &tcr.Letter{
+	return &Letter{
 		LetterID:   letterID,
 		RetryCount: uint32(3),
 		Body:       body,
@@ -55,20 +53,20 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 }
 
 // CreateMockRandomLetter creates a mock letter for publishing with random sizes and random Ids.
-func CreateMockRandomLetter(queueName string) *tcr.Letter {
+func CreateMockRandomLetter(queueName string) *Letter {
 
 	letterID := atomic.LoadUint64(&globalLetterID)
 	atomic.AddUint64(&globalLetterID, 1)
 
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
-	envelope := &tcr.Envelope{
+	envelope := &Envelope{
 		Exchange:    "",
 		RoutingKey:  queueName,
 		ContentType: "application/json",
 	}
 
-	return &tcr.Letter{
+	return &Letter{
 		LetterID:   letterID,
 		RetryCount: uint32(0),
 		Body:       body,

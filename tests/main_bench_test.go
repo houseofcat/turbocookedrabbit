@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
-	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
@@ -33,7 +32,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	go func() {
 		for i := 0; i < messageCount; i++ {
-			letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
+			letter := tcr.CreateMockRandomLetter("ConsumerTestQueue")
 			letter.LetterID = counter
 			counter++
 
@@ -131,7 +130,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 }
 
 func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
-	letterTemplate := utils.CreateMockRandomLetter("ConsumerTestQueue")
+	letterTemplate := tcr.CreateMockRandomLetter("ConsumerTestQueue")
 
 	go func() {
 	PublishLoop:

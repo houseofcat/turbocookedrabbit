@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
-	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 var Seasoning *tcr.RabbitSeasoning
@@ -24,7 +23,7 @@ var ConsumerConfig *tcr.ConsumerConfig
 func TestMain(m *testing.M) {
 
 	var err error
-	Seasoning, err = utils.ConvertJSONFileToConfig("testconsumerseasoning.json") // Load Configuration On Startup
+	Seasoning, err = tcr.ConvertJSONFileToConfig("testconsumerseasoning.json") // Load Configuration On Startup
 	if err != nil {
 		return
 	}
@@ -50,7 +49,7 @@ func TestReadConfig(t *testing.T) {
 
 	assert.FileExists(t, fileNamePath)
 
-	config, err := utils.ConvertJSONFileToConfig(fileNamePath)
+	config, err := tcr.ConvertJSONFileToConfig(fileNamePath)
 
 	assert.Nil(t, err)
 	assert.NotEqual(t, "", config.PoolConfig.ConnectionPoolConfig.URI, "RabbitMQ URI should not be blank.")
@@ -66,7 +65,7 @@ func TestBasicPublish(t *testing.T) {
 	letters := make([]*tcr.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = utils.CreateMockLetter(uint64(i), "", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = tcr.CreateMockLetter(uint64(i), "", fmt.Sprintf("TestQueue-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -195,7 +194,7 @@ func TestReadTopologyConfig(t *testing.T) {
 
 	assert.FileExists(t, fileNamePath)
 
-	config, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
+	config, err := tcr.ConvertJSONFileToTopologyConfig(fileNamePath)
 
 	assert.Nil(t, err)
 	assert.NotEqual(t, 0, len(config.Exchanges))
@@ -209,7 +208,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	fileNamePath := "testtopology.json"
 	assert.FileExists(t, fileNamePath)
 
-	topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(fileNamePath)
+	topologyConfig, err := tcr.ConvertJSONFileToTopologyConfig(fileNamePath)
 	assert.NoError(t, err)
 
 	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
@@ -239,7 +238,7 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	for _, filePath := range topologyConfigs {
-		topologyConfig, err := utils.ConvertJSONFileToTopologyConfig(filePath)
+		topologyConfig, err := tcr.ConvertJSONFileToTopologyConfig(filePath)
 		if err != nil {
 			assert.NoError(t, err)
 		} else {

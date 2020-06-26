@@ -6,8 +6,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 // RabbitService is the struct for containing RabbitMQ management.
@@ -108,7 +106,7 @@ func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
 	defer rs.serviceLock.Unlock()
 
 	if rs.Config.EncryptionConfig.Enabled {
-		rs.Config.EncryptionConfig.Hashkey = utils.GetHashWithArgon(
+		rs.Config.EncryptionConfig.Hashkey = GetHashWithArgon(
 			passphrase,
 			salt,
 			rs.Config.EncryptionConfig.TimeConsideration,
@@ -133,12 +131,12 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = utils.CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
 	} else {
-		data, err = utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -176,12 +174,12 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = utils.CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
 	} else {
-		data, err = utils.CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}

@@ -13,7 +13,6 @@ import (
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
 	config               PoolConfig
-	Initialized          bool
 	connectionName       string
 	uri                  string
 	heartbeatInterval    time.Duration
@@ -29,8 +28,6 @@ type ConnectionPool struct {
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
-
-	var err error
 
 	if config.ConnectionPoolConfig.Heartbeat == 0 || config.ConnectionPoolConfig.ConnectionTimeout == 0 {
 		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
@@ -53,32 +50,14 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 		sleepOnErrorInterval: time.Duration(config.ConnectionPoolConfig.SleepOnErrorInterval) * time.Millisecond,
 	}
 
-	if err = cp.Initialize(); err != nil {
-		return nil, err
+	if ok := cp.initializeConnections(); !ok {
+		return nil, errors.New("initialization failed during connection creation")
 	}
 
 	return cp, nil
 }
 
-// Initialize creates the ConnectionPool based on the config details.
-// Blocks on network/communication issues unless overridden by config.
-func (cp *ConnectionPool) Initialize() error {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
-
-	if !cp.Initialized {
-
-		if ok := cp.initialize(); ok {
-			cp.Initialized = true
-		} else {
-			return errors.New("initialization failed during connection creation")
-		}
-	}
-
-	return nil
-}
-
-func (cp *ConnectionPool) initialize() bool {
+func (cp *ConnectionPool) initializeConnections() bool {
 
 	cp.connectionID = 0
 	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
@@ -261,24 +240,20 @@ func (cp *ConnectionPool) Shutdown() {
 	// Create connection lock (> 0)
 	atomic.AddInt32(&cp.connectionLock, 1)
 
-	if cp.Initialized {
+	for !cp.connections.Empty() {
+		items, _ := cp.connections.Get(cp.connections.Len())
 
-		for !cp.connections.Empty() {
-			items, _ := cp.connections.Get(cp.connections.Len())
-
-			for _, item := range items {
-				connectionHost := item.(*ConnectionHost)
-				if !connectionHost.Connection.IsClosed() {
-					connectionHost.Connection.Close()
-				}
+		for _, item := range items {
+			connectionHost := item.(*ConnectionHost)
+			if !connectionHost.Connection.IsClosed() {
+				connectionHost.Connection.Close()
 			}
 		}
-
-		cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
-		cp.flaggedConnections = make(map[uint64]bool)
-		cp.connectionID = 0
-		cp.Initialized = false
 	}
+
+	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+	cp.flaggedConnections = make(map[uint64]bool)
+	cp.connectionID = 0
 
 	// Release connection lock (0)
 	atomic.StoreInt32(&cp.connectionLock, 0)

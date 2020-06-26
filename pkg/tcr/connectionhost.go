@@ -4,7 +4,6 @@ import (
 	"crypto/tls"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 	"github.com/streadway/amqp"
 )
 
@@ -31,7 +30,7 @@ func NewConnectionHost(
 
 	if tlsConfig != nil && tlsConfig.EnableTLS {
 
-		actualTLSConfig, err = utils.CreateTLSConfig(
+		actualTLSConfig, err = CreateTLSConfig(
 			tlsConfig.PEMCertLocation,
 			tlsConfig.LocalCertLocation)
 		if err != nil {

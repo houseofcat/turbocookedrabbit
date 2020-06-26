@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
-	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -61,7 +60,7 @@ func TestStressPublishConsumeAckForDuration(t *testing.T) {
 
 func publish(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 
-	letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
+	letter := tcr.CreateMockRandomLetter("ConsumerTestQueue")
 
 PublishLoop:
 	for {
