@@ -19,19 +19,28 @@ import (
 
 var Seasoning *models.RabbitSeasoning
 var ConnectionPool *pools.ConnectionPool
+var AckableConsumerConfig *models.ConsumerConfig
+var ConsumerConfig *models.ConsumerConfig
 
-func TestMain(m *testing.M) { // Load Configuration On Startup
+func TestMain(m *testing.M) {
 
 	var err error
-	Seasoning, err = utils.ConvertJSONFileToConfig("testseasoning.json")
+	Seasoning, err = utils.ConvertJSONFileToConfig("testconsumerseasoning.json") // Load Configuration On Startup
 	if err != nil {
-		fmt.Print(err.Error())
 		return
 	}
 	ConnectionPool, err = pools.NewConnectionPool(Seasoning.PoolConfig)
 	if err != nil {
 		fmt.Print(err.Error())
 		return
+	}
+
+	if config, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]; ok {
+		AckableConsumerConfig = config
+	}
+
+	if config, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer"]; ok {
+		ConsumerConfig = config
 	}
 
 	os.Exit(m.Run())

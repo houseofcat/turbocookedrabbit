@@ -1,4 +1,4 @@
-package publisher
+package tcr
 
 import (
 	"fmt"

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
-
 	"github.com/houseofcat/turbocookedrabbit/models"
 )
 

@@ -1,9 +1,8 @@
-package topology
+package tcr
 
 import (
 	"errors"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 	"github.com/streadway/amqp"
 )
