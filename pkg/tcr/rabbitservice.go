@@ -80,7 +80,7 @@ func NewRabbitService(
 
 	// Start the background monitors and logging.
 	go rs.collectConsumerErrors()
-	go rs.collectAutoPublisherErrors()
+	go rs.collectPublisherErrors()
 	go rs.monitorForShutdown()
 
 	// Monitors all publish events
@@ -276,7 +276,7 @@ MonitorLoop:
 	}
 }
 
-func (rs *RabbitService) collectAutoPublisherErrors() {
+func (rs *RabbitService) collectPublisherErrors() {
 
 MonitorLoop:
 	for {

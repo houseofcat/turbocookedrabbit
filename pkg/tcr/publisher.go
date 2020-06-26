@@ -285,6 +285,7 @@ func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 		publishReceipt.Success = true
 	} else {
 		publishReceipt.FailedLetter = letter
+		pub.errors <- err
 	}
 
 	pub.publishReceipts <- publishReceipt

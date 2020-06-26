@@ -20,7 +20,7 @@ type Consumer struct {
 	sleepOnErrorInterval time.Duration
 	sleepOnIdleInterval  time.Duration
 	messageGroup         *sync.WaitGroup
-	messages             chan *ReceivedMessage
+	receivedMessages     chan *ReceivedMessage
 	consumeStop          chan bool
 	stopImmediate        bool
 	started              bool
@@ -49,7 +49,7 @@ func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consume
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(config.SleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
-		messages:             make(chan *ReceivedMessage, 1000),
+		receivedMessages:     make(chan *ReceivedMessage, 1000),
 		consumeStop:          make(chan bool, 1),
 		autoAck:              config.AutoAck,
 		exclusive:            config.Exclusive,
@@ -84,7 +84,7 @@ func NewConsumer(
 		sleepOnErrorInterval: time.Duration(sleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(sleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
-		messages:             make(chan *ReceivedMessage, 1000),
+		receivedMessages:     make(chan *ReceivedMessage, 1000),
 		consumeStop:          make(chan bool, 1),
 		stopImmediate:        false,
 		started:              false,
@@ -220,7 +220,6 @@ ConsumeLoop:
 // ProcessDeliveries is the inner loop for processing the deliveries and returns true to break outer loop.
 func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *ChannelHost) bool {
 
-ProcessDeliveriesInnerLoop:
 	for {
 		// Listen for channel closure (close errors).
 		// Highest priority so separated to it's own select.
@@ -229,7 +228,7 @@ ProcessDeliveriesInnerLoop:
 			if errorMessage != nil {
 				con.ConnectionPool.ReturnChannel(chanHost, true)
 				con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
-				break ProcessDeliveriesInnerLoop
+				return false
 			}
 		default:
 			break
@@ -258,8 +257,6 @@ ProcessDeliveriesInnerLoop:
 			break
 		}
 	}
-
-	return false
 }
 
 // StopConsuming allows you to signal stop to the consumer.
@@ -285,9 +282,9 @@ func (con *Consumer) StopConsuming(immediate bool, flushMessages bool) error {
 	return nil
 }
 
-// Messages yields all the internal messages ready for consuming.
-func (con *Consumer) Messages() <-chan *ReceivedMessage {
-	return con.messages
+// ReceivedMessages yields all the internal messages ready for consuming.
+func (con *Consumer) ReceivedMessages() <-chan *ReceivedMessage {
+	return con.receivedMessages
 }
 
 // Errors yields all the internal errs for consuming messages.
@@ -302,7 +299,7 @@ func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Deli
 		delivery.DeliveryTag,
 		amqpChan)
 
-	con.messages <- msg
+	con.receivedMessages <- msg
 	con.messageGroup.Done() // finished after getting the message in the channel
 }
 
@@ -339,7 +336,7 @@ func (con *Consumer) FlushMessages() {
 FlushLoop:
 	for {
 		select {
-		case <-con.messages:
+		case <-con.receivedMessages:
 		default:
 			break FlushLoop
 		}

@@ -88,7 +88,7 @@ ConsumeLoop:
 		select {
 		case <-timeOut:
 			break ConsumeLoop
-		case message := <-consumer.Messages():
+		case message := <-consumer.ReceivedMessages():
 			messagesReceived++
 			//fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
 			go func(msg *tcr.ReceivedMessage) {

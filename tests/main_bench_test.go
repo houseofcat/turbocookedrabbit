@@ -65,7 +65,7 @@ ReceivePublishConfirmations:
 		case err := <-consumer.Errors():
 			fmt.Printf("%s: Consumer - Error: %s\r\n", time.Now(), err)
 			consumerErrors++
-		case <-consumer.Messages():
+		case <-consumer.ReceivedMessages():
 			//fmt.Printf("%s: MessageReceived\r\n", time.Now())
 			messagesReceived++
 		default:
@@ -173,7 +173,7 @@ ConsumeLoop:
 		case err := <-consumer.Errors():
 			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
-		case message := <-consumer.Messages():
+		case message := <-consumer.ReceivedMessages():
 			messagesReceived++
 			go func(msg *tcr.ReceivedMessage) {
 				err := msg.Acknowledge()
