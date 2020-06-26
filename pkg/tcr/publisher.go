@@ -276,19 +276,21 @@ func (pub *Publisher) QueueLetter(letter *Letter) {
 // publishReceipt sends the status to the receipt channel.
 func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 
-	publishReceipt := &PublishReceipt{
-		LetterID: letter.LetterID,
-		Error:    err,
-	}
+	go func() {
+		publishReceipt := &PublishReceipt{
+			LetterID: letter.LetterID,
+			Error:    err,
+		}
 
-	if err == nil {
-		publishReceipt.Success = true
-	} else {
-		publishReceipt.FailedLetter = letter
-		pub.errors <- err
-	}
+		if err == nil {
+			publishReceipt.Success = true
+		} else {
+			publishReceipt.FailedLetter = letter
+			pub.errors <- err
+		}
 
-	pub.publishReceipts <- publishReceipt
+		pub.publishReceipts <- publishReceipt
+	}()
 }
 
 // Errors yields all the internal errs for delivering letters.
