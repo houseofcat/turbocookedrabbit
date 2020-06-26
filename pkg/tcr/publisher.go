@@ -33,7 +33,7 @@ func NewPublisherWithConfig(
 	return &Publisher{
 		Config:                 config,
 		ConnectionPool:         cp,
-		errors:                 make(chan error),
+		errors:                 make(chan error, 1000),
 		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
 		autoPublishGroup:       &sync.WaitGroup{},
@@ -51,19 +51,22 @@ func NewPublisherWithConfig(
 func NewPublisher(
 	cp *ConnectionPool,
 	sleepOnIdleInterval time.Duration,
-	sleepOnErrorInterval time.Duration) (*Publisher, error) {
+	sleepOnErrorInterval time.Duration,
+	publishTimeOutDuration time.Duration) (*Publisher, error) {
 
 	return &Publisher{
-		ConnectionPool:       cp,
-		letters:              make(chan *Letter, 1000),
-		autoStop:             make(chan bool, 1),
-		autoPublishGroup:     &sync.WaitGroup{},
-		publishReceipts:      make(chan *PublishReceipt, 1000),
-		sleepOnIdleInterval:  sleepOnIdleInterval,
-		sleepOnErrorInterval: sleepOnErrorInterval,
-		pubLock:              &sync.Mutex{},
-		pubRWLock:            &sync.RWMutex{},
-		autoStarted:          false,
+		ConnectionPool:         cp,
+		errors:                 make(chan error, 1000),
+		letters:                make(chan *Letter, 1000),
+		autoStop:               make(chan bool, 1),
+		autoPublishGroup:       &sync.WaitGroup{},
+		publishReceipts:        make(chan *PublishReceipt, 1000),
+		sleepOnIdleInterval:    sleepOnIdleInterval,
+		sleepOnErrorInterval:   sleepOnErrorInterval,
+		publishTimeOutDuration: publishTimeOutDuration,
+		pubLock:                &sync.Mutex{},
+		pubRWLock:              &sync.RWMutex{},
+		autoStarted:            false,
 	}, nil
 }
 
