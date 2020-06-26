@@ -9,10 +9,11 @@ import (
 
 // ConnectionHost is an internal representation of amqp.Connection.
 type ConnectionHost struct {
-	Connection   *amqp.Connection
-	ConnectionID uint64
-	errors       chan *amqp.Error
-	blockers     chan amqp.Blocking
+	Connection         *amqp.Connection
+	ConnectionID       uint64
+	CachedChannelCount uint64
+	errors             chan *amqp.Error
+	blockers           chan amqp.Blocking
 }
 
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.

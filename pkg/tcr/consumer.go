@@ -192,17 +192,14 @@ ConsumeLoop:
 		// Initiate consuming process.
 		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
 		if err != nil {
-			chanHost.Close()
+			con.ConnectionPool.ReturnChannel(chanHost, true)
 			continue
 		}
 
 		// Process delivered messages by the consumer, returns true when we are to stop all consuming.
 		if con.processDeliveries(deliveryChan, chanHost) {
-			chanHost.Close()
 			break ConsumeLoop
 		}
-
-		chanHost.Close()
 	}
 
 	con.conLock.Lock()
@@ -229,6 +226,7 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case errorMessage := <-chanHost.Errors():
 			if errorMessage != nil {
+				con.ConnectionPool.ReturnChannel(chanHost, true)
 				con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
 				break ProcessDeliveriesInnerLoop
 			}
@@ -252,6 +250,7 @@ ProcessDeliveriesInnerLoop:
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
+				con.ConnectionPool.ReturnChannel(chanHost, false)
 				return true
 			}
 		default:

@@ -136,7 +136,7 @@ func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
 				break PublishLoop
 			default:
 				newLetter := tcr.Letter(*letterTemplate)
-				publisher.QueueLetter(&newLetter)
+				publisher.Publish(&newLetter)
 				letterTemplate.LetterID++
 			}
 		}

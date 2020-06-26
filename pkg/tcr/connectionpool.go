@@ -18,6 +18,7 @@ type ConnectionPool struct {
 	heartbeatInterval    time.Duration
 	connectionTimeout    time.Duration
 	connections          *queue.Queue
+	channels             chan *ChannelHost
 	connectionID         uint64
 	poolLock             *sync.Mutex
 	poolRWLock           *sync.RWMutex
@@ -44,6 +45,7 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 		heartbeatInterval:    time.Duration(config.ConnectionPoolConfig.Heartbeat) * time.Second,
 		connectionTimeout:    time.Duration(config.ConnectionPoolConfig.ConnectionTimeout) * time.Second,
 		connections:          queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
+		channels:             make(chan *ChannelHost, config.ConnectionPoolConfig.MaxCacheChannelCount),
 		poolLock:             &sync.Mutex{},
 		poolRWLock:           &sync.RWMutex{},
 		flaggedConnections:   make(map[uint64]bool),
@@ -81,6 +83,10 @@ func (cp *ConnectionPool) initializeConnections() bool {
 		}
 
 		cp.connectionID++
+	}
+
+	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxConnectionCount; i++ {
+		cp.channels <- cp.CreateChannel(i, true)
 	}
 
 	return true
@@ -177,8 +183,44 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 	cp.connections.Put(connHost)
 }
 
-// GetChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
+// GetChannel gets a cached ackable channel from the Pool if they exist or creates a channel.
+// A non-acked channel is always a transient channel.
+// Blocking if Ackable is true and the cache is empty.
+// If you want a transient Ackable channel (un-managed), use CreateChannel directly.
 func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
+	if ackable && cp.config.ConnectionPoolConfig.MaxCacheChannelCount > 0 {
+		return <-cp.channels
+	}
+
+	return cp.CreateChannel(10000, ackable)
+}
+
+// ReturnChannel returns a cached Channel. If erred, new Channel is created instead and then returned to the cache.
+func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
+
+	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
+	if channelHost.ID < cp.config.ConnectionPoolConfig.MaxCacheChannelCount {
+		if erred {
+			var currentID = channelHost.ID
+			var ackable = channelHost.Ackable
+			channelHost = cp.CreateChannel(currentID, ackable)
+			cp.channels <- channelHost
+		}
+
+		cp.channels <- channelHost
+		return
+	}
+
+	channelHost.Close()
+}
+
+// CreateChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
+func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool) *ChannelHost {
+
+	// prevents assigning to reserved ChannelId for the Cache of Channels
+	if id < cp.config.ConnectionPoolConfig.MaxCacheChannelCount {
+		id = 10000
+	}
 
 	for {
 		connHost, err := cp.GetConnection()
@@ -189,7 +231,7 @@ func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
 			continue
 		}
 
-		chanHost, err := NewChannelHost(connHost.Connection, connHost.ConnectionID, ackable)
+		chanHost, err := NewChannelHost(connHost.Connection, id, connHost.ConnectionID, ackable)
 		if err != nil {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)

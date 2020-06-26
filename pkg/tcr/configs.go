@@ -22,6 +22,7 @@ type ConnectionPoolConfig struct {
 	ConnectionTimeout    uint32     `json:"ConnectionTimeout"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval"` // sleep length on errors
 	MaxConnectionCount   uint64     `json:"MaxConnectionCount"`   // number of connections to create in the pool
+	MaxCacheChannelCount uint64     `json:"MaxCacheChannelCount"` // number of channels to be cached in the pool
 	TLSConfig            *TLSConfig `json:"TLSConfig"`            // TLS settings for connection with AMQPS.
 }
 

@@ -9,6 +9,7 @@ import (
 // ChannelHost is an internal representation of amqp.Connection.
 type ChannelHost struct {
 	Channel       *amqp.Channel
+	ID            uint64
 	ConnectionID  uint64
 	Ackable       bool
 	ErrorMessages chan *ErrorMessage
@@ -19,6 +20,7 @@ type ChannelHost struct {
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
 func NewChannelHost(
 	amqpConn *amqp.Connection,
+	id uint64,
 	connectionID uint64,
 	ackable bool) (*ChannelHost, error) {
 

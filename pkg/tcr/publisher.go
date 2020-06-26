@@ -71,14 +71,14 @@ func NewPublisher(
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter) {
 
-	chanHost := pub.ConnectionPool.GetChannel(!pub.Config.PublisherConfig.AutoAck)
+	chanHost := pub.ConnectionPool.GetChannel(true)
 
-	pub.simplePublish(chanHost, letter)
+	err := pub.simplePublish(chanHost, letter)
 
-	chanHost.Close()
+	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
 }
 
-func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) {
+func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) error {
 
 	err := chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
@@ -94,6 +94,7 @@ func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) {
 	)
 
 	pub.publishReceipt(letter, err)
+	return err
 }
 
 // PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.
@@ -126,7 +127,7 @@ GetChannelAndPublish:
 			},
 		)
 		if err != nil {
-			chanHost.Close()
+			pub.ConnectionPool.ReturnChannel(chanHost, true)
 			continue // Take it again! From the top!
 		}
 
@@ -144,6 +145,7 @@ GetChannelAndPublish:
 				}
 
 				pub.publishReceipt(letter, nil)
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
 				break GetChannelAndPublish
 
 			default:
@@ -187,16 +189,10 @@ AutoPublishLoop:
 			break
 		}
 
-		// Get ChannelHost
-		chanHost := pub.ConnectionPool.GetChannel(true)
-
 		// Deliver letters queued in the publisher, returns true when we are to stop publishing.
-		if pub.deliverLetters(chanHost) {
-			chanHost.Close()
+		if pub.deliverLetters() {
 			break AutoPublishLoop
 		}
-
-		chanHost.Close()
 	}
 
 	pub.pubLock.Lock()
@@ -204,15 +200,19 @@ AutoPublishLoop:
 	pub.pubLock.Unlock()
 }
 
-func (pub *Publisher) deliverLetters(chanHost *ChannelHost) bool {
+func (pub *Publisher) deliverLetters() bool {
 
 DeliverLettersLoop:
 	for {
+		// Get ChannelHost
+		chanHost := pub.ConnectionPool.GetChannel(true)
+
 		// Listen for channel closure (close errors).
 		// Highest priority so separated to it's own select.
 		select {
 		case errorMessage := <-chanHost.Errors():
 			if errorMessage != nil {
+				pub.ConnectionPool.ReturnChannel(chanHost, true)
 				pub.errors <- fmt.Errorf("autopublisher's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
 				break DeliverLettersLoop
 			}
@@ -223,7 +223,11 @@ DeliverLettersLoop:
 		// Publish the letter.
 		select {
 		case letter := <-pub.letters:
-			pub.simplePublish(chanHost, letter)
+			err := pub.simplePublish(chanHost, letter)
+			if err != nil {
+				pub.ConnectionPool.ReturnChannel(chanHost, true)
+				continue
+			}
 		default:
 			if pub.sleepOnIdleInterval > 0 {
 				time.Sleep(pub.sleepOnIdleInterval)
@@ -235,6 +239,7 @@ DeliverLettersLoop:
 		select {
 		case stop := <-pub.autoStop:
 			if stop {
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
 				return true
 			}
 		default:
