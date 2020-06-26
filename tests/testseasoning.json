@@ -1,7 +1,4 @@
 {
-	"ServiceConfig": {
-		"ErrorBuffer": 100
-	},
 	"EncryptionConfig": {
 		"Enabled": true,
 		"Type": "aes",
@@ -13,13 +10,6 @@
 		"Type": "gzip"
 	},
 	"PoolConfig": {
-		"ChannelPoolConfig": {
-			"SleepOnErrorInterval": 1000,
-			"MaxChannelCount": 25,
-			"MaxAckChannelCount": 5,
-			"AckNoWait": false,
-			"GlobalQosCount": 5
-		},
 		"ConnectionPoolConfig": {
 			"URI": "amqp://guest:guest@localhost:5672/",
 			"ConnectionName": "TurboCookedRabbit",
@@ -36,6 +26,17 @@
 		}
 	},
 	"ConsumerConfigs": {
+		"TurboCookedRabbitConsumer": {
+			"Enabled": true,
+			"QueueName": "ConsumerTestQueue",
+			"ConsumerName": "TurboCookedRabbitConsumer",
+			"AutoAck": true,
+			"Exclusive": false,
+			"NoWait": false,
+			"QosCountOverride": 5,
+			"SleepOnErrorInterval": 1000,
+			"SleepOnIdleInterval": 1000
+		},
 		"TurboCookedRabbitConsumer-Ackable": {
 			"Enabled": true,
 			"QueueName": "ConsumerTestQueue",
@@ -44,29 +45,13 @@
 			"Exclusive": false,
 			"NoWait": false,
 			"QosCountOverride": 10,
-			"MessageBuffer": 100,
-			"ErrorBuffer": 10,
 			"SleepOnErrorInterval": 100,
 			"SleepOnIdleInterval": 0
-		},
-		"TurboCookedRabbitConsumer-AutoAck": {
-			"Enabled": true,
-			"QueueName": "ConsumerTestQueue",
-			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-			"AutoAck": true,
-			"Exclusive": false,
-			"NoWait": true,
-			"QosCountOverride": 5,
-			"MessageBuffer": 100,
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 1000,
-			"SleepOnIdleInterval": 1000
 		}
 	},
 	"PublisherConfig": {
 		"AutoAck": false,
 		"SleepOnIdleInterval": 1000,
-		"SleepOnQueueFullInterval": 1000,
 		"SleepOnErrorInterval": 1000
 	}
 }

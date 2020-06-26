@@ -2,13 +2,14 @@ package tcr
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-// RabbitService is the struct for containing RabbitMQ management.
+// RabbitService is the struct for containing all you need for RabbitMQ access.
 type RabbitService struct {
 	Config               *RabbitSeasoning
 	ConnectionPool       *ConnectionPool
@@ -17,16 +18,15 @@ type RabbitService struct {
 	encryptionConfigured bool
 	centralErr           chan error
 	consumers            map[string]*Consumer
-	stopServiceSignal    chan bool
-	stop                 bool
-	retryCount           uint32
+	shutdownSignal       chan bool
+	shutdown             bool
 	letterCount          uint64
 	monitorSleepInterval time.Duration
 	serviceLock          *sync.Mutex
 }
 
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
-func NewRabbitService(config *RabbitSeasoning) (*RabbitService, error) {
+func NewRabbitService(config *RabbitSeasoning, passphrase, salt string) (*RabbitService, error) {
 
 	connectionPool, err := NewConnectionPool(config.PoolConfig)
 	if err != nil {
@@ -48,24 +48,45 @@ func NewRabbitService(config *RabbitSeasoning) (*RabbitService, error) {
 		Config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
-		centralErr:           make(chan error, config.ServiceConfig.ErrorBuffer),
-		stopServiceSignal:    make(chan bool, 1),
+		centralErr:           make(chan error),
+		shutdownSignal:       make(chan bool, 1),
 		consumers:            make(map[string]*Consumer),
-		retryCount:           10,
-		monitorSleepInterval: time.Duration(3) * time.Second,
+		monitorSleepInterval: time.Duration(200) * time.Millisecond,
 		serviceLock:          &sync.Mutex{},
 	}
 
-	err = rs.CreateConsumers(config.ConsumerConfigs)
+	// Build a Map to Consumer retrieval.
+	err = rs.createConsumers(config.ConsumerConfigs)
 	if err != nil {
 		return nil, err
 	}
+
+	// Create a HashKey for Encryption
+	if config.EncryptionConfig.Enabled && len(passphrase) > 0 && len(salt) > 0 {
+		rs.Config.EncryptionConfig.Hashkey = GetHashWithArgon(
+			passphrase,
+			salt,
+			rs.Config.EncryptionConfig.TimeConsideration,
+			rs.Config.EncryptionConfig.MemoryMultiplier,
+			rs.Config.EncryptionConfig.Threads,
+			32)
+
+		rs.encryptionConfigured = true
+	}
+
+	// Start the background monitors and logging.
+	go rs.collectConsumerErrors()
+	go rs.collectAutoPublisherErrors()
+	go rs.monitorForShutdown()
+
+	// Start the AutoPublisher
+	rs.Publisher.StartAutoPublishing()
 
 	return rs, nil
 }
 
 // CreateConsumers takes a config from the Config and builds all the consumers (errors if config is missing).
-func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*ConsumerConfig) error {
+func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerConfig) error {
 
 	for consumerName, consumerConfig := range consumerConfigs {
 
@@ -83,39 +104,6 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*ConsumerCon
 	}
 
 	return nil
-}
-
-// CreateConsumerFromConfig takes a config from the Config map and builds a consumer (errors if config is missing).
-func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
-
-	if consumerConfig, ok := rs.Config.ConsumerConfigs[consumerName]; ok {
-		consumer, err := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
-		if err != nil {
-			return err
-		}
-		rs.consumers[consumerName] = consumer
-		return nil
-	}
-	return nil
-}
-
-// SetHashForEncryption generates a hash key for encrypting/decrypting.
-func (rs *RabbitService) SetHashForEncryption(passphrase, salt string) {
-
-	rs.serviceLock.Lock()
-	defer rs.serviceLock.Unlock()
-
-	if rs.Config.EncryptionConfig.Enabled {
-		rs.Config.EncryptionConfig.Hashkey = GetHashWithArgon(
-			passphrase,
-			salt,
-			rs.Config.EncryptionConfig.TimeConsideration,
-			rs.Config.EncryptionConfig.MemoryMultiplier,
-			rs.Config.EncryptionConfig.Threads,
-			32)
-
-		rs.encryptionConfigured = true
-	}
 }
 
 // PublishWithConfirmation tries to publish and wait for a confirmation.
@@ -144,9 +132,8 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 
 	rs.Publisher.PublishWithConfirmation(
 		&Letter{
-			LetterID:   currentCount,
-			RetryCount: rs.retryCount,
-			Body:       data,
+			LetterID: currentCount,
+			Body:     data,
 			Envelope: &Envelope{
 				Exchange:     exchangeName,
 				RoutingKey:   routingKey,
@@ -187,9 +174,8 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 
 	rs.Publisher.Publish(
 		&Letter{
-			LetterID:   currentCount,
-			RetryCount: rs.retryCount,
-			Body:       data,
+			LetterID: currentCount,
+			Body:     data,
 			Envelope: &Envelope{
 				Exchange:     exchangeName,
 				RoutingKey:   routingKey,
@@ -203,25 +189,54 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 	return nil
 }
 
-// StartService gets all the background internals and logging/monitoring started.
-func (rs *RabbitService) StartService() {
+// GetConsumer allows you to get the individual
+func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 
-	// Start the background monitors and logging.
-	go rs.collectConsumerErrors()
-	go rs.collectAutoPublisherErrors()
-	go rs.monitorStopService()
+	if consumer, ok := rs.consumers[consumerName]; ok {
+		return consumer, nil
+	}
 
-	// Start the AutoPublisher
-	rs.Publisher.StartAutoPublishing()
+	return nil, fmt.Errorf("consumer %q was not found", consumerName)
 }
 
-func (rs *RabbitService) monitorStopService() {
+// CentralErr yields all the internal errs for sub-processes.
+func (rs *RabbitService) CentralErr() <-chan error {
+	return rs.centralErr
+}
+
+// PublishReceipts yields all the receipts generated by the internal publisher.
+func (rs *RabbitService) PublishReceipts() <-chan *PublishReceipt {
+	return rs.Publisher.PublishReceipts()
+}
+
+// Shutdown stops the service and shuts down the ChannelPool.
+func (rs *RabbitService) Shutdown(stopConsumers bool) {
+
+	rs.Publisher.StopAutoPublish()
+
+	time.Sleep(1 * time.Second)
+	rs.shutdownSignal <- true
+	time.Sleep(1 * time.Second)
+
+	if stopConsumers {
+		for _, consumer := range rs.consumers {
+			err := consumer.StopConsuming(true, true)
+			if err != nil {
+				rs.centralErr <- err
+			}
+		}
+	}
+
+	rs.ConnectionPool.Shutdown()
+}
+
+func (rs *RabbitService) monitorForShutdown() {
 
 MonitorLoop:
 	for {
 		select {
-		case <-rs.stopServiceSignal:
-			rs.stop = true
+		case <-rs.shutdownSignal:
+			rs.shutdown = true
 			break MonitorLoop // Prevent leaking goroutine
 		default:
 			time.Sleep(rs.monitorSleepInterval)
@@ -238,7 +253,7 @@ MonitorLoop:
 		for _, consumer := range rs.consumers {
 		IndividualConsumerLoop:
 			for {
-				if rs.stop {
+				if rs.shutdown {
 					break MonitorLoop // Prevent leaking goroutine
 				}
 
@@ -259,7 +274,7 @@ func (rs *RabbitService) collectAutoPublisherErrors() {
 
 MonitorLoop:
 	for {
-		if rs.stop {
+		if rs.shutdown {
 			break MonitorLoop // Prevent leaking goroutine
 		}
 
@@ -271,45 +286,4 @@ MonitorLoop:
 			break
 		}
 	}
-}
-
-// GetConsumer allows you to get the individual
-func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
-
-	if consumer, ok := rs.consumers[consumerName]; ok {
-		return consumer, nil
-	}
-
-	return nil, errors.New("consumer was not found")
-}
-
-// Shutdown stops the service and shuts down the ChannelPool.
-func (rs *RabbitService) Shutdown(stopConsumers bool) {
-
-	rs.Publisher.StopAutoPublish()
-
-	time.Sleep(1 * time.Second)
-	rs.stopServiceSignal <- true
-	time.Sleep(1 * time.Second)
-
-	if stopConsumers {
-		for _, consumer := range rs.consumers {
-			err := consumer.StopConsuming(true, true)
-			if err != nil {
-				rs.centralErr <- err
-			}
-		}
-	}
-
-	rs.ConnectionPool.Shutdown()
-}
-
-// CentralErr yields all the internal errs for sub-processes.
-func (rs *RabbitService) CentralErr() <-chan error {
-	return rs.centralErr
-}
-
-// PublishReceipts yields all the receipts generated by the internal
-func (rs *RabbitService) PublishReceipts() <-chan *PublishReceipt {
-	return rs.Publisher.PublishReceipts()
 }
