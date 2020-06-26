@@ -5,7 +5,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
 	"github.com/houseofcat/turbocookedrabbit/pools"
 
 	"github.com/streadway/amqp"
@@ -13,12 +12,12 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config                   *models.RabbitSeasoning
+	Config                   *RabbitSeasoning
 	ConnectionPool           *pools.ConnectionPool
 	errors                   chan error
-	letters                  chan *models.Letter
+	letters                  chan *Letter
 	autoStop                 chan bool
-	publishReceipts          chan *models.PublishReceipt
+	publishReceipts          chan *PublishReceipt
 	autoStarted              bool
 	autoPublishGroup         *sync.WaitGroup
 	sleepOnIdleInterval      time.Duration
@@ -30,17 +29,17 @@ type Publisher struct {
 
 // NewPublisherWithConfig creates and configures a new Publisher.
 func NewPublisherWithConfig(
-	config *models.RabbitSeasoning,
+	config *RabbitSeasoning,
 	cp *pools.ConnectionPool) (*Publisher, error) {
 
 	return &Publisher{
 		Config:               config,
 		ConnectionPool:       cp,
 		errors:               make(chan error),
-		letters:              make(chan *models.Letter),
+		letters:              make(chan *Letter),
 		autoStop:             make(chan bool, 1),
 		autoPublishGroup:     &sync.WaitGroup{},
-		publishReceipts:      make(chan *models.PublishReceipt),
+		publishReceipts:      make(chan *PublishReceipt),
 		sleepOnIdleInterval:  time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnErrorInterval: time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
 		pubLock:              &sync.Mutex{},
@@ -57,10 +56,10 @@ func NewPublisher(
 
 	return &Publisher{
 		ConnectionPool:       cp,
-		letters:              make(chan *models.Letter),
+		letters:              make(chan *Letter),
 		autoStop:             make(chan bool, 1),
 		autoPublishGroup:     &sync.WaitGroup{},
-		publishReceipts:      make(chan *models.PublishReceipt),
+		publishReceipts:      make(chan *PublishReceipt),
 		sleepOnIdleInterval:  sleepOnIdleInterval,
 		sleepOnErrorInterval: sleepOnErrorInterval,
 		pubLock:              &sync.Mutex{},
@@ -72,14 +71,14 @@ func NewPublisher(
 // Publish sends a single message to the address on the letter.
 // Subscribe to PublishReceipts to see success and errors.
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
-func (pub *Publisher) Publish(letter *models.Letter) {
+func (pub *Publisher) Publish(letter *Letter) {
 
 	chanHost := pub.ConnectionPool.GetChannel(!pub.Config.PublisherConfig.AutoAck)
 
 	pub.simplePublish(chanHost, letter)
 }
 
-func (pub *Publisher) simplePublish(chanHost *pools.ChannelHost, letter *models.Letter) {
+func (pub *Publisher) simplePublish(chanHost *pools.ChannelHost, letter *Letter) {
 
 	err := chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
@@ -102,7 +101,7 @@ func (pub *Publisher) simplePublish(chanHost *pools.ChannelHost, letter *models.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
 // A timeout failure drops the letter back in the PublishReceipts.
 // A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
-func (pub *Publisher) PublishWithConfirmation(letter *models.Letter, timeout time.Duration) {
+func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Duration) {
 
 	timeoutAfter := time.After(timeout)
 
@@ -157,7 +156,7 @@ GetChannelAndPublish:
 }
 
 // PublishReceipts yields all the success and failures during all publish events. Highly recommend susbscribing to this.
-func (pub *Publisher) PublishReceipts() <-chan *models.PublishReceipt {
+func (pub *Publisher) PublishReceipts() <-chan *PublishReceipt {
 	return pub.publishReceipts
 }
 
@@ -261,7 +260,7 @@ func (pub *Publisher) StopAutoPublish() {
 
 // QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish.
 // Blocks on the Letter Buffer being full.
-func (pub *Publisher) QueueLetters(letters []*models.Letter) {
+func (pub *Publisher) QueueLetters(letters []*Letter) {
 
 	for _, letter := range letters {
 
@@ -271,15 +270,15 @@ func (pub *Publisher) QueueLetters(letters []*models.Letter) {
 
 // QueueLetter queues up a letter that will be consumed by AutoPublish.
 // Blocks on the Letter Buffer being full.
-func (pub *Publisher) QueueLetter(letter *models.Letter) {
+func (pub *Publisher) QueueLetter(letter *Letter) {
 
 	pub.letters <- letter
 }
 
 // publishReceipt sends the status to the receipt channel.
-func (pub *Publisher) publishReceipt(letter *models.Letter, err error) {
+func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 
-	publishReceipt := &models.PublishReceipt{
+	publishReceipt := &PublishReceipt{
 		LetterID: letter.LetterID,
 		Error:    err,
 	}

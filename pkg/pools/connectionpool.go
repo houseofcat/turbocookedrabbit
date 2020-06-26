@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
-	"github.com/houseofcat/turbocookedrabbit/models"
 )
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	config               models.PoolConfig
+	config               tcr.PoolConfig
 	Initialized          bool
 	connectionName       string
 	uri                  string
@@ -29,7 +28,7 @@ type ConnectionPool struct {
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
-func NewConnectionPool(config *models.PoolConfig) (*ConnectionPool, error) {
+func NewConnectionPool(config *tcr.PoolConfig) (*ConnectionPool, error) {
 
 	var err error
 

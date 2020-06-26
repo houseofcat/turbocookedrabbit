@@ -1,4 +1,4 @@
-package consumer
+package tcr
 
 import (
 	"errors"
@@ -6,14 +6,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
 	"github.com/streadway/amqp"
 )
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
-	Config               *models.RabbitSeasoning
+	Config               *RabbitSeasoning
 	ConnectionPool       *pools.ConnectionPool
 	Enabled              bool
 	QueueName            string
@@ -22,7 +21,7 @@ type Consumer struct {
 	sleepOnErrorInterval time.Duration
 	sleepOnIdleInterval  time.Duration
 	messageGroup         *sync.WaitGroup
-	messages             chan *models.ReceivedMessage
+	messages             chan *ReceivedMessage
 	consumeStop          chan bool
 	stopImmediate        bool
 	started              bool
@@ -35,7 +34,7 @@ type Consumer struct {
 }
 
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
-func NewConsumerFromConfig(config *models.ConsumerConfig, cp *pools.ConnectionPool) (*Consumer, error) {
+func NewConsumerFromConfig(config *ConsumerConfig, cp *pools.ConnectionPool) (*Consumer, error) {
 
 	if config == nil || cp == nil {
 		return nil, fmt.Errorf("config or connection pool was nil")
@@ -51,7 +50,7 @@ func NewConsumerFromConfig(config *models.ConsumerConfig, cp *pools.ConnectionPo
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(config.SleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
-		messages:             make(chan *models.ReceivedMessage),
+		messages:             make(chan *ReceivedMessage),
 		consumeStop:          make(chan bool, 1),
 		autoAck:              config.AutoAck,
 		exclusive:            config.Exclusive,
@@ -64,7 +63,7 @@ func NewConsumerFromConfig(config *models.ConsumerConfig, cp *pools.ConnectionPo
 
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.
 func NewConsumer(
-	config *models.RabbitSeasoning,
+	config *RabbitSeasoning,
 	cp *pools.ConnectionPool,
 	queuename string,
 	consumerName string,
@@ -85,7 +84,7 @@ func NewConsumer(
 		sleepOnErrorInterval: time.Duration(sleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(sleepOnIdleInterval) * time.Millisecond,
 		messageGroup:         &sync.WaitGroup{},
-		messages:             make(chan *models.ReceivedMessage),
+		messages:             make(chan *ReceivedMessage),
 		consumeStop:          make(chan bool, 1),
 		stopImmediate:        false,
 		started:              false,
@@ -288,7 +287,7 @@ func (con *Consumer) StopConsuming(immediate bool, flushMessages bool) error {
 }
 
 // Messages yields all the internal messages ready for consuming.
-func (con *Consumer) Messages() <-chan *models.ReceivedMessage {
+func (con *Consumer) Messages() <-chan *ReceivedMessage {
 	return con.messages
 }
 
@@ -298,7 +297,7 @@ func (con *Consumer) Errors() <-chan error {
 }
 
 func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
-	msg := models.NewMessage(
+	msg := NewMessage(
 		isAckable,
 		delivery.Body,
 		delivery.DeliveryTag,

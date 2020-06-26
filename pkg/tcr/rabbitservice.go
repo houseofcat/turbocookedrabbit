@@ -7,23 +7,19 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/consumer"
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
-	"github.com/houseofcat/turbocookedrabbit/publisher"
-	"github.com/houseofcat/turbocookedrabbit/topology"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
+	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
 )
 
 // RabbitService is the struct for containing RabbitMQ management.
 type RabbitService struct {
-	Config               *models.RabbitSeasoning
+	Config               *RabbitSeasoning
 	ConnectionPool       *pools.ConnectionPool
-	Topologer            *topology.Topologer
-	Publisher            *publisher.Publisher
+	Topologer            *Topologer
+	Publisher            *Publisher
 	encryptionConfigured bool
 	centralErr           chan error
-	consumers            map[string]*consumer.Consumer
+	consumers            map[string]*Consumer
 	stopServiceSignal    chan bool
 	stop                 bool
 	retryCount           uint32
@@ -33,19 +29,19 @@ type RabbitService struct {
 }
 
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
-func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
+func NewRabbitService(config *RabbitSeasoning) (*RabbitService, error) {
 
 	connectionPool, err := pools.NewConnectionPool(config.PoolConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	publisher, err := publisher.NewPublisherWithConfig(config, connectionPool)
+	publisher, err := NewPublisherWithConfig(config, connectionPool)
 	if err != nil {
 		return nil, err
 	}
 
-	topologer := topology.NewTopologer(connectionPool)
+	topologer := NewTopologer(connectionPool)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +53,7 @@ func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 		Topologer:            topologer,
 		centralErr:           make(chan error, config.ServiceConfig.ErrorBuffer),
 		stopServiceSignal:    make(chan bool, 1),
-		consumers:            make(map[string]*consumer.Consumer),
+		consumers:            make(map[string]*Consumer),
 		retryCount:           10,
 		monitorSleepInterval: time.Duration(3) * time.Second,
 		serviceLock:          &sync.Mutex{},
@@ -72,18 +68,18 @@ func NewRabbitService(config *models.RabbitSeasoning) (*RabbitService, error) {
 }
 
 // CreateConsumers takes a config from the Config and builds all the consumers (errors if config is missing).
-func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*models.ConsumerConfig) error {
+func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*ConsumerConfig) error {
 
 	for consumerName, consumerConfig := range consumerConfigs {
 
-		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
+		consumer, err := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
 		if err != nil {
 			return err
 		}
 
 		hostName, err := os.Hostname()
 		if err == nil {
-			consumer.ConsumerName = hostName + "-" + consumer.ConsumerName
+			ConsumerName = hostName + "-" + ConsumerName
 		}
 
 		rs.consumers[consumerName] = consumer
@@ -96,7 +92,7 @@ func (rs *RabbitService) CreateConsumers(consumerConfigs map[string]*models.Cons
 func (rs *RabbitService) CreateConsumerFromConfig(consumerName string) error {
 
 	if consumerConfig, ok := rs.Config.ConsumerConfigs[consumerName]; ok {
-		consumer, err := consumer.NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
+		consumer, err := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
 		if err != nil {
 			return err
 		}
@@ -150,11 +146,11 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 	}
 
 	rs.Publisher.PublishWithConfirmation(
-		&models.Letter{
+		&Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
 			Body:       data,
-			Envelope: &models.Envelope{
+			Envelope: &Envelope{
 				Exchange:     exchangeName,
 				RoutingKey:   routingKey,
 				ContentType:  "application/json",
@@ -193,11 +189,11 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 	}
 
 	rs.Publisher.Publish(
-		&models.Letter{
+		&Letter{
 			LetterID:   currentCount,
 			RetryCount: rs.retryCount,
 			Body:       data,
-			Envelope: &models.Envelope{
+			Envelope: &Envelope{
 				Exchange:     exchangeName,
 				RoutingKey:   routingKey,
 				ContentType:  "application/json",
@@ -250,7 +246,7 @@ MonitorLoop:
 				}
 
 				select {
-				case err := <-consumer.Errors():
+				case err := <-Errors():
 					rs.centralErr <- err
 				default:
 					break IndividualConsumerLoop
@@ -280,8 +276,8 @@ MonitorLoop:
 	}
 }
 
-// GetConsumer allows you to get the individual consumer.
-func (rs *RabbitService) GetConsumer(consumerName string) (*consumer.Consumer, error) {
+// GetConsumer allows you to get the individual
+func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 
 	if consumer, ok := rs.consumers[consumerName]; ok {
 		return consumer, nil
@@ -301,7 +297,7 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 
 	if stopConsumers {
 		for _, consumer := range rs.consumers {
-			err := consumer.StopConsuming(true, true)
+			err := StopConsuming(true, true)
 			if err != nil {
 				rs.centralErr <- err
 			}
@@ -316,7 +312,7 @@ func (rs *RabbitService) CentralErr() <-chan error {
 	return rs.centralErr
 }
 
-// PublishReceipts yields all the receipts generated by the internal publisher.
-func (rs *RabbitService) PublishReceipts() <-chan *models.PublishReceipt {
+// PublishReceipts yields all the receipts generated by the internal
+func (rs *RabbitService) PublishReceipts() <-chan *PublishReceipt {
 	return rs.Publisher.PublishReceipts()
 }

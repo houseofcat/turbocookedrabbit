@@ -3,7 +3,7 @@ package pools
 import (
 	"errors"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 	"github.com/streadway/amqp"
 )
 
@@ -12,7 +12,7 @@ type ChannelHost struct {
 	Channel       *amqp.Channel
 	ConnectionID  uint64
 	Ackable       bool
-	ErrorMessages chan *models.ErrorMessage
+	ErrorMessages chan *tcr.ErrorMessage
 	Confirmations chan amqp.Confirmation
 	errors        chan *amqp.Error
 }
@@ -56,11 +56,11 @@ func (ch *ChannelHost) Close() {
 }
 
 // Errors allow you to listen for amqp.Error messages.
-func (ch *ChannelHost) Errors() <-chan *models.ErrorMessage {
+func (ch *ChannelHost) Errors() <-chan *tcr.ErrorMessage {
 	select {
 	case amqpError := <-ch.errors:
 		if amqpError != nil { // received a nil during testing
-			ch.ErrorMessages <- models.NewErrorMessage(amqpError)
+			ch.ErrorMessages <- tcr.NewErrorMessage(amqpError)
 		}
 	default:
 		break

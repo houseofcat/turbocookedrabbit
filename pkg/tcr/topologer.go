@@ -3,7 +3,7 @@ package tcr
 import (
 	"errors"
 
-	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
 	"github.com/streadway/amqp"
 )
 
@@ -21,7 +21,7 @@ func NewTopologer(cp *pools.ConnectionPool) *Topologer {
 }
 
 // BuildToplogy builds a topology based on a ToplogyConfig - stops on first error.
-func (top *Topologer) BuildToplogy(config *models.TopologyConfig, ignoreErrors bool) error {
+func (top *Topologer) BuildToplogy(config *TopologyConfig, ignoreErrors bool) error {
 
 	err := top.BuildExchanges(config.Exchanges, ignoreErrors)
 	if err != nil && !ignoreErrors {
@@ -47,7 +47,7 @@ func (top *Topologer) BuildToplogy(config *models.TopologyConfig, ignoreErrors b
 }
 
 // BuildExchanges loops through and builds Exchanges - stops on first error.
-func (top *Topologer) BuildExchanges(exchanges []*models.Exchange, ignoreErrors bool) error {
+func (top *Topologer) BuildExchanges(exchanges []*Exchange, ignoreErrors bool) error {
 
 	if len(exchanges) == 0 {
 		return nil
@@ -64,7 +64,7 @@ func (top *Topologer) BuildExchanges(exchanges []*models.Exchange, ignoreErrors 
 }
 
 // BuildQueues loops through and builds Queues - stops on first error.
-func (top *Topologer) BuildQueues(queues []*models.Queue, ignoreErrors bool) error {
+func (top *Topologer) BuildQueues(queues []*Queue, ignoreErrors bool) error {
 
 	if len(queues) == 0 {
 		return nil
@@ -81,7 +81,7 @@ func (top *Topologer) BuildQueues(queues []*models.Queue, ignoreErrors bool) err
 }
 
 // BindQueues loops through and binds Queues to Exchanges - stops on first error.
-func (top *Topologer) BindQueues(bindings []*models.QueueBinding, ignoreErrors bool) error {
+func (top *Topologer) BindQueues(bindings []*QueueBinding, ignoreErrors bool) error {
 
 	if len(bindings) == 0 {
 		return nil
@@ -98,7 +98,7 @@ func (top *Topologer) BindQueues(bindings []*models.QueueBinding, ignoreErrors b
 }
 
 // BindExchanges loops thrrough and binds Exchanges to Exchanges - stops on first error.
-func (top *Topologer) BindExchanges(bindings []*models.ExchangeBinding, ignoreErrors bool) error {
+func (top *Topologer) BindExchanges(bindings []*ExchangeBinding, ignoreErrors bool) error {
 
 	if len(bindings) == 0 {
 		return nil
@@ -132,7 +132,7 @@ func (top *Topologer) CreateExchange(
 }
 
 // CreateExchangeFromConfig builds an Exchange toplogy from a config Exchange element.
-func (top *Topologer) CreateExchangeFromConfig(exchange *models.Exchange) error {
+func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 
 	chanHost := top.ConnectionPool.GetChannel(false)
 	defer chanHost.Close()
@@ -159,7 +159,7 @@ func (top *Topologer) CreateExchangeFromConfig(exchange *models.Exchange) error 
 }
 
 // ExchangeBind binds an exchange to an Exchange.
-func (top *Topologer) ExchangeBind(exchangeBinding *models.ExchangeBinding) error {
+func (top *Topologer) ExchangeBind(exchangeBinding *ExchangeBinding) error {
 
 	chanHost := top.ConnectionPool.GetChannel(false)
 	defer chanHost.Close()
@@ -220,7 +220,7 @@ func (top *Topologer) CreateQueue(
 }
 
 // CreateQueueFromConfig builds a Queue topology from a config Exchange element.
-func (top *Topologer) CreateQueueFromConfig(queue *models.Queue) error {
+func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 
 	chanHost := top.ConnectionPool.GetChannel(false)
 	defer chanHost.Close()
@@ -244,7 +244,7 @@ func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (
 }
 
 // QueueBind binds an Exchange to a Queue.
-func (top *Topologer) QueueBind(queueBinding *models.QueueBinding) error {
+func (top *Topologer) QueueBind(queueBinding *QueueBinding) error {
 
 	chanHost := top.ConnectionPool.GetChannel(false)
 	defer chanHost.Close()
