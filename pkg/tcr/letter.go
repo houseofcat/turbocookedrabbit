@@ -1,4 +1,4 @@
-package models
+package tcr
 
 // Letter contains the message body and address of where things are going.
 type Letter struct {

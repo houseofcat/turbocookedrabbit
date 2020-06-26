@@ -14,7 +14,6 @@ import (
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 	"github.com/houseofcat/turbocookedrabbit/pkg/utils"
-	"github.com/houseofcat/turbocookedrabbit/topology"
 )
 
 var Seasoning *tcr.RabbitSeasoning
@@ -216,7 +215,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	topologer := topology.NewTopologer(connectionPool)
+	topologer := tcr.NewTopologer(connectionPool)
 
 	err = topologer.BuildToplogy(topologyConfig, true)
 	assert.NoError(t, err)

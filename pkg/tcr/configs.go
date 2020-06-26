@@ -1,4 +1,4 @@
-package models
+package tcr
 
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {

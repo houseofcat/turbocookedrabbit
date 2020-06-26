@@ -3,17 +3,16 @@ package tcr
 import (
 	"errors"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/pools"
 	"github.com/streadway/amqp"
 )
 
 // Topologer allows you to build RabbitMQ topology backed by a ConnectionPool.
 type Topologer struct {
-	ConnectionPool *pools.ConnectionPool
+	ConnectionPool *ConnectionPool
 }
 
 // NewTopologer builds you a new Topologer.
-func NewTopologer(cp *pools.ConnectionPool) *Topologer {
+func NewTopologer(cp *ConnectionPool) *Topologer {
 
 	return &Topologer{
 		ConnectionPool: cp,

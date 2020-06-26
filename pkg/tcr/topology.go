@@ -1,4 +1,4 @@
-package models
+package tcr
 
 import "github.com/streadway/amqp"
 
