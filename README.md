@@ -17,8 +17,17 @@ It was programmed against the following:
  * Erlang v23.0
  * Streadway/Amqp v1.0.0
 
-### Breaking Change Notice (v1.2.x -> v1.3.0)
-I have added a configuration variable for Publishers to be `AutoAck`. This means the default scenario is `false` which means you will be performing publishing over ack channels. There's been a situation in rare instances (failover) of data loss on publish that I can't confirm at this time was library or server side. Just to be safe I am adding a little 
+### Breaking Change Notice (v1.x.x -> v2.0.0)
+Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use.
+
+Reason?  
+I am better at Golang in general now and now I have a year of experience using my own software.
+
+For this rewrite, I was not able to solve all issues with the RabbitMQ Channel life cycle. I have opted for some key functional changes in Consumers and Publishers (AutoPublishing) to recycle channel connectivity... but the ChannelPool is now gone. All other Channels are now constructed/initialized at time of use with best practices.
+
+Publisher durability came into question with a dodgy production server... I lost some messages. I wrote this library to be fast and lean - AFTER - I was 100% sure it wouldn't fail. I went through great pains to ensure stability during outage scenarios. I unplugged servers while running, I turned off the RabbitMQ server, I initatiated a node shutdown... all really good use case scenarios and yet a rapidly firing intermittent transient outage with the Rabbit cluster made me lose a few messages. This made me review the heart of my design, the Pools. While the design was good and started lean, it immediately became apparent that it has become a bit bloated, with recovery mechanism loops sitting on top of recovery loops... and deadlocks becomming harder to understand and predict. So I chucked it into the trash for 2.0.0. Focusing on real hardening, fewer loops, fewer deadlocks. I will update all the examples below and fix the documentation.
+
+Code has changed. I am sorry, but it is better for the both of us.
 
 ### Basic Performance
 
