@@ -31,6 +31,7 @@ func NewConnectionHost(
 	tlsConfig *TLSConfig) (*ConnectionHost, error) {
 
 	connHost := &ConnectionHost{
+		uri:               uri,
 		connectionName:    connectionName,
 		ConnectionID:      connectionID,
 		heartbeatInterval: heartbeatInterval,
