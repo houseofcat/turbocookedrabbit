@@ -9,13 +9,13 @@ import (
 // ChannelHost is an internal representation of amqp.Connection.
 type ChannelHost struct {
 	Channel       *amqp.Channel
-	connHost      *ConnectionHost
 	ID            uint64
 	ConnectionID  uint64
 	Ackable       bool
 	CachedChannel bool
 	Confirmations chan amqp.Confirmation
 	Errors        chan *amqp.Error
+	connHost      *ConnectionHost
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -36,6 +36,7 @@ func NewChannelHost(
 		CachedChannel: cached,
 		Confirmations: make(chan amqp.Confirmation, 1000),
 		Errors:        make(chan *amqp.Error, 1000),
+		connHost:      connHost,
 	}
 
 	err := chanHost.Connect()
