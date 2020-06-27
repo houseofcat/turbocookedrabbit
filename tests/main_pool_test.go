@@ -14,19 +14,19 @@ import (
 func TestCreateConnectionPoolWithZeroConnections(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 0
+	Seasoning.PoolConfig.MaxConnectionCount = 0
 
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.Nil(t, cp)
 	assert.Error(t, err)
 
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.MaxConnectionCount = 1
 
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
@@ -38,13 +38,13 @@ func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
 	cp.ReturnConnection(conHost, false)
 
 	cp.Shutdown()
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.MaxConnectionCount = 1
 
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
@@ -53,13 +53,13 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	assert.NotNil(t, chanHost)
 
 	cp.Shutdown()
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	Seasoning.PoolConfig.ConnectionPoolConfig.MaxConnectionCount = 1
+	Seasoning.PoolConfig.MaxConnectionCount = 1
 
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
@@ -69,7 +69,7 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	chanHost.Close()
 
 	cp.Shutdown()
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
@@ -83,7 +83,7 @@ func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
 		ConnectionPool.ReturnConnection(connHost, false)
 	}
 
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
@@ -96,7 +96,7 @@ func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 		ConnectionPool.ReturnChannel(chanHost, false)
 	}
 
-	ConnectionPool.Shutdown()
+	TestCleanup(t)
 }
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
@@ -125,7 +125,7 @@ func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
 	}
 
 	wg.Wait()
-	TestCleanup()
+	TestCleanup(t)
 }
 
 // TestConnectionGetConnectionAndReturnSlowLoop is similar to the above. It is designed to be slow test connection recovery by severing all connections
@@ -161,5 +161,5 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 	}
 
 	wg.Wait()
-	TestCleanup()
+	TestCleanup(t)
 }

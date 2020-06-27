@@ -22,16 +22,36 @@ func TestMain(m *testing.M) {
 	}
 
 	RabbitService, err = tcr.NewRabbitService(Seasoning, "", "", nil)
-	ConnectionPool = RabbitService.ConnectionPool
-	AckableConsumerConfig, _ = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
-	ConsumerConfig, _ = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	if err != nil {
+		return
+	}
 
-	RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	ConnectionPool = RabbitService.ConnectionPool
+
+	AckableConsumerConfig, err = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	if err != nil {
+		return
+	}
+
+	ConsumerConfig, err = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	if err != nil {
+		return
+	}
+
+	err = RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	if err != nil {
+		return
+	}
 
 	os.Exit(m.Run())
 }
 
-func TestCleanup() {
+func TestCleanup(t *testing.T) {
+	RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+	RabbitService.Shutdown(true)
+}
+
+func BenchCleanup(b *testing.B) {
 	RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
 	RabbitService.Shutdown(true)
 }

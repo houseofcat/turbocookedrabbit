@@ -130,8 +130,8 @@ GetChannelAndPublish:
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost := pub.ConnectionPool.GetChannel(true)
 
-		// Subscribe to publish confirmations
-		chanHost.Channel.NotifyPublish(chanHost.Confirmations)
+		// Flush all previous publish confirmations
+		chanHost.FlushConfirms()
 
 	Publish:
 		err := chanHost.Channel.Publish(
@@ -151,7 +151,7 @@ GetChannelAndPublish:
 			continue // Take it again! From the top!
 		}
 
-		// Wait for Publish Confirmations
+		// Wait for next confirmation
 		for {
 			select {
 			case <-timeoutAfter:
@@ -224,7 +224,7 @@ AutoPublishLoop:
 func (pub *Publisher) deliverLetters() bool {
 
 	// Allow parallel publishing with unique channels (upto n/2 + 1).
-	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.ConnectionPoolConfig.MaxCacheChannelCount/2+1)
+	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.MaxCacheChannelCount/2+1)
 
 	for {
 

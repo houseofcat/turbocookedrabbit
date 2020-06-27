@@ -7,8 +7,11 @@ import (
 )
 
 const (
-	queueTypeQuorum  = "quorum"
-	queueTypeClassic = "classic"
+	// QueueTypeQuorum indicates a queue of type quorum.
+	QueueTypeQuorum = "quorum"
+
+	// QueueTypeClassic indicates a queue of type classic.
+	QueueTypeClassic = "classic"
 )
 
 // Topologer allows you to build RabbitMQ topology backed by a ConnectionPool.
@@ -230,7 +233,7 @@ func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 	defer chanHost.Close()
 
 	// classic is automatic and supports all classic properties, quorum type does not so this helps keep things functional
-	if queue.Type == queueTypeQuorum {
+	if queue.Type == QueueTypeQuorum {
 		queue.Exclusive = false
 		queue.Durable = true
 		queue.NoWait = false

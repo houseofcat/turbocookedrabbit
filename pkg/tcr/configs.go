@@ -11,11 +11,6 @@ type RabbitSeasoning struct {
 
 // PoolConfig represents settings for creating/configuring pools.
 type PoolConfig struct {
-	ConnectionPoolConfig *ConnectionPoolConfig `json:"ConnectionPoolConfig"`
-}
-
-// ConnectionPoolConfig represents settings for creating connection pools.
-type ConnectionPoolConfig struct {
 	ConnectionName       string     `json:"ConnectionName"`
 	URI                  string     `json:"URI"`
 	Heartbeat            uint32     `json:"Heartbeat"`

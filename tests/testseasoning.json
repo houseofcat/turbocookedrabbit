@@ -10,20 +10,18 @@
 		"Type": "gzip"
 	},
 	"PoolConfig": {
-		"ConnectionPoolConfig": {
-			"URI": "amqp://guest:guest@localhost:5672/",
-			"ConnectionName": "TurboCookedRabbit",
-			"SleepOnErrorInterval": 5000,
-			"MaxCacheChannelCount": 100,
-			"MaxConnectionCount": 10,
-			"Heartbeat": 5,
-			"ConnectionTimeout": 10,
-			"TLSConfig": {
-				"EnableTLS": false,
-				"PEMCertLocation": "test/catest.pem",
-				"LocalCertLocation": "client/cert.ca",
-				"CertServerName": "hostname-in-cert"
-			}
+		"URI": "amqp://guest:guest@localhost:5672/",
+		"ConnectionName": "TurboCookedRabbit",
+		"SleepOnErrorInterval": 5000,
+		"MaxCacheChannelCount": 100,
+		"MaxConnectionCount": 10,
+		"Heartbeat": 5,
+		"ConnectionTimeout": 10,
+		"TLSConfig": {
+			"EnableTLS": false,
+			"PEMCertLocation": "test/catest.pem",
+			"LocalCertLocation": "client/cert.ca",
+			"CertServerName": "hostname-in-cert"
 		}
 	},
 	"ConsumerConfigs": {

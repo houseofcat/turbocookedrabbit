@@ -30,7 +30,7 @@ func TestBasicPublish(t *testing.T) {
 
 	// Test
 	timeStart = time.Now()
-	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.ConnectionPoolConfig.URI)
+	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
 	if err != nil {
 		return
 	}
@@ -96,7 +96,7 @@ WaitLoop:
 		}
 	}
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
@@ -119,7 +119,7 @@ WaitLoop:
 		}
 	}
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func TestPublishAccuracy(t *testing.T) {
@@ -153,7 +153,7 @@ WaitLoop:
 
 	assert.Equal(t, count, successCount)
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
@@ -187,5 +187,5 @@ WaitLoop:
 
 	assert.Equal(t, count, successCount)
 
-	TestCleanup()
+	TestCleanup(t)
 }

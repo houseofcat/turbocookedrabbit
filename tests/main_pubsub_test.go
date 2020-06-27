@@ -71,7 +71,7 @@ WaitForConsumer:
 	err = consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 // TestLargeConsumingAfterLargePublish is a combination test of Consuming and Publishing
@@ -105,7 +105,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	err = consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func monitorPublish(t *testing.T, timeoutAfter <-chan time.Time, pub *tcr.Publisher, count int, done chan struct{}) {

@@ -15,5 +15,5 @@ func TestReadConfig(t *testing.T) {
 	config, err := tcr.ConvertJSONFileToConfig(fileNamePath)
 
 	assert.Nil(t, err)
-	assert.NotEqual(t, "", config.PoolConfig.ConnectionPoolConfig.URI, "RabbitMQ URI should not be blank.")
+	assert.NotEqual(t, "", config.PoolConfig.URI, "RabbitMQ URI should not be blank.")
 }

@@ -19,7 +19,7 @@ func TestCreateConsumer(t *testing.T) {
 	assert.NoError(t, err2)
 	assert.NotNil(t, consumer2)
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func TestStartStopConsumer(t *testing.T) {
@@ -33,7 +33,7 @@ func TestStartStopConsumer(t *testing.T) {
 	err = consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup()
+	TestCleanup(t)
 }
 
 func TestConsumerGet(t *testing.T) {
@@ -47,5 +47,5 @@ func TestConsumerGet(t *testing.T) {
 	assert.Nil(t, delivery) // empty queue should be nil
 	assert.NoError(t, err)
 
-	TestCleanup()
+	TestCleanup(t)
 }

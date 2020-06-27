@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -77,5 +78,21 @@ func TestUnbindQueue(t *testing.T) {
 	topologer := tcr.NewTopologer(connectionPool)
 
 	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
+	assert.NoError(t, err)
+}
+
+func TestCreateQuorumQueue(t *testing.T) {
+
+	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	assert.NoError(t, err)
+
+	topologer := tcr.NewTopologer(connectionPool)
+
+	err = topologer.CreateQueue("TcrTestQuorumQueue", false, true, false, false, false, amqp.Table{
+		"x-queue-type": tcr.QueueTypeQuorum,
+	})
+	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("TcrTestQuorumQueue", false, false, false)
 	assert.NoError(t, err)
 }
