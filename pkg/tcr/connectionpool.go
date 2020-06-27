@@ -84,7 +84,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 	}
 
 	for i := uint64(0); i < cp.Config.ConnectionPoolConfig.MaxCacheChannelCount; i++ {
-		cp.channels <- cp.CreateChannel(i, true)
+		cp.channels <- cp.CreateChannel(i, true, true)
 	}
 
 	return true
@@ -190,18 +190,19 @@ func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
 		return <-cp.channels
 	}
 
-	return cp.CreateChannel(10000, ackable)
+	return cp.CreateChannel(0, ackable, false)
 }
 
-// ReturnChannel returns a cached Channel. If erred, new Channel is created instead and then returned to the cache.
+// ReturnChannel returns a Channel.
+// If Channel is not a cached channel, it is simply closed here.
+// If erred, new Channel is created instead and then returned to the cache.
 func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
-	if channelHost.ID < cp.Config.ConnectionPoolConfig.MaxCacheChannelCount {
+	if channelHost.CachedChannel {
 		if erred {
 			var currentID = channelHost.ID
-			var ackable = channelHost.Ackable
-			channelHost = cp.CreateChannel(currentID, ackable)
+			channelHost = cp.CreateChannel(currentID, true, true)
 			cp.channels <- channelHost
 		}
 
@@ -209,11 +210,18 @@ func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 		return
 	}
 
-	channelHost.Close()
+	go func() {
+		defer func() { _ = recover() }()
+		channelHost.Close()
+	}()
 }
 
 // CreateChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
-func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool) *ChannelHost {
+func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool, cached bool) *ChannelHost {
+
+	if !cached { // protect the Cached channel ids
+		id = 10000
+	}
 
 	for {
 		connHost, err := cp.GetConnection()
@@ -224,7 +232,7 @@ func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool) *ChannelHost {
 			continue
 		}
 
-		chanHost, err := NewChannelHost(connHost.Connection, id, connHost.ConnectionID, ackable)
+		chanHost, err := NewChannelHost(connHost.Connection, id, connHost.ConnectionID, ackable, cached)
 		if err != nil {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
@@ -286,10 +294,7 @@ ChannelFlushLoop:
 			// Started receiving panics on Channel.Close()
 			go func(*ChannelHost) {
 				defer wg.Done()
-				defer func() {
-					_ = recover()
-					//fmt.Printf("recovered panic channel closed: %v\r\n", v)
-				}()
+				defer func() { _ = recover() }()
 
 				chanHost.Close()
 			}(chanHost)
@@ -312,10 +317,7 @@ ChannelFlushLoop:
 			// Started receiving panics on Connection.Close()
 			go func(*ConnectionHost) {
 				defer wg.Done()
-				defer func() {
-					_ = recover()
-					//fmt.Printf("recovered panic connection closed: %v\r\n", v)
-				}()
+				defer func() { _ = recover() }()
 
 				if !connectionHost.Connection.IsClosed() {
 					connectionHost.Connection.Close()

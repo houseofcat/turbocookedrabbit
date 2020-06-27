@@ -8,7 +8,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// PublishReceipt is a way to communicate between callers
+// PublishReceipt is a way to monitor publishing success and to initiate a retry when using async publishing.
 type PublishReceipt struct {
 	LetterID     uint64
 	FailedLetter *Letter
@@ -19,10 +19,10 @@ type PublishReceipt struct {
 // ToString allows you to quickly log the PublishReceipt struct as a string.
 func (not *PublishReceipt) ToString() string {
 	if not.Success {
-		return fmt.Sprintf("[LetterID: %d] - Successful.\r\n", not.LetterID)
+		return fmt.Sprintf("[LetterID: %d] - Publish successful.\r\n", not.LetterID)
 	}
 
-	return fmt.Sprintf("[LetterID: %d] - Failed.\r\nError: %s\r\n", not.LetterID, not.Error.Error())
+	return fmt.Sprintf("[LetterID: %d] - Publish failed.\r\nError: %s\r\n", not.LetterID, not.Error.Error())
 }
 
 // ReceivedMessage allow for you to acknowledge, after processing the received payload, by its RabbitMQ tag and Channel pointer.
@@ -162,16 +162,6 @@ func NewReturnMessage(amqpReturn *amqp.Return) *ReturnMessage {
 		UserID:          amqpReturn.UserId,
 		AppID:           amqpReturn.AppId,
 	}
-}
-
-// TcrError is a custom TurboCookedRabbit error.
-type TcrError struct {
-	code    uint32
-	message string
-}
-
-func (te *TcrError) Error() string {
-	return fmt.Sprintf("[err: %d] - %s", te.code, te.message)
 }
 
 // PublishConfirmation aids in guaranteed Deliverability.

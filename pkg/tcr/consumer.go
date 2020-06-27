@@ -224,7 +224,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 		// Listen for channel closure (close errors).
 		// Highest priority so separated to it's own select.
 		select {
-		case errorMessage := <-chanHost.Errors():
+		case errorMessage := <-chanHost.Errors:
 			if errorMessage != nil {
 				con.ConnectionPool.ReturnChannel(chanHost, true)
 				con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)

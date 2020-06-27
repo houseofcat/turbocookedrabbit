@@ -69,6 +69,20 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	ConnectionPool.Shutdown()
 }
 
+func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	for i := 0; i < 1000000; i++ {
+
+		connHost, err := ConnectionPool.GetConnection()
+		assert.NoError(t, err)
+
+		ConnectionPool.ReturnConnection(connHost, false)
+	}
+
+	ConnectionPool.Shutdown()
+}
+
 func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 

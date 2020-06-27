@@ -12,9 +12,9 @@ type ChannelHost struct {
 	ID            uint64
 	ConnectionID  uint64
 	Ackable       bool
-	ErrorMessages chan *ErrorMessage
+	CachedChannel bool
 	Confirmations chan amqp.Confirmation
-	errors        chan *amqp.Error
+	Errors        chan *amqp.Error
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -22,7 +22,7 @@ func NewChannelHost(
 	amqpConn *amqp.Connection,
 	id uint64,
 	connectionID uint64,
-	ackable bool) (*ChannelHost, error) {
+	ackable, cached bool) (*ChannelHost, error) {
 
 	if amqpConn.IsClosed() {
 		return nil, errors.New("can't open a channel - connection is already closed")
@@ -38,11 +38,12 @@ func NewChannelHost(
 		ID:            id,
 		ConnectionID:  connectionID,
 		Ackable:       ackable,
+		CachedChannel: cached,
 		Confirmations: make(chan amqp.Confirmation, 100),
-		errors:        make(chan *amqp.Error, 100),
+		Errors:        make(chan *amqp.Error, 100),
 	}
 
-	channelHost.Channel.NotifyClose(channelHost.errors)
+	channelHost.Channel.NotifyClose(channelHost.Errors)
 
 	if ackable {
 		if err = channelHost.Channel.Confirm(false); err != nil {
@@ -56,18 +57,4 @@ func NewChannelHost(
 // Close allows for manual close of Amqp Channel kept internally.
 func (ch *ChannelHost) Close() {
 	ch.Channel.Close()
-}
-
-// Errors allow you to listen for amqp.Error messages.
-func (ch *ChannelHost) Errors() <-chan *ErrorMessage {
-	select {
-	case amqpError := <-ch.errors:
-		if amqpError != nil { // received a nil during testing
-			ch.ErrorMessages <- NewErrorMessage(amqpError)
-		}
-	default:
-		break
-	}
-
-	return ch.ErrorMessages
 }

@@ -56,3 +56,17 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 
 	service.Shutdown(true)
 }
+
+func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	Seasoning.EncryptionConfig.Enabled = true
+	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil)
+	assert.NoError(t, err)
+	assert.NotNil(t, service)
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	service.PublishLetter(letter)
+
+	service.Shutdown(true)
+}

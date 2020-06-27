@@ -82,6 +82,18 @@ func (pub *Publisher) Publish(letter *Letter) {
 	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
 }
 
+// PublishWithTransient sends a single message to the address on the letter using a transient (new) RabbitMQ channel.
+// Subscribe to PublishReceipts to see success and errors.
+// For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
+func (pub *Publisher) PublishWithTransient(letter *Letter) {
+
+	chanHost := pub.ConnectionPool.GetChannel(false)
+
+	err := pub.simplePublish(chanHost, letter)
+
+	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+}
+
 func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) error {
 
 	err := chanHost.Channel.Publish(
