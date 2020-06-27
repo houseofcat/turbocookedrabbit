@@ -1,5 +1,5 @@
 # TurboCookedRabbit
- A user friendly RabbitMQ library written in Golang.  
+ A user friendly RabbitMQ library written in Golang to help use <a href="https://github.com/streadway/amqp">streadway/amqp</a>.
  Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/houseofcat/turbocookedrabbit)](https://goreportcard.com/report/github.com/houseofcat/turbocookedrabbit)
@@ -21,122 +21,30 @@ It was programmed against the following:
 Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use.
 
 Reason?  
-I am better at Golang in general now and now I have a year of experience using my own software.
+I am better at Golang in general now and have a year of experience using my own software in a production environment.
 
-For this rewrite, I was not able to solve all issues with the RabbitMQ Channel life cycle. I have opted for some key functional changes in Consumers and Publishers (AutoPublishing) to recycle channel connectivity... but the ChannelPool is now gone. We cache Ackable channels inside the ConnectionPool, other Channels are now transient. It is paramount for the user to always return a cache channel still and indicate if there was an error. What is different this time, is that we replace that channel immediately on error.
+For this rewrite, I was not able to solve all issues with the RabbitMQ Channel life cycle. I have opted for some key functional changes in Consumers and Publishers (AutoPublishing) to recycle channel connectivity... but the ChannelPool is now gone. We cache Ackable channels inside the ConnectionPool, other Channels are now transient. It is paramount for the user to always return a cache channel still and indicate if there was an error. However there is no longer a wait in place recovery mechanism for Channels to repair themselves.
 
-Overall, nearlly all the code has changed. I am sorry, but this has been streamlined a ton. It should no longer feel clunky to write code for.
+Overall, nearlly all the code has changed. I am sorry. The upside is a lot of thought went to stitching components together so it should no longer feel as clunky to write code for.
 
 ### Basic Performance
 
 
 ### Work Recently Finished
- * Solidify Connections/Pools outage handling.
- * Solidify Consumers outage handling.
-   * Publishers were still working.
-     * Blocking introduced on QueueLetter.
- * Publisher AutoPublish performance up to par!
- * Properly handle total outages server side.
- * Refactor the reconnection logic.
-   * Now everything stops/pauses until connectivity is restored.
- * RabbitMQ Topology Creation/Destruction support.
- * Started Profiling and including Benchmark/Profile .svgs.
-
-### Current Known Issues
- * ~CPU/MEM spin up on a total server outage even after adjusting config.~
-   * ~Channels in ChannelPool aren't redistributing evenly over Connections.~
- * ~Consumer stops working after server outage restore.~
-   * ~Publisher is still working though.~
- * ~AutoPublisher is a tad on the slow side. Might be the underlying Channel/QueueLetter.~
-   * ~Raw looped Publish shows higher performance.~
- * README needs small comments/updates related to new work finished on 9/13/2019 - 7:10 PM EST.
-
-### Work In Progress
- * Streamline error handling.
- * More documentation.
- * A solid Demo Client
- * More Chaos Engineering / More Tests
+ * New PublishWithConfirmation feature was added.
+ * Removed ChannelPools.
+ * Rewrite for v2.0.0.
 
 ## The Seasoning/Config
 
 The config.json is just a **quality of life** feature. You don't have to use it. I just like how easy it is to change configurations on the fly.
 
 ```golang
-config, err := utils.ConvertJSONFileToConfig("testconsumerseasoning.json")
+config, err := utils.ConvertJSONFileToConfig("testseasoning.json")
 ```
 
-The full structure `RabbitSeasoning` is available under `models/configs.go`
+The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
 
-<details><summary>Click here to see a sample config.json!</summary>
-<p>
-
-```javascript
-{
-	"PoolConfig": {
-		"ChannelPoolConfig": {
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 1000,
-			"MaxChannelCount": 50,
-			"MaxAckChannelCount": 50,
-			"AckNoWait": false,
-			"GlobalQosCount": 5
-		},
-		"ConnectionPoolConfig": {
-			"URI": "amqp://guest:guest@localhost:5672/",
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 5000,
-			"MaxConnectionCount": 10,
-			"Heartbeat": 5,
-			"ConnectionTimeout": 10,
-			"TLSConfig": {
-				"EnableTLS": false,
-				"PEMCertLocation": "test/catest.pem",
-				"LocalCertLocation": "client/cert.ca",
-				"CertServerName": "hostname-in-cert"
-			}
-		}
-	},
-	"ConsumerConfigs": {
-		"TurboCookedRabbitConsumer-Ackable": {
-			"Enabled": true,
-			"QueueName": "ConsumerTestQueue",
-			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
-			"AutoAck": false,
-			"Exclusive": false,
-			"NoWait": false,
-			"QosCountOverride": 5,
-			"MessageBuffer": 100,
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 100,
-			"SleepOnIdleInterval": 0
-		},
-		"TurboCookedRabbitConsumer-AutoAck": {
-			"Enabled": true,
-			"QueueName": "ConsumerTestQueue",
-			"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-			"AutoAck": true,
-			"Exclusive": false,
-			"NoWait": true,
-			"QosCountOverride": 5,
-			"MessageBuffer": 100,
-			"ErrorBuffer": 10,
-			"SleepOnErrorInterval": 100,
-			"SleepOnIdleInterval": 0
-		}
-	},
-	"PublisherConfig":{
-		"SleepOnIdleInterval": 0,
-		"SleepOnQueueFullInterval": 100,
-		"SleepOnErrorInterval": 1000,
-		"LetterBuffer": 1000,
-		"MaxOverBuffer": 1000,
-		"NotificationBuffer": 1000
-	}
-}
-```
-
-</p>
-</details>
 
 ## The Publisher
 

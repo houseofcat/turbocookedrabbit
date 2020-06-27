@@ -12,8 +12,7 @@ import (
 
 // ConnectionPool houses the pool of RabbitMQ connections.
 type ConnectionPool struct {
-	config               PoolConfig
-	connectionName       string
+	Config               PoolConfig
 	uri                  string
 	heartbeatInterval    time.Duration
 	connectionTimeout    time.Duration
@@ -39,9 +38,8 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 	}
 
 	cp := &ConnectionPool{
-		config:               *config,
+		Config:               *config,
 		uri:                  config.ConnectionPoolConfig.URI,
-		connectionName:       config.ConnectionPoolConfig.ConnectionName,
 		heartbeatInterval:    time.Duration(config.ConnectionPoolConfig.Heartbeat) * time.Second,
 		connectionTimeout:    time.Duration(config.ConnectionPoolConfig.ConnectionTimeout) * time.Second,
 		connections:          queue.New(int64(config.ConnectionPoolConfig.MaxConnectionCount)), // possible overflow error
@@ -62,17 +60,17 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 func (cp *ConnectionPool) initializeConnections() bool {
 
 	cp.connectionID = 0
-	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+	cp.connections = queue.New(int64(cp.Config.ConnectionPoolConfig.MaxConnectionCount))
 
-	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxConnectionCount; i++ {
+	for i := uint64(0); i < cp.Config.ConnectionPoolConfig.MaxConnectionCount; i++ {
 
 		connectionHost, err := NewConnectionHost(
 			cp.uri,
-			cp.connectionName+"-"+strconv.FormatUint(cp.connectionID, 10),
+			cp.Config.ConnectionPoolConfig.ConnectionName+"-"+strconv.FormatUint(cp.connectionID, 10),
 			cp.connectionID,
 			cp.heartbeatInterval,
 			cp.connectionTimeout,
-			cp.config.ConnectionPoolConfig.TLSConfig)
+			cp.Config.ConnectionPoolConfig.TLSConfig)
 
 		if err != nil {
 			return false
@@ -85,7 +83,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 		cp.connectionID++
 	}
 
-	for i := uint64(0); i < cp.config.ConnectionPoolConfig.MaxCacheChannelCount; i++ {
+	for i := uint64(0); i < cp.Config.ConnectionPoolConfig.MaxCacheChannelCount; i++ {
 		cp.channels <- cp.CreateChannel(i, true)
 	}
 
@@ -151,11 +149,11 @@ GetConnectionHost:
 
 			connectionHost, err = NewConnectionHost(
 				cp.uri,
-				cp.connectionName+"-"+strconv.FormatUint(replacementConnectionID, 10),
+				cp.Config.ConnectionPoolConfig.ConnectionName+"-"+strconv.FormatUint(replacementConnectionID, 10),
 				replacementConnectionID,
 				cp.heartbeatInterval,
 				cp.connectionTimeout,
-				cp.config.ConnectionPoolConfig.TLSConfig)
+				cp.Config.ConnectionPoolConfig.TLSConfig)
 			if err != nil {
 
 				if cp.sleepOnErrorInterval > 0 {
@@ -172,7 +170,7 @@ GetConnectionHost:
 	return connectionHost, nil
 }
 
-// ReturnConnection puts the connection back in the queue.
+// ReturnConnection puts the connection back in the queue and flag it for error.
 // This helps maintain a Round Robin on Connections and their resources.
 func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) {
 
@@ -188,7 +186,7 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 // Blocking if Ackable is true and the cache is empty.
 // If you want a transient Ackable channel (un-managed), use CreateChannel directly.
 func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
-	if ackable && cp.config.ConnectionPoolConfig.MaxCacheChannelCount > 0 {
+	if ackable && cp.Config.ConnectionPoolConfig.MaxCacheChannelCount > 0 {
 		return <-cp.channels
 	}
 
@@ -199,7 +197,7 @@ func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
 func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
-	if channelHost.ID < cp.config.ConnectionPoolConfig.MaxCacheChannelCount {
+	if channelHost.ID < cp.Config.ConnectionPoolConfig.MaxCacheChannelCount {
 		if erred {
 			var currentID = channelHost.ID
 			var ackable = channelHost.Ackable
@@ -216,11 +214,6 @@ func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 
 // CreateChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
 func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool) *ChannelHost {
-
-	// prevents assigning to reserved ChannelId for the Cache of Channels
-	if id < cp.config.ConnectionPoolConfig.MaxCacheChannelCount {
-		id = 10000
-	}
 
 	for {
 		connHost, err := cp.GetConnection()
@@ -334,7 +327,7 @@ ChannelFlushLoop:
 
 	wg.Wait()
 
-	cp.connections = queue.New(int64(cp.config.ConnectionPoolConfig.MaxConnectionCount))
+	cp.connections = queue.New(int64(cp.Config.ConnectionPoolConfig.MaxConnectionCount))
 	cp.flaggedConnections = make(map[uint64]bool)
 	cp.connectionID = 0
 

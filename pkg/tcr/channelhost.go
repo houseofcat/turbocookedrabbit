@@ -35,6 +35,7 @@ func NewChannelHost(
 
 	channelHost := &ChannelHost{
 		Channel:       amqpChan,
+		ID:            id,
 		ConnectionID:  connectionID,
 		Ackable:       ackable,
 		Confirmations: make(chan amqp.Confirmation, 100),
