@@ -30,3 +30,8 @@ func TestMain(m *testing.M) {
 
 	os.Exit(m.Run())
 }
+
+func TestCleanup() {
+	RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+	RabbitService.Shutdown(true)
+}

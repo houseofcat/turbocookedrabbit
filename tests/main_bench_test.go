@@ -122,7 +122,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 		b.Error(err)
 	}
 
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
 
 func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {

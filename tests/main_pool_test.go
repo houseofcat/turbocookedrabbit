@@ -125,7 +125,7 @@ func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
 	}
 
 	wg.Wait()
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
 
 // TestConnectionGetConnectionAndReturnSlowLoop is similar to the above. It is designed to be slow test connection recovery by severing all connections
@@ -161,5 +161,5 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 	}
 
 	wg.Wait()
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }

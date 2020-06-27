@@ -13,7 +13,6 @@ import (
 
 // TestBasicPublish is used for some baseline numbers using primarily streadway/amqp.
 func TestBasicPublish(t *testing.T) {
-
 	defer leaktest.Check(t)()
 
 	messageCount := 1000
@@ -97,7 +96,7 @@ WaitLoop:
 		}
 	}
 
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
 
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
@@ -120,7 +119,7 @@ WaitLoop:
 		}
 	}
 
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
 
 func TestPublishAccuracy(t *testing.T) {
@@ -154,7 +153,7 @@ WaitLoop:
 
 	assert.Equal(t, count, successCount)
 
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
 
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
@@ -188,5 +187,5 @@ WaitLoop:
 
 	assert.Equal(t, count, successCount)
 
-	ConnectionPool.Shutdown()
+	TestCleanup()
 }
