@@ -11,7 +11,7 @@ import (
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
-	Config               *RabbitSeasoning
+	Config               *ConsumerConfig
 	ConnectionPool       *ConnectionPool
 	Enabled              bool
 	QueueName            string
@@ -40,7 +40,7 @@ func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consume
 	}
 
 	return &Consumer{
-		Config:               nil,
+		Config:               config,
 		ConnectionPool:       cp,
 		Enabled:              config.Enabled,
 		QueueName:            config.QueueName,
@@ -62,7 +62,7 @@ func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consume
 
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.
 func NewConsumer(
-	config *RabbitSeasoning,
+	rconfig *RabbitSeasoning,
 	cp *ConnectionPool,
 	queuename string,
 	consumerName string,
@@ -73,6 +73,12 @@ func NewConsumer(
 	qosCountOverride int, // if zero ignored
 	sleepOnErrorInterval uint32,
 	sleepOnIdleInterval uint32) (*Consumer, error) {
+
+	var ok bool
+	var config *ConsumerConfig
+	if config, ok = rconfig.ConsumerConfigs[consumerName]; !ok {
+		return nil, fmt.Errorf("consumer %q was not found in config", consumerName)
+	}
 
 	return &Consumer{
 		Config:               config,

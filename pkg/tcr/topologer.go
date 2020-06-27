@@ -6,6 +6,11 @@ import (
 	"github.com/streadway/amqp"
 )
 
+const (
+	queueTypeQuorum  = "quorum"
+	queueTypeClassic = "classic"
+)
+
 // Topologer allows you to build RabbitMQ topology backed by a ConnectionPool.
 type Topologer struct {
 	ConnectionPool *ConnectionPool
@@ -223,6 +228,20 @@ func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 
 	chanHost := top.ConnectionPool.GetChannel(false)
 	defer chanHost.Close()
+
+	// classic is automatic and supports all classic properties, quorum type does not so this helps keep things functional
+	if queue.Type == queueTypeQuorum {
+		queue.Exclusive = false
+		queue.Durable = true
+		queue.NoWait = false
+		queue.AutoDelete = false
+
+		if queue.Args == nil {
+			queue.Args = amqp.Table{
+				"x-queue-type": queue.Type,
+			}
+		}
+	}
 
 	if queue.PassiveDeclare {
 		_, err := chanHost.Channel.QueueDeclarePassive(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)

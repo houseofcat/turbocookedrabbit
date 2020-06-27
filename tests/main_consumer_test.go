@@ -35,3 +35,17 @@ func TestStartStopConsumer(t *testing.T) {
 
 	ConnectionPool.Shutdown()
 }
+
+func TestConsumerGet(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	delivery, err := consumer.Get("TcrTestQueue")
+	assert.Nil(t, delivery) // empty queue should be nil
+	assert.NoError(t, err)
+
+	ConnectionPool.Shutdown()
+}

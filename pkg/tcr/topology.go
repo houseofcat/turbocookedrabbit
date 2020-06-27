@@ -22,6 +22,7 @@ type Queue struct {
 	AutoDelete     bool       `json:"AutoDelete"`
 	Exclusive      bool       `json:"Exclusive"`
 	NoWait         bool       `json:"NoWait"`
+	Type           string     `json:"Type"`           // classic or quorum, type of quorum disregards exclusive and enables durable properties when building from config
 	Args           amqp.Table `json:"Args,omitempty"` // map[string]interface()
 }
 

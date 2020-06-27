@@ -84,7 +84,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 	}
 
 	for i := uint64(0); i < cp.Config.ConnectionPoolConfig.MaxCacheChannelCount; i++ {
-		cp.channels <- cp.CreateChannel(i, true, true)
+		cp.channels <- cp.createCacheChannel(i)
 	}
 
 	return true
@@ -95,59 +95,62 @@ func (cp *ConnectionPool) initializeConnections() bool {
 // Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
-	var connectionHost *ConnectionHost
+	var connHost *ConnectionHost
 GetConnectionHost:
 	for {
 
 		// Pull from the queue.
-		// Pauses here if the queue is empty.
+		// Pauses here indefinitely if the queue is empty.
 		structs, err := cp.connections.Get(1)
 		if err != nil {
 			return nil, err
 		}
 
 		var ok bool
-		connectionHost, ok = structs[0].(*ConnectionHost)
+		connHost, ok = structs[0].(*ConnectionHost)
 		if !ok {
 			return nil, errors.New("invalid struct type found in ConnectionPool queue")
 		}
 
-		select {
-		case <-connectionHost.Blockers(): // Check for flow control issues.
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
+		// Pause in-place for flow control.
+		for {
+			select {
+			case blocker := <-connHost.Blockers(): // Check for flow control issues.
+				if !blocker.Active {
+					break GetConnectionHost // everything's good, continue down.
+				}
+				time.Sleep(time.Millisecond)
+			default:
+				break GetConnectionHost // everything's good, continue down.
 			}
-			cp.ReturnConnection(connectionHost, false)
-		default:
-			break GetConnectionHost
 		}
 	}
 
 	healthy := true
 	select {
-	case <-connectionHost.Errors():
+	case <-connHost.Errors():
 		healthy = false
 	default:
 		break
 	}
 
-	// Makes debugging easier
-	connectionClosed := connectionHost.Connection.IsClosed()
-	connectionFlagged := cp.IsConnectionFlagged(connectionHost.ConnectionID)
+	// Assignment makes debugging easier
+	closed := connHost.Connection.IsClosed()
+	flagged := cp.IsConnectionFlagged(connHost.ConnectionID)
 
 	// Between these three states we do our best to determine that a connection is dead in the various lifecycles.
-	if connectionFlagged || !healthy || connectionClosed {
+	if flagged || !healthy || closed {
 
-		cp.FlagConnection(connectionHost.ConnectionID)
+		cp.FlagConnection(connHost.ConnectionID)
 
 		var err error
-		replacementConnectionID := connectionHost.ConnectionID
-		connectionHost = nil
+		replacementConnectionID := connHost.ConnectionID
+		connHost = nil
 
 		// Do not leave without a good Connection.
-		for connectionHost == nil {
+		for connHost == nil {
 
-			connectionHost, err = NewConnectionHost(
+			connHost, err = NewConnectionHost(
 				cp.uri,
 				cp.Config.ConnectionPoolConfig.ConnectionName+"-"+strconv.FormatUint(replacementConnectionID, 10),
 				replacementConnectionID,
@@ -167,7 +170,7 @@ GetConnectionHost:
 		cp.UnflagConnection(replacementConnectionID)
 	}
 
-	return connectionHost, nil
+	return connHost, nil
 }
 
 // ReturnConnection puts the connection back in the queue and flag it for error.
@@ -190,20 +193,21 @@ func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
 		return <-cp.channels
 	}
 
-	return cp.CreateChannel(0, ackable, false)
+	return cp.CreateTransientChannel(ackable)
 }
 
 // ReturnChannel returns a Channel.
 // If Channel is not a cached channel, it is simply closed here.
-// If erred, new Channel is created instead and then returned to the cache.
+// If Cache Channel, we check if erred, new Channel is created instead and then returned to the cache.
 func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
 	if channelHost.CachedChannel {
 		if erred {
 			var currentID = channelHost.ID
-			channelHost = cp.CreateChannel(currentID, true, true)
+			channelHost = cp.createCacheChannel(currentID)
 			cp.channels <- channelHost
+			return
 		}
 
 		cp.channels <- channelHost
@@ -216,12 +220,8 @@ func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
 	}()
 }
 
-// CreateChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
-func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool, cached bool) *ChannelHost {
-
-	if !cached { // protect the Cached channel ids
-		id = 10000
-	}
+// createCacheChannel allows you create a ChannelHost which helps wrap Amqp Channel functionality.
+func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 
 	for {
 		connHost, err := cp.GetConnection()
@@ -232,7 +232,33 @@ func (cp *ConnectionPool) CreateChannel(id uint64, ackable bool, cached bool) *C
 			continue
 		}
 
-		chanHost, err := NewChannelHost(connHost.Connection, id, connHost.ConnectionID, ackable, cached)
+		chanHost, err := NewChannelHost(connHost.Connection, id, connHost.ConnectionID, true, true)
+		if err != nil {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+			cp.ReturnConnection(connHost, true)
+			continue
+		}
+
+		cp.ReturnConnection(connHost, false)
+		return chanHost
+	}
+}
+
+// CreateTransientChannel allows you create an unmanaged ChannelHost which helps wrap Amqp Channel functionality.
+func (cp *ConnectionPool) CreateTransientChannel(ackable bool) *ChannelHost {
+
+	for {
+		connHost, err := cp.GetConnection()
+		if err != nil {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+			continue
+		}
+
+		chanHost, err := NewChannelHost(connHost.Connection, 10000, connHost.ConnectionID, ackable, false)
 		if err != nil {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)

@@ -1,7 +1,6 @@
 package main_test
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -10,6 +9,7 @@ import (
 
 var Seasoning *tcr.RabbitSeasoning
 var ConnectionPool *tcr.ConnectionPool
+var RabbitService *tcr.RabbitService
 var AckableConsumerConfig *tcr.ConsumerConfig
 var ConsumerConfig *tcr.ConsumerConfig
 
@@ -20,19 +20,13 @@ func TestMain(m *testing.M) {
 	if err != nil {
 		return
 	}
-	ConnectionPool, err = tcr.NewConnectionPool(Seasoning.PoolConfig)
-	if err != nil {
-		fmt.Print(err.Error())
-		return
-	}
 
-	if config, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]; ok {
-		AckableConsumerConfig = config
-	}
+	RabbitService, err = tcr.NewRabbitService(Seasoning, "", "", nil)
+	ConnectionPool = RabbitService.ConnectionPool
+	AckableConsumerConfig, _ = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	ConsumerConfig, _ = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
 
-	if config, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer"]; ok {
-		ConsumerConfig = config
-	}
+	RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
 
 	os.Exit(m.Run())
 }

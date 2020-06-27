@@ -240,11 +240,21 @@ func (rs *RabbitService) PublishLetter(letter *Letter) error {
 	return nil
 }
 
-// GetConsumer allows you to get the individual
+// GetConsumer allows you to get the individual consumers stored in memory.
 func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 
 	if consumer, ok := rs.consumers[consumerName]; ok {
 		return consumer, nil
+	}
+
+	return nil, fmt.Errorf("consumer %q was not found", consumerName)
+}
+
+// GetConsumerConfig allows you to get the individual consumers' config stored in memory.
+func (rs *RabbitService) GetConsumerConfig(consumerName string) (*ConsumerConfig, error) {
+
+	if consumer, ok := rs.consumers[consumerName]; ok {
+		return consumer.Config, nil
 	}
 
 	return nil, fmt.Errorf("consumer %q was not found", consumerName)
