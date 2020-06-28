@@ -70,7 +70,7 @@ func NewPublisher(
 	}, nil
 }
 
-// Publish sends a single message to the address on the letter.
+// Publish sends a single message to the address on the letter using a cached ChannelHost.
 // Subscribe to PublishReceipts to see success and errors.
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter) {
@@ -85,13 +85,28 @@ func (pub *Publisher) Publish(letter *Letter) {
 // PublishWithTransient sends a single message to the address on the letter using a transient (new) RabbitMQ channel.
 // Subscribe to PublishReceipts to see success and errors.
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
-func (pub *Publisher) PublishWithTransient(letter *Letter) {
+func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 
-	chanHost := pub.ConnectionPool.GetChannelFromPool()
+	channel := pub.ConnectionPool.GetTransientChannel(false)
+	defer func() {
+		defer func() {
+			_ = recover()
+		}()
+		channel.Close()
+	}()
 
-	err := pub.simplePublish(chanHost, letter)
-
-	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+	return channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
+		},
+	)
 }
 
 func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) error {

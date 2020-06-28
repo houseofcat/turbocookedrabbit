@@ -111,7 +111,7 @@ func (ch *ConnectionHost) Connect() bool {
 	ch.Errors = make(chan *amqp.Error, 10)
 	ch.Blockers = make(chan amqp.Blocking, 10)
 
-	ch.Connection.NotifyClose(ch.Errors)
+	ch.Connection.NotifyClose(ch.Errors) // ch.Errors is closed by streadway/amqp in some scenarios :(
 	ch.Connection.NotifyBlocked(ch.Blockers)
 
 	return true
@@ -121,8 +121,8 @@ func (ch *ConnectionHost) Connect() bool {
 func (ch *ConnectionHost) PauseOnFlowControl() {
 
 	for {
-		// nothing we can do (race condition) Blockers chan is destroyed
-		// and will deadlock if  it is read from.
+		// nothing we can do (race condition) Blockers
+		// and will deadlock if it is read from.
 		if ch.Connection.IsClosed( /* atomic */ ) {
 			return
 		}

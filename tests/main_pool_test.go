@@ -7,7 +7,6 @@ import (
 
 	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
-	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -126,40 +125,4 @@ func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
 
 	wg.Wait()
 	TestCleanup(t)
-}
-
-// TestConnectionGetConnectionAndReturnSlowLoop is similar to the above. It is designed to be slow test connection recovery by severing all connections
-// and then verify connections and channels properly (and evenly over connections) restore.
-func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
-
-	body := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
-
-	wg := &sync.WaitGroup{}
-	semaphore := make(chan bool, 100) // at most 100 requests a time
-	for i := 0; i < 10000; i++ {      // total request to try
-
-		wg.Add(1)
-		semaphore <- true
-		go func() {
-			defer wg.Done()
-
-			chanHost := ConnectionPool.GetChannelFromPool()
-
-			time.Sleep(time.Millisecond * 100) // artificially create channel poool contention by long exposure
-
-			err := chanHost.Channel.Publish("", "TcrTestQueue", false, false, amqp.Publishing{
-				ContentType:  "plaintext/text",
-				Body:         body,
-				DeliveryMode: 2,
-			})
-
-			ConnectionPool.ReturnChannel(chanHost, err != nil)
-
-			<-semaphore
-		}()
-	}
-
-	wg.Wait() // wait for the final batch of requests to finish
-	ConnectionPool.Shutdown()
 }

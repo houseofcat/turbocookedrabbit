@@ -86,7 +86,7 @@ func (ch *ChannelHost) FlushConfirms() {
 	}
 }
 
-// PauseForFlowControl allows you to wait till flow control issue is resolved.
+// PauseForFlowControl allows you to wait till sleep while receiving flow control messages.
 func (ch *ChannelHost) PauseForFlowControl() {
 
 	ch.connHost.PauseOnFlowControl()
