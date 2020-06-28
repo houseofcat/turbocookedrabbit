@@ -256,7 +256,7 @@ func (rs *RabbitService) PublishLetter(letter *Letter) error {
 	return nil
 }
 
-// QeueueLetter wraps around AutoPublisher to simply QueueLetter.
+// QueueLetter wraps around AutoPublisher to simply QueueLetter.
 // Error indicates message was not queued.
 func (rs *RabbitService) QueueLetter(letter *Letter) error {
 

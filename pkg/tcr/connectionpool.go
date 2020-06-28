@@ -102,18 +102,16 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 	return connHost, nil
 }
 
-func (cp *ConnectionPool) getConnectionFromPool() (connHost *ConnectionHost, err error) {
+func (cp *ConnectionPool) getConnectionFromPool() (*ConnectionHost, error) {
 
 	// Pull from the queue.
 	// Pauses here indefinitely if the queue is empty.
-	structs := []interface{}{}
-	structs, err = cp.connections.Get(1)
+	structs, err := cp.connections.Get(1)
 	if err != nil {
 		return nil, err
 	}
 
-	var ok bool
-	connHost, ok = structs[0].(*ConnectionHost)
+	connHost, ok := structs[0].(*ConnectionHost)
 	if !ok {
 		return nil, errors.New("invalid struct type found in ConnectionPool queue")
 	}
