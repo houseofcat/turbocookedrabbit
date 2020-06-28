@@ -84,7 +84,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 	}
 
 	for i := uint64(0); i < cp.Config.MaxCacheChannelCount; i++ {
-		cp.createCacheChannel(i)
+		cp.channels <- cp.createCacheChannel(i)
 	}
 
 	return true
@@ -136,7 +136,7 @@ GetConnectionHost:
 
 	// Assignment makes debugging easier
 	closed := connHost.Connection.IsClosed()
-	flagged := cp.IsConnectionFlagged(connHost.ConnectionID)
+	flagged := cp.isConnectionFlagged(connHost.ConnectionID)
 
 	// Between these three states we do our best to determine that a connection is dead in the various lifecycles.
 	if flagged || !healthy || closed {
@@ -153,7 +153,7 @@ GetConnectionHost:
 			break
 		}
 
-		cp.UnflagConnection(connHost.ConnectionID)
+		cp.unflagConnection(connHost.ConnectionID)
 	}
 
 	return connHost, nil
@@ -164,7 +164,7 @@ GetConnectionHost:
 func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) {
 
 	if flag {
-		cp.FlagConnection(connHost.ConnectionID)
+		cp.flagConnection(connHost.ConnectionID)
 	}
 
 	cp.connections.Put(connHost)
@@ -185,37 +185,45 @@ func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
 // ReturnChannel returns a Channel.
 // If Channel is not a cached channel, it is simply closed here.
 // If Cache Channel, we check if erred, new Channel is created instead and then returned to the cache.
-func (cp *ConnectionPool) ReturnChannel(channelHost *ChannelHost, erred bool) {
+func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, erred bool) {
 
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
-	if channelHost.CachedChannel {
-
+	if chanHost.CachedChannel {
 		if erred {
-		Reconnect:
-			err := channelHost.Connect() // Connects and flushes internal buffers automatically.
-			if err != nil {
-				if cp.sleepOnErrorInterval > 0 {
-					time.Sleep(cp.sleepOnErrorInterval)
-				}
-				goto Reconnect
-			}
+			go cp.reconnectThenReturnToCache(chanHost)
 		} else {
-			channelHost.FlushConfirms() // Flush any remaining unprocessed confirmations before returning to the pool to prevent streadway/amqp deadlocks
+			chanHost.FlushConfirms()
+			cp.channels <- chanHost
 		}
-
-		cp.channels <- channelHost
 		return
 	}
 
 	go func() {
 		defer func() { _ = recover() }()
-		channelHost.Close()
+		chanHost.Close()
 	}()
+}
+
+func (cp *ConnectionPool) reconnectThenReturnToCache(chanHost *ChannelHost) {
+
+	// InfiniteLoop: Stay here till we reconnect.
+	for {
+		err := chanHost.Connect() // Connects and flushes internal buffers automatically.
+		if err == nil {
+			break
+		}
+		if cp.sleepOnErrorInterval > 0 {
+			time.Sleep(cp.sleepOnErrorInterval)
+		}
+	}
+
+	cp.channels <- chanHost
 }
 
 // createCacheChannel allows you create a cached ChannelHost which helps wrap Amqp Channel functionality.
 func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 
+	// InfiniteLoop: Stay till we have a good channel.
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
@@ -235,13 +243,14 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 		}
 
 		cp.ReturnConnection(connHost, false)
-		cp.channels <- chanHost
+		return chanHost
 	}
 }
 
 // GetTransientChannel allows you create an unmanaged ChannelHost which helps wrap Amqp Channel functionality.
 func (cp *ConnectionPool) GetTransientChannel(ackable bool) *ChannelHost {
 
+	// InfiniteLoop: Stay till we have a good channel.
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
@@ -271,21 +280,21 @@ func (cp *ConnectionPool) ConnectionCount() int64 {
 }
 
 // UnflagConnection flags that connection as usable in the future.
-func (cp *ConnectionPool) UnflagConnection(connectionID uint64) {
+func (cp *ConnectionPool) unflagConnection(connectionID uint64) {
 	cp.poolRWLock.Lock()
 	defer cp.poolRWLock.Unlock()
 	cp.flaggedConnections[connectionID] = false
 }
 
 // FlagConnection flags that connection as non-usable in the future.
-func (cp *ConnectionPool) FlagConnection(connectionID uint64) {
+func (cp *ConnectionPool) flagConnection(connectionID uint64) {
 	cp.poolRWLock.Lock()
 	defer cp.poolRWLock.Unlock()
 	cp.flaggedConnections[connectionID] = true
 }
 
 // IsConnectionFlagged checks to see if the connection has been flagged for removal.
-func (cp *ConnectionPool) IsConnectionFlagged(connectionID uint64) bool {
+func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 	cp.poolRWLock.RLock()
 	defer cp.poolRWLock.RUnlock()
 	if flagged, ok := cp.flaggedConnections[connectionID]; ok {

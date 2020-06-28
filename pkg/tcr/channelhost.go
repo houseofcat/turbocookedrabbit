@@ -60,11 +60,11 @@ func (ch *ChannelHost) Close() {
 }
 
 // Connect tries to create (or re-recreate) the channel from the ConnectionHost its attached to.
-func (ch *ChannelHost) Connect() error {
-	var err error
+func (ch *ChannelHost) Connect() (err error) {
+
 	ch.Channel, err = ch.connHost.Connection.Channel()
 	if err != nil {
-		return err
+		return ch.connHost.Connect()
 	}
 
 	ch.flush()
