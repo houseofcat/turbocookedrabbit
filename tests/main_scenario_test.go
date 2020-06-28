@@ -8,6 +8,7 @@ import (
 	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 	"github.com/streadway/amqp"
+	"github.com/stretchr/testify/assert"
 )
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
@@ -48,9 +49,9 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 	ConnectionPool.Shutdown()
 }
 
-// TestOutageAndPublishConfirmationAccuracy is similar to the above. It is designed to be slow test connection recovery by severing all connections
+// TestOutageAndQueueLetterAccuracy is similar to the above. It is designed to be slow test connection recovery by severing all connections
 // and then verify connections and channels properly (and evenly over connections) restore.
-func TestOutageAndPublishConfirmationAccuracy(t *testing.T) {
+func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -70,10 +71,17 @@ func TestOutageAndPublishConfirmationAccuracy(t *testing.T) {
 	// This still leaves a few open ended vulnerabilities.
 	// ApplicationSide:
 	//    1.) Uncontrolled shutdown event or panic.
+	//    2.) RabbitService publish receipt indicates a retry scenario, but we are mid-shutdown.
 	// ServerSide:
 	//    1.) A storage failure (without backup).
 	//    2.) Split Brain event in HA mode.
-	RabbitService.Publisher.QueueLetter(letter)
 
-	TestCleanup(t)
+	for i := 0; i < 10000; i++ {
+		err := RabbitService.QueueLetter(letter)
+		assert.NoError(t, err)
+	}
+
+	<-time.After(time.Second * 5) // refresh rate of management API is 5 seconds, this just allows you to see the queue
+
+	RabbitService.Shutdown(true)
 }

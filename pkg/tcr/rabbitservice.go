@@ -59,7 +59,7 @@ func NewRabbitService(
 		serviceLock:          &sync.Mutex{},
 	}
 
-	// Build a Map to Consumer retrieval.
+	// Build a Map for Consumer retrieval.
 	err = rs.createConsumers(config.ConsumerConfigs)
 	if err != nil {
 		return nil, err
@@ -120,6 +120,10 @@ func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerCon
 // PublishWithConfirmation tries to publish and wait for a confirmation.
 func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
+	if rs.shutdown {
+		return errors.New("unable to publish as service shutdown triggered")
+	}
+
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
 	}
@@ -162,6 +166,10 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
 func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
+	if rs.shutdown {
+		return errors.New("unable to publish as service shutdown triggered")
+	}
+
 	if input == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
 	}
@@ -203,6 +211,10 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 // PublishData tries to publish.
 func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
 
+	if rs.shutdown {
+		return errors.New("unable to publish as service shutdown triggered")
+	}
+
 	if data == nil || (exchangeName == "" && routingKey == "") {
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
 	}
@@ -230,12 +242,36 @@ func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey strin
 // PublishLetter wraps around Publisher to simply Publish.
 func (rs *RabbitService) PublishLetter(letter *Letter) error {
 
+	if rs.shutdown {
+		return errors.New("unable to publish as service shutdown triggered")
+	}
+
 	currentCount := atomic.LoadUint64(&rs.letterCount)
 	atomic.AddUint64(&rs.letterCount, 1)
 
 	letter.LetterID = currentCount
 
 	rs.Publisher.Publish(letter)
+
+	return nil
+}
+
+// QeueueLetter wraps around AutoPublisher to simply QueueLetter.
+// Error indicates message was not queued.
+func (rs *RabbitService) QueueLetter(letter *Letter) error {
+
+	if rs.shutdown {
+		return errors.New("unable to queue letter as service shutdown triggered")
+	}
+
+	currentCount := atomic.LoadUint64(&rs.letterCount)
+	atomic.AddUint64(&rs.letterCount, 1)
+
+	letter.LetterID = currentCount
+
+	if ok := rs.Publisher.QueueLetter(letter); !ok {
+		return errors.New("unable to queue letter... most likely cause is autopublisher chan was shut")
+	}
 
 	return nil
 }
@@ -268,11 +304,11 @@ func (rs *RabbitService) CentralErr() <-chan error {
 // Shutdown stops the service and shuts down the ChannelPool.
 func (rs *RabbitService) Shutdown(stopConsumers bool) {
 
-	rs.Publisher.StopAutoPublish()
+	rs.Publisher.Shutdown(false)
 
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
 	rs.shutdownSignal <- true
-	time.Sleep(1 * time.Second)
+	time.Sleep(time.Second)
 
 	if stopConsumers {
 		for _, consumer := range rs.consumers {
@@ -375,7 +411,9 @@ ProcessLoop:
 			if !receipt.Success {
 				if receipt.FailedLetter != nil {
 					rs.centralErr <- fmt.Errorf("failed to publish letter %d... retrying", receipt.LetterID)
-					rs.Publisher.QueueLetter(receipt.FailedLetter)
+					if ok := rs.Publisher.QueueLetter(receipt.FailedLetter); !ok {
+						rs.centralErr <- fmt.Errorf("failed to publish a letter %d and autopublisher has been shutdown", receipt.LetterID)
+					}
 				} else {
 					rs.centralErr <- fmt.Errorf("failed to publish a letter %d and unable to retry as a copy of the letter was not received", receipt.LetterID)
 				}

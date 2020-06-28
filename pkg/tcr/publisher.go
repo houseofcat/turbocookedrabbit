@@ -203,8 +203,6 @@ func (pub *Publisher) StartAutoPublishing() {
 	defer pub.pubLock.Unlock()
 
 	if !pub.autoStarted {
-		pub.FlushStops()
-
 		pub.autoStarted = true
 		go pub.startAutoPublishingLoop()
 	}
@@ -244,28 +242,32 @@ func (pub *Publisher) deliverLetters() bool {
 	for {
 
 		// Publish the letter.
-		select {
-		case letter := <-pub.letters:
+	PublishLoop:
+		for {
+			select {
+			case letter := <-pub.letters:
 
-			parallelPublishSemaphore <- struct{}{}
-			go func(letter *Letter) {
-				pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
-				<-parallelPublishSemaphore
-			}(letter)
+				parallelPublishSemaphore <- struct{}{}
+				go func(letter *Letter) {
+					pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
+					<-parallelPublishSemaphore
+				}(letter)
 
-		default:
+			default:
 
-			if pub.sleepOnIdleInterval > 0 {
-				time.Sleep(pub.sleepOnIdleInterval)
+				if pub.sleepOnIdleInterval > 0 {
+					time.Sleep(pub.sleepOnIdleInterval)
+				}
+				break PublishLoop
+
 			}
-			break
-
 		}
 
 		// Detect if we should stop publishing.
 		select {
 		case stop := <-pub.autoStop:
 			if stop {
+				close(pub.letters)
 				return true
 			}
 		default:
@@ -274,8 +276,8 @@ func (pub *Publisher) deliverLetters() bool {
 	}
 }
 
-// StopAutoPublish stops publishing letters queued up.
-func (pub *Publisher) StopAutoPublish() {
+// stopAutoPublish stops publishing letters queued up.
+func (pub *Publisher) stopAutoPublish() {
 	pub.pubLock.Lock()
 	defer pub.pubLock.Unlock()
 
@@ -287,17 +289,34 @@ func (pub *Publisher) StopAutoPublish() {
 }
 
 // QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish. By default, AutoPublish uses PublishWithConfirmation as the mechanism for publishing.
-func (pub *Publisher) QueueLetters(letters []*Letter) {
+func (pub *Publisher) QueueLetters(letters []*Letter) bool {
 
 	for _, letter := range letters {
 
-		pub.letters <- letter
+		if ok := pub.safeSend(letter); !ok {
+			return false
+		}
 	}
+
+	return true
 }
 
 // QueueLetter queues up a letter that will be consumed by AutoPublish. By default, AutoPublish uses PublishWithConfirmation as the mechanism for publishing.
-func (pub *Publisher) QueueLetter(letter *Letter) {
+func (pub *Publisher) QueueLetter(letter *Letter) bool {
+
+	return pub.safeSend(letter)
+}
+
+// safeSend should handle a scenario on publishing to a closed channel.
+func (pub *Publisher) safeSend(letter *Letter) (closed bool) {
+	defer func() {
+		if recover() != nil {
+			closed = false
+		}
+	}()
+
 	pub.letters <- letter
+	return true // success
 }
 
 // publishReceipt sends the status to the receipt channel.
@@ -325,22 +344,10 @@ func (pub *Publisher) Errors() <-chan error {
 	return pub.errors
 }
 
-// FlushStops flushes out all the AutoStop messages.
-func (pub *Publisher) FlushStops() {
-
-FlushLoop:
-	for {
-		select {
-		case <-pub.autoStop:
-		default:
-			break FlushLoop
-		}
-	}
-}
-
-// Shutdown cleanly shutsdown the publisher and resets it's internal state.
+// Shutdown cleanly shutdown the publisher and resets it's internal state.
 func (pub *Publisher) Shutdown(shutdownPools bool) {
-	pub.StopAutoPublish()
+
+	pub.stopAutoPublish()
 
 	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
 		pub.ConnectionPool.Shutdown()

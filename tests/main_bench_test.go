@@ -85,7 +85,7 @@ ReceivePublishConfirmations:
 	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
 	fmt.Printf("Consumer Messages Received: %d\r\n", messagesReceived)
 
-	publisher.StopAutoPublish()
+	publisher.Shutdown(false)
 
 	if err := consumer.StopConsuming(true, true); err != nil {
 		b.Error(err)
@@ -116,7 +116,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	consumeLoop(b, timeOut, publisher, consumer)
 
-	publisher.StopAutoPublish()
+	publisher.Shutdown(false)
 
 	if err := consumer.StopConsuming(false, true); err != nil {
 		b.Error(err)
