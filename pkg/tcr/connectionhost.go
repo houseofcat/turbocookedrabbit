@@ -2,7 +2,7 @@ package tcr
 
 import (
 	"crypto/tls"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
@@ -47,7 +47,7 @@ func NewConnectionHost(
 
 	ok := connHost.Connect()
 	if !ok {
-		return nil, fmt.Errorf("unable to connect")
+		return nil, errors.New("unable to connect")
 	}
 
 	return connHost, nil

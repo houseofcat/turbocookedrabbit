@@ -36,7 +36,7 @@ type Consumer struct {
 func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consumer, error) {
 
 	if config == nil || cp == nil {
-		return nil, fmt.Errorf("config or connection pool was nil")
+		return nil, errors.New("config or connection pool was nil")
 	}
 
 	return &Consumer{
