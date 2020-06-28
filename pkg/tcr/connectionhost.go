@@ -2,6 +2,8 @@ package tcr
 
 import (
 	"crypto/tls"
+	"fmt"
+	"sync"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -19,6 +21,7 @@ type ConnectionHost struct {
 	tlsConfig          *TLSConfig
 	Errors             chan *amqp.Error
 	Blockers           chan amqp.Blocking
+	connLock           *sync.Mutex
 }
 
 // NewConnectionHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -37,20 +40,37 @@ func NewConnectionHost(
 		heartbeatInterval: heartbeatInterval,
 		connectionTimeout: connectionTimeout,
 		tlsConfig:         tlsConfig,
-		Errors:            make(chan *amqp.Error, 1000),
-		Blockers:          make(chan amqp.Blocking, 1000),
+		Errors:            make(chan *amqp.Error, 10),
+		Blockers:          make(chan amqp.Blocking, 10),
+		connLock:          &sync.Mutex{},
 	}
 
-	err := connHost.Connect()
-	if err != nil {
-		return nil, err
+	ok := connHost.Connect()
+	if !ok {
+		return nil, fmt.Errorf("unable to connect")
 	}
 
 	return connHost, nil
 }
 
-// Connect tries to connect (or reconnect) to the provided properties of the host.
-func (ch *ConnectionHost) Connect() error {
+// Connect tries to connect (or reconnect) to the provided properties of the host one time.
+func (ch *ConnectionHost) Connect() bool {
+
+	// Compare, Lock, Recompare Strategy
+	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
+		return true
+	}
+
+	// Lock
+	ch.connLock.Lock() // Block all but one.
+	defer ch.connLock.Unlock()
+
+	// Check if an operation is still necessary after acquiring lock.
+	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
+		return true
+	}
+
+	// Proceed with reconnectivity
 	var amqpConn *amqp.Connection
 	var actualTLSConfig *tls.Config
 	var err error
@@ -61,7 +81,7 @@ func (ch *ConnectionHost) Connect() error {
 			ch.tlsConfig.PEMCertLocation,
 			ch.tlsConfig.LocalCertLocation)
 		if err != nil {
-			return err
+			return false
 		}
 	}
 
@@ -84,25 +104,35 @@ func (ch *ConnectionHost) Connect() error {
 		})
 	}
 	if err != nil {
-		return err
+		return false
 	}
 
 	ch.Connection = amqpConn
-
-	ch.flush()
+	ch.Errors = make(chan *amqp.Error, 10)
+	ch.Blockers = make(chan amqp.Blocking, 10)
 
 	ch.Connection.NotifyClose(ch.Errors)
 	ch.Connection.NotifyBlocked(ch.Blockers)
 
-	return nil
+	return true
 }
 
-// Flush removes all previous errors and blockers still pending processing.
-func (ch *ConnectionHost) flush() {
+// PauseOnFlowControl allows you to wait and sleep while receiving flow control messages.
+func (ch *ConnectionHost) PauseOnFlowControl() {
+
 	for {
+		// nothing we can do (race condition) Blockers chan is destroyed
+		// and will deadlock if  it is read from.
+		if ch.Connection.IsClosed( /* atomic */ ) {
+			return
+		}
+
 		select {
-		case <-ch.Errors:
-		case <-ch.Blockers:
+		case blocker := <-ch.Blockers: // Check for flow control issues.
+			if !blocker.Active {
+				return
+			}
+			time.Sleep(time.Second)
 		default:
 			return
 		}

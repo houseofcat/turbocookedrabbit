@@ -34,12 +34,12 @@ func NewChannelHost(
 		ConnectionID:  connectionID,
 		Ackable:       ackable,
 		CachedChannel: cached,
-		Confirmations: make(chan amqp.Confirmation, 1000),
-		Errors:        make(chan *amqp.Error, 1000),
+		Confirmations: make(chan amqp.Confirmation, 100),
+		Errors:        make(chan *amqp.Error, 100),
 		connHost:      connHost,
 	}
 
-	err := chanHost.Connect()
+	err := chanHost.MakeChannel()
 	if err != nil {
 		return nil, err
 	}
@@ -59,31 +59,20 @@ func (ch *ChannelHost) Close() {
 	ch.Channel.Close()
 }
 
-// Connect tries to create (or re-recreate) the channel from the ConnectionHost its attached to.
-func (ch *ChannelHost) Connect() (err error) {
+// MakeChannel tries to create (or re-recreate) the channel from the ConnectionHost its attached to.
+func (ch *ChannelHost) MakeChannel() (err error) {
 
 	ch.Channel, err = ch.connHost.Connection.Channel()
 	if err != nil {
-		return ch.connHost.Connect()
+		return err
 	}
 
-	ch.flush()
+	ch.Confirmations = make(chan amqp.Confirmation, 100)
+	ch.Errors = make(chan *amqp.Error, 100)
 
 	ch.Channel.NotifyClose(ch.Errors)
 	ch.Channel.NotifyPublish(ch.Confirmations)
 	return nil
-}
-
-// Flush removes all previous errors and confirmations pending to process.
-func (ch *ChannelHost) flush() {
-	for {
-		select {
-		case <-ch.Errors:
-		case <-ch.Confirmations:
-		default:
-			return
-		}
-	}
 }
 
 // FlushConfirms removes all previous confirmations pending processing.
@@ -95,4 +84,10 @@ func (ch *ChannelHost) FlushConfirms() {
 			return
 		}
 	}
+}
+
+// PauseForFlowControl allows you to wait till flow control issue is resolved.
+func (ch *ChannelHost) PauseForFlowControl() {
+
+	ch.connHost.PauseOnFlowControl()
 }

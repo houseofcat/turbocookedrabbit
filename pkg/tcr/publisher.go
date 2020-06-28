@@ -75,7 +75,7 @@ func NewPublisher(
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter) {
 
-	chanHost := pub.ConnectionPool.GetChannel(true)
+	chanHost := pub.ConnectionPool.GetChannelFromPool()
 
 	err := pub.simplePublish(chanHost, letter)
 
@@ -87,7 +87,7 @@ func (pub *Publisher) Publish(letter *Letter) {
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) PublishWithTransient(letter *Letter) {
 
-	chanHost := pub.ConnectionPool.GetChannel(false)
+	chanHost := pub.ConnectionPool.GetChannelFromPool()
 
 	err := pub.simplePublish(chanHost, letter)
 
@@ -128,7 +128,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 GetChannelAndPublish:
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost := pub.ConnectionPool.GetChannel(true)
+		chanHost := pub.ConnectionPool.GetChannelFromPool()
 
 		// Flush all previous publish confirmations
 		chanHost.FlushConfirms()
@@ -151,7 +151,7 @@ GetChannelAndPublish:
 			continue // Take it again! From the top!
 		}
 
-		// Wait for next confirmation
+		// Wait for very next confirmation on this channel, which should be our confirmation.
 		for {
 			select {
 			case <-timeoutAfter:
@@ -233,10 +233,10 @@ func (pub *Publisher) deliverLetters() bool {
 		case letter := <-pub.letters:
 
 			parallelPublishSemaphore <- struct{}{}
-			go func() {
+			go func(letter *Letter) {
 				pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
 				<-parallelPublishSemaphore
-			}()
+			}(letter)
 
 		default:
 
@@ -288,7 +288,7 @@ func (pub *Publisher) QueueLetter(letter *Letter) {
 // publishReceipt sends the status to the receipt channel.
 func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 
-	go func() {
+	go func(*Letter, error) {
 		publishReceipt := &PublishReceipt{
 			LetterID: letter.LetterID,
 			Error:    err,
@@ -302,7 +302,7 @@ func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 		}
 
 		pub.publishReceipts <- publishReceipt
-	}()
+	}(letter, err)
 }
 
 // Errors yields all the internal errs for delivering letters.

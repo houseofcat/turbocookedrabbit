@@ -12,10 +12,10 @@
 	"PoolConfig": {
 		"URI": "amqp://guest:guest@localhost:5672/",
 		"ConnectionName": "TurboCookedRabbit",
-		"SleepOnErrorInterval": 5000,
-		"MaxCacheChannelCount": 100,
-		"MaxConnectionCount": 10,
-		"Heartbeat": 5,
+		"SleepOnErrorInterval": 100,
+		"MaxCacheChannelCount": 25,
+		"MaxConnectionCount": 5,
+		"Heartbeat": 30,
 		"ConnectionTimeout": 10,
 		"TLSConfig": {
 			"EnableTLS": false,

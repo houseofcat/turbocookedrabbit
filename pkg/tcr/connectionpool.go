@@ -4,10 +4,10 @@ import (
 	"errors"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Workiva/go-datastructures/queue"
+	"github.com/streadway/amqp"
 )
 
 // ConnectionPool houses the pool of RabbitMQ connections.
@@ -19,9 +19,7 @@ type ConnectionPool struct {
 	connections          *queue.Queue
 	channels             chan *ChannelHost
 	connectionID         uint64
-	poolLock             *sync.Mutex
 	poolRWLock           *sync.RWMutex
-	connectionLock       int32
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
 }
@@ -44,7 +42,6 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 		connectionTimeout:    time.Duration(config.ConnectionTimeout) * time.Second,
 		connections:          queue.New(int64(config.MaxConnectionCount)), // possible overflow error
 		channels:             make(chan *ChannelHost, config.MaxCacheChannelCount),
-		poolLock:             &sync.Mutex{},
 		poolRWLock:           &sync.RWMutex{},
 		flaggedConnections:   make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
@@ -95,36 +92,36 @@ func (cp *ConnectionPool) initializeConnections() bool {
 // Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
-	var connHost *ConnectionHost
-GetConnectionHost:
-	for {
-
-		// Pull from the queue.
-		// Pauses here indefinitely if the queue is empty.
-		structs, err := cp.connections.Get(1)
-		if err != nil {
-			return nil, err
-		}
-
-		var ok bool
-		connHost, ok = structs[0].(*ConnectionHost)
-		if !ok {
-			return nil, errors.New("invalid struct type found in ConnectionPool queue")
-		}
-
-		// InfiniteLoop: Stay here till flow control clears up.
-		for {
-			select {
-			case blocker := <-connHost.Blockers: // Check for flow control issues.
-				if !blocker.Active {
-					break GetConnectionHost // everything's good, continue down.
-				}
-				time.Sleep(time.Millisecond)
-			default:
-				break GetConnectionHost // everything's good, continue down.
-			}
-		}
+	connHost, err := cp.getConnectionFromPool()
+	if err != nil { // errors on bad data in the queue
+		return nil, err
 	}
+
+	cp.verifyHealthyConnection(connHost)
+
+	return connHost, nil
+}
+
+func (cp *ConnectionPool) getConnectionFromPool() (connHost *ConnectionHost, err error) {
+
+	// Pull from the queue.
+	// Pauses here indefinitely if the queue is empty.
+	structs := []interface{}{}
+	structs, err = cp.connections.Get(1)
+	if err != nil {
+		return nil, err
+	}
+
+	var ok bool
+	connHost, ok = structs[0].(*ConnectionHost)
+	if !ok {
+		return nil, errors.New("invalid struct type found in ConnectionPool queue")
+	}
+
+	return connHost, nil
+}
+
+func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 
 	healthy := true
 	select {
@@ -134,29 +131,39 @@ GetConnectionHost:
 		break
 	}
 
-	// Assignment makes debugging easier
-	closed := connHost.Connection.IsClosed()
 	flagged := cp.isConnectionFlagged(connHost.ConnectionID)
 
 	// Between these three states we do our best to determine that a connection is dead in the various lifecycles.
-	if flagged || !healthy || closed {
-
-		// InfiniteLoop: Stay here till we reconnect.
-		for {
-			err := connHost.Connect()
-			if err != nil {
-				if cp.sleepOnErrorInterval > 0 {
-					time.Sleep(cp.sleepOnErrorInterval)
-				}
-				continue
-			}
-			break
-		}
-
-		cp.unflagConnection(connHost.ConnectionID)
+	if flagged || !healthy || connHost.Connection.IsClosed( /* atomic */ ) {
+		cp.triggerConnectionRecovery(connHost)
 	}
 
-	return connHost, nil
+	connHost.PauseOnFlowControl()
+}
+
+func (cp *ConnectionPool) triggerConnectionRecovery(connHost *ConnectionHost) {
+
+	// InfiniteLoop: Stay here till we reconnect.
+	for {
+		ok := connHost.Connect()
+		if !ok {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
+			continue
+		}
+		break
+	}
+
+	// Flush any pending errors.
+	for {
+		select {
+		case <-connHost.Errors:
+		default:
+			cp.unflagConnection(connHost.ConnectionID)
+			return
+		}
+	}
 }
 
 // ReturnConnection puts the connection back in the queue and flag it for error.
@@ -170,16 +177,13 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 	cp.connections.Put(connHost)
 }
 
-// GetChannel gets a cached ackable channel from the Pool if they exist or creates a channel.
+// GetChannelFromPool gets a cached ackable channel from the Pool if they exist or creates a channel.
 // A non-acked channel is always a transient channel.
 // Blocking if Ackable is true and the cache is empty.
 // If you want a transient Ackable channel (un-managed), use CreateChannel directly.
-func (cp *ConnectionPool) GetChannel(ackable bool) *ChannelHost {
-	if ackable && cp.Config.MaxCacheChannelCount > 0 {
-		return <-cp.channels
-	}
+func (cp *ConnectionPool) GetChannelFromPool() *ChannelHost {
 
-	return cp.GetTransientChannel(ackable)
+	return <-cp.channels
 }
 
 // ReturnChannel returns a Channel.
@@ -190,34 +194,33 @@ func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, erred bool) {
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
 	if chanHost.CachedChannel {
 		if erred {
-			go cp.reconnectThenReturnToCache(chanHost)
+			cp.reconnectChannel(chanHost) // <- blocking operation
 		} else {
 			chanHost.FlushConfirms()
-			cp.channels <- chanHost
 		}
+		cp.channels <- chanHost
 		return
 	}
 
-	go func() {
+	go func(*ChannelHost) {
 		defer func() { _ = recover() }()
+
 		chanHost.Close()
-	}()
+	}(chanHost)
 }
 
-func (cp *ConnectionPool) reconnectThenReturnToCache(chanHost *ChannelHost) {
+func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
-		err := chanHost.Connect() // Connects and flushes internal buffers automatically.
-		if err == nil {
-			break
-		}
-		if cp.sleepOnErrorInterval > 0 {
-			time.Sleep(cp.sleepOnErrorInterval)
-		}
-	}
+		cp.verifyHealthyConnection(chanHost.connHost) // <- blocking operation
 
-	cp.channels <- chanHost
+		err := chanHost.MakeChannel() // Creates a new channel and flushes internal buffers automatically.
+		if err != nil {
+			continue
+		}
+		break
+	}
 }
 
 // createCacheChannel allows you create a cached ChannelHost which helps wrap Amqp Channel functionality.
@@ -247,8 +250,8 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 	}
 }
 
-// GetTransientChannel allows you create an unmanaged ChannelHost which helps wrap Amqp Channel functionality.
-func (cp *ConnectionPool) GetTransientChannel(ackable bool) *ChannelHost {
+// GetTransientChannel allows you create an unmanaged amqp Channel with the help of the ConnectionPool.
+func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 
 	// InfiniteLoop: Stay till we have a good channel.
 	for {
@@ -260,7 +263,7 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *ChannelHost {
 			continue
 		}
 
-		chanHost, err := NewChannelHost(connHost, 10000, connHost.ConnectionID, ackable, false)
+		channel, err := connHost.Connection.Channel()
 		if err != nil {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
@@ -270,13 +273,8 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *ChannelHost {
 		}
 
 		cp.ReturnConnection(connHost, false)
-		return chanHost
+		return channel
 	}
-}
-
-// ConnectionCount flags that connection as usable in the future. Careful, locking call.
-func (cp *ConnectionPool) ConnectionCount() int64 {
-	return cp.connections.Len() // Locking
 }
 
 // UnflagConnection flags that connection as usable in the future.
@@ -306,11 +304,6 @@ func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 
 // Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
 func (cp *ConnectionPool) Shutdown() {
-	cp.poolLock.Lock()
-	defer cp.poolLock.Unlock()
-
-	// Create connection lock (> 0)
-	atomic.AddInt32(&cp.connectionLock, 1)
 
 	wg := &sync.WaitGroup{}
 
@@ -324,6 +317,7 @@ ChannelFlushLoop:
 				defer wg.Done()
 				defer func() { _ = recover() }()
 
+				chanHost.Close()
 			}(chanHost)
 
 		default:
@@ -359,7 +353,4 @@ ChannelFlushLoop:
 	cp.connections = queue.New(int64(cp.Config.MaxConnectionCount))
 	cp.flaggedConnections = make(map[uint64]bool)
 	cp.connectionID = 0
-
-	// Release connection lock (0)
-	atomic.StoreInt32(&cp.connectionLock, 0)
 }

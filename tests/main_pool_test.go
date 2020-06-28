@@ -49,7 +49,7 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	chanHost := cp.GetChannel(true)
+	chanHost := cp.GetChannelFromPool()
 	assert.NotNil(t, chanHost)
 
 	cp.Shutdown()
@@ -64,7 +64,7 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	chanHost := cp.GetChannel(false)
+	chanHost := cp.GetChannelFromPool()
 	assert.NotNil(t, chanHost)
 	chanHost.Close()
 
@@ -91,7 +91,7 @@ func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 
 	for i := 0; i < 1000000; i++ {
 
-		chanHost := ConnectionPool.GetChannel(true)
+		chanHost := ConnectionPool.GetChannelFromPool()
 
 		ConnectionPool.ReturnChannel(chanHost, false)
 	}
@@ -136,17 +136,17 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 	body := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
 
 	wg := &sync.WaitGroup{}
-	semaphore := make(chan bool, 100)
-	for i := 0; i < 10000; i++ {
+	semaphore := make(chan bool, 100) // at most 100 requests a time
+	for i := 0; i < 10000; i++ {      // total request to try
 
 		wg.Add(1)
 		semaphore <- true
 		go func() {
 			defer wg.Done()
 
-			chanHost := ConnectionPool.GetChannel(true)
+			chanHost := ConnectionPool.GetChannelFromPool()
 
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(time.Millisecond * 100) // artificially create channel poool contention by long exposure
 
 			err := chanHost.Channel.Publish("", "TcrTestQueue", false, false, amqp.Publishing{
 				ContentType:  "plaintext/text",
@@ -160,6 +160,6 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 		}()
 	}
 
-	wg.Wait()
-	TestCleanup(t)
+	wg.Wait() // wait for the final batch of requests to finish
+	ConnectionPool.Shutdown()
 }
