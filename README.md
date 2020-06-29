@@ -76,7 +76,7 @@ The errors here indicate I was unable to create a Publisher - probably due to th
 Once you have a publisher, you can perform a relatively simple publish.
 
 ```golang
-letter := utils.CreateMockLetter(1, "", "TestQueueName", nil)
+letter := utils.CreateMockLetter(1, "", "TcrTestQueue", nil)
 publisher.Publish(letter)
 ```
 
@@ -250,7 +250,7 @@ Consumer provides a simple Get and GetBatch much like the Publisher has a simple
 
 ```golang
 autoAck := true
-message, err = consumer.Get("ConsumerTestQueue", autoAck)
+message, err = consumer.Get("TcrTestQueue", autoAck)
 ```
 
 Exit Conditions:
@@ -264,7 +264,7 @@ We also provide a simple Batch version of this call.
 
 ```golang
 autoAck := false
-messages, err = consumer.GetBatch("ConsumerTestQueue", 10, autoAck)
+messages, err = consumer.GetBatch("TcrTestQueue", 10, autoAck)
 ```
 
 Exit Conditions:
@@ -678,7 +678,7 @@ for iterations < maxIterationCount {
 			break
 		}
 
-		letter := utils.CreateMockRandomLetter("ConsumerTestQueue")
+		letter := utils.CreateMockRandomLetter("TcrTestQueue")
 		err := chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,

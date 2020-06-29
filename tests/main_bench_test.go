@@ -31,7 +31,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	go func() {
 		for i := 0; i < messageCount; i++ {
-			letter := tcr.CreateMockRandomLetter("ConsumerTestQueue")
+			letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 			letter.LetterID = counter
 			counter++
 
@@ -126,7 +126,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 }
 
 func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
-	letterTemplate := tcr.CreateMockRandomLetter("ConsumerTestQueue")
+	letterTemplate := tcr.CreateMockRandomLetter("TcrTestQueue")
 
 	go func() {
 	PublishLoop:
@@ -155,7 +155,7 @@ func consumeLoop(
 	messagesAcked := 0
 	messagesFailedToAck := 0
 	consumerErrors := 0
-	connectionPoolErrors := 0
+	publisherErrors := 0
 
 ConsumeLoop:
 	for {
@@ -170,6 +170,9 @@ ConsumeLoop:
 				messagesFailedToPublish++
 				notice = nil
 			}
+		case err := <-publisher.Errors():
+			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
+			publisherErrors++
 		case err := <-consumer.Errors():
 			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
@@ -184,13 +187,11 @@ ConsumeLoop:
 				}
 			}(message)
 		default:
-			time.Sleep(1 * time.Microsecond)
 			break
 		}
 	}
 
-	b.Logf("ConnectionPool Errors: %d\r\n", connectionPoolErrors)
-
+	b.Logf("Publisher Errors: %d\r\n", publisherErrors)
 	b.Logf("Consumer Errors: %d\r\n", consumerErrors)
 	b.Logf("Messages Acked: %d\r\n", messagesAcked)
 	b.Logf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
