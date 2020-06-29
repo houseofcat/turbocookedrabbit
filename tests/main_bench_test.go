@@ -95,9 +95,10 @@ ReceivePublishConfirmations:
 }
 
 func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
+
 	b.ReportAllocs()
 
-	timeDuration := time.Duration(5 * time.Minute)
+	timeDuration := time.Duration(time.Hour)
 	timeOut := time.After(timeDuration)
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
