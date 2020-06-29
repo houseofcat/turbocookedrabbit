@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	cmap "github.com/orcaman/concurrent-map"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
@@ -94,12 +95,34 @@ ReceivePublishConfirmations:
 	cancel()
 }
 
+func BenchmarkPublishForDuration(b *testing.B) {
+
+	b.ReportAllocs()
+
+	timeDuration := time.Duration(time.Minute)
+	timeOut := time.After(timeDuration)
+	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
+
+	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+
+	publishDone := make(chan bool, 1)
+	conMap := cmap.New()
+	publishLoop(b, conMap, publishDone, timeOut, publisher)
+	<-publishDone
+
+	publisher.Shutdown(false)
+
+	BenchCleanup(b)
+}
+
 func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	b.ReportAllocs()
 
-	timeDuration := time.Duration(time.Hour)
-	timeOut := time.After(timeDuration)
+	timeDuration := time.Duration(500 * time.Millisecond)
+	pubTimeOut := time.After(timeDuration)
+	conTimeOut := time.After(timeDuration + (2 * time.Second))
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
@@ -108,96 +131,144 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	assert.True(b, ok)
 
 	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	conMap := cmap.New()
+	//publisher.StartAutoPublishing()
 
-	publisher.StartAutoPublishing()
+	publishDone := make(chan bool, 1)
+	go publishLoop(b, conMap, publishDone, pubTimeOut, publisher)
 
-	go publishLoop(timeOut, publisher)
-
+	consumerDone := make(chan bool, 1)
 	consumer.StartConsuming()
+	go consumeLoop(b, conMap, consumerDone, conTimeOut, publisher, consumer)
 
-	consumeLoop(b, timeOut, publisher, consumer)
-
+	<-publishDone
 	publisher.Shutdown(false)
 
+	<-consumerDone
 	if err := consumer.StopConsuming(false, true); err != nil {
 		b.Error(err)
 	}
 
+	// Breakpoint here and check the conMap for 100% accuracy.
+	for item := range conMap.IterBuffered() {
+		state := item.Val.(bool)
+		if !state {
+			b.Logf("LetterId: %q was not received.", item.Key)
+		}
+	}
 	BenchCleanup(b)
 }
 
-func publishLoop(timeOut <-chan time.Time, publisher *tcr.Publisher) {
-	letterTemplate := tcr.CreateMockRandomLetter("TcrTestQueue")
+func publishLoop(
+	b *testing.B,
+	conMap cmap.ConcurrentMap,
+	done chan bool,
+	timeOut <-chan time.Time,
+	publisher *tcr.Publisher) {
 
-	go func() {
-	PublishLoop:
+	messagesPublished := 0
+	messagesFailedToPublish := 0
+	publisherErrors := 0
+
+PublishLoop:
+	for {
+		// Read all the queued receipts before next publish.
+	ReadReceipts:
 		for {
 			select {
-			case <-timeOut:
-				break PublishLoop
+			case notice := <-publisher.PublishReceipts():
+				if notice.Success {
+					messagesPublished++
+					notice = nil
+				} else {
+					messagesFailedToPublish++
+					notice = nil
+				}
+			case err := <-publisher.Errors():
+				b.Logf("%s: Publisher Error - %s\r\n", time.Now(), err)
+				publisherErrors++
 			default:
-				newLetter := tcr.Letter(*letterTemplate)
-				publisher.QueueLetter(&newLetter)
-				letterTemplate.LetterID++
+				break ReadReceipts
 			}
 		}
-	}()
+
+		select {
+		case <-timeOut:
+			break PublishLoop
+		default:
+			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
+			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
+		}
+	}
+
+	b.Logf("Publisher Errors: %d\r\n", publisherErrors)
+	b.Logf("Messages Published: %d\r\n", messagesPublished)
+	b.Logf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+	done <- true
 }
 
 func consumeLoop(
 	b *testing.B,
+	conMap cmap.ConcurrentMap,
+	done chan bool,
 	timeOut <-chan time.Time,
 	publisher *tcr.Publisher,
 	consumer *tcr.Consumer) {
 
 	messagesReceived := 0
-	messagesPublished := 0
-	messagesFailedToPublish := 0
 	messagesAcked := 0
 	messagesFailedToAck := 0
 	consumerErrors := 0
-	publisherErrors := 0
 
 ConsumeLoop:
 	for {
 		select {
 		case <-timeOut:
 			break ConsumeLoop
-		case notice := <-publisher.PublishReceipts():
-			if notice.Success {
-				messagesPublished++
-				notice = nil
-			} else {
-				messagesFailedToPublish++
-				notice = nil
-			}
-		case err := <-publisher.Errors():
-			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
-			publisherErrors++
+
 		case err := <-consumer.Errors():
+
 			b.Logf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
+
 		case message := <-consumer.ReceivedMessages():
+
 			messagesReceived++
-			go func(msg *tcr.ReceivedMessage) {
-				err := msg.Acknowledge()
-				if err != nil {
-					messagesFailedToAck++
+			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Body)
+			if err != nil {
+				b.Logf("message was not deserializeable")
+			} else {
+				// Accuracy check
+				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+					state := tmp.(bool)
+					if state {
+						b.Logf("duplicate letter (%d) received!", body.LetterID)
+					} else {
+						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
+					}
 				} else {
-					messagesAcked++
+					b.Logf("letter (%d) received that wasn't published!", body.LetterID)
 				}
-			}(message)
+			}
+
+			err = message.Acknowledge()
+			if err != nil {
+				messagesFailedToAck++
+			} else {
+				messagesAcked++
+			}
 		default:
+			time.Sleep(time.Microsecond)
 			break
 		}
 	}
 
-	b.Logf("Publisher Errors: %d\r\n", publisherErrors)
 	b.Logf("Consumer Errors: %d\r\n", consumerErrors)
 	b.Logf("Messages Acked: %d\r\n", messagesAcked)
 	b.Logf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
 	b.Logf("Messages Received: %d\r\n", messagesReceived)
 
-	b.Logf("Messages Published: %d\r\n", messagesPublished)
-	b.Logf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+	done <- true
 }

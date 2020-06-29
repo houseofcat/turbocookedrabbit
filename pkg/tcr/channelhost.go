@@ -2,6 +2,7 @@ package tcr
 
 import (
 	"errors"
+	"sync"
 
 	"github.com/streadway/amqp"
 )
@@ -16,6 +17,7 @@ type ChannelHost struct {
 	Confirmations chan amqp.Confirmation
 	Errors        chan *amqp.Error
 	connHost      *ConnectionHost
+	chanLock      *sync.Mutex
 }
 
 // NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
@@ -37,6 +39,7 @@ func NewChannelHost(
 		Confirmations: make(chan amqp.Confirmation, 100),
 		Errors:        make(chan *amqp.Error, 100),
 		connHost:      connHost,
+		chanLock:      &sync.Mutex{},
 	}
 
 	err := chanHost.MakeChannel()
@@ -61,6 +64,8 @@ func (ch *ChannelHost) Close() {
 
 // MakeChannel tries to create (or re-recreate) the channel from the ConnectionHost its attached to.
 func (ch *ChannelHost) MakeChannel() (err error) {
+	ch.chanLock.Lock()
+	defer ch.chanLock.Unlock()
 
 	ch.Channel, err = ch.connHost.Connection.Channel()
 	if err != nil {
@@ -77,6 +82,9 @@ func (ch *ChannelHost) MakeChannel() (err error) {
 
 // FlushConfirms removes all previous confirmations pending processing.
 func (ch *ChannelHost) FlushConfirms() {
+	ch.chanLock.Lock()
+	defer ch.chanLock.Unlock()
+
 	for {
 		select {
 		case <-ch.Confirmations:

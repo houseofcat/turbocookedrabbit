@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"sync/atomic"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 var globalLetterID uint64
@@ -39,9 +41,10 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 	}
 
 	envelope := &Envelope{
-		Exchange:    exchangeName,
-		RoutingKey:  queueName,
-		ContentType: "application/json",
+		Exchange:     exchangeName,
+		RoutingKey:   queueName,
+		ContentType:  "application/json",
+		DeliveryMode: 2,
 	}
 
 	return &Letter{
@@ -61,9 +64,10 @@ func CreateMockRandomLetter(queueName string) *Letter {
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
 	envelope := &Envelope{
-		Exchange:    "",
-		RoutingKey:  queueName,
-		ContentType: "application/json",
+		Exchange:     "",
+		RoutingKey:   queueName,
+		ContentType:  "application/json",
+		DeliveryMode: 2,
 	}
 
 	return &Letter{
@@ -72,4 +76,42 @@ func CreateMockRandomLetter(queueName string) *Letter {
 		Body:       body,
 		Envelope:   envelope,
 	}
+}
+
+// CreateMockRandomWrappedBodyLetter creates a mock Letter for publishing with random sizes and random Ids.
+func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
+
+	letterID := atomic.LoadUint64(&globalLetterID)
+	atomic.AddUint64(&globalLetterID, 1)
+
+	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
+
+	envelope := &Envelope{
+		Exchange:     "",
+		RoutingKey:   queueName,
+		ContentType:  "application/json",
+		DeliveryMode: 2,
+	}
+
+	wrappedBody := &WrappedBody{
+		LetterID: letterID,
+		Body: &ModdedBody{
+			Encrypted:   false,
+			Compressed:  false,
+			UTCDateTime: time.Now().Format(time.RFC3339),
+			Data:        body,
+		},
+	}
+
+	var json = jsoniter.ConfigFastest
+	data, _ := json.Marshal(wrappedBody)
+
+	letter := &Letter{
+		LetterID:   letterID,
+		RetryCount: uint32(0),
+		Body:       data,
+		Envelope:   envelope,
+	}
+
+	return letter
 }

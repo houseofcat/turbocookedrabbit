@@ -243,8 +243,15 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 		// Convert amqp.Delivery into our internal struct for later use.
 		select {
 		case delivery := <-deliveryChan: // all buffered deliveries are wiped on a channel close error
-			con.messageGroup.Add(1)
-			con.convertDelivery(chanHost.Channel, &delivery, !con.autoAck)
+
+			msg := NewMessage(
+				!con.autoAck,
+				delivery.Body,
+				delivery.DeliveryTag,
+				chanHost.Channel)
+
+			con.receivedMessages <- msg
+
 		default:
 			if con.sleepOnIdleInterval > 0 {
 				time.Sleep(con.sleepOnIdleInterval)
@@ -299,14 +306,7 @@ func (con *Consumer) Errors() <-chan error {
 }
 
 func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
-	msg := NewMessage(
-		isAckable,
-		delivery.Body,
-		delivery.DeliveryTag,
-		amqpChan)
 
-	con.receivedMessages <- msg
-	con.messageGroup.Done() // finished after getting the message in the channel
 }
 
 // FlushStop allows you to flush out all previous Stop signals.

@@ -49,6 +49,19 @@ func ConvertJSONFileToTopologyConfig(fileNamePath string) (*TopologyConfig, erro
 	return config, err
 }
 
+// ReadWrappedBodyFromJSONBytes simply read the bytes as a Letter.
+func ReadWrappedBodyFromJSONBytes(data []byte) (*WrappedBody, error) {
+
+	var json = jsoniter.ConfigFastest
+	body := &WrappedBody{}
+	err := json.Unmarshal(data, body)
+	if err != nil {
+		return nil, err
+	}
+
+	return body, nil
+}
+
 // ReadJSONFileToInterface opens a file.json and converts to interface{}.
 func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 
@@ -108,7 +121,7 @@ func CreateWrappedPayload(
 	compression *CompressionConfig,
 	encryption *EncryptionConfig) ([]byte, error) {
 
-	moddedLetter := &ModdedLetter{
+	wrappedBody := &WrappedBody{
 		LetterID:       letterID,
 		LetterMetadata: metadata,
 		Body:           &ModdedBody{},
@@ -130,8 +143,8 @@ func CreateWrappedPayload(
 		}
 
 		// Data is now compressed
-		moddedLetter.Body.Compressed = true
-		moddedLetter.Body.CType = compression.Type
+		wrappedBody.Body.Compressed = true
+		wrappedBody.Body.CType = compression.Type
 		innerData = buffer.Bytes()
 	}
 
@@ -142,15 +155,15 @@ func CreateWrappedPayload(
 		}
 
 		// Data is now encrypted
-		moddedLetter.Body.Encrypted = true
-		moddedLetter.Body.EType = encryption.Type
+		wrappedBody.Body.Encrypted = true
+		wrappedBody.Body.EType = encryption.Type
 		innerData = buffer.Bytes()
 	}
 
-	moddedLetter.Body.UTCDateTime = time.Now().UTC().Format(time.RFC3339)
-	moddedLetter.Body.Data = innerData
+	wrappedBody.Body.UTCDateTime = time.Now().UTC().Format(time.RFC3339)
+	wrappedBody.Body.Data = innerData
 
-	data, err := json.Marshal(&moddedLetter)
+	data, err := json.Marshal(&wrappedBody)
 	if err != nil {
 		return nil, err
 	}
@@ -191,13 +204,13 @@ func handleEncryption(encryption *EncryptionConfig, data []byte, buffer *bytes.B
 // ReadPayload unencrypts and uncompresses payloads
 func ReadPayload(buffer *bytes.Buffer, compression *CompressionConfig, encryption *EncryptionConfig) error {
 
-	if encryption.Enabled {
+	if encryption != nil && encryption.Enabled {
 		if err := handleDecryption(encryption, buffer); err != nil {
 			return err
 		}
 	}
 
-	if compression.Enabled {
+	if compression != nil && compression.Enabled {
 		if err := handleDecompression(compression, buffer); err != nil {
 			return err
 		}

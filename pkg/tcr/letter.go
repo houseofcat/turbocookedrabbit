@@ -19,8 +19,8 @@ type Envelope struct {
 	DeliveryMode uint8
 }
 
-// ModdedLetter is a letter with a modified body and indicators of what was done to it.
-type ModdedLetter struct {
+// WrappedBody is to go inside a Letter struct with indications of the body of data being modified (ex., compressed).
+type WrappedBody struct {
 	LetterID       uint64      `json:"LetterID"`
 	Body           *ModdedBody `json:"Body"`
 	LetterMetadata string      `json:"LetterMetadata"`

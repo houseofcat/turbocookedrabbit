@@ -6,7 +6,7 @@
 		"Threads": 2
 	},
 	"CompressionConfig": {
-		"Enabled": true,
+		"Enabled": false,
 		"Type": "gzip"
 	},
 	"PoolConfig": {

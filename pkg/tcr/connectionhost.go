@@ -61,11 +61,10 @@ func (ch *ConnectionHost) Connect() bool {
 		return true
 	}
 
-	// Lock
 	ch.connLock.Lock() // Block all but one.
 	defer ch.connLock.Unlock()
 
-	// Check if an operation is still necessary after acquiring lock.
+	// Recompare, check if an operation is still necessary after acquiring lock.
 	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
 		return true
 	}
@@ -119,6 +118,9 @@ func (ch *ConnectionHost) Connect() bool {
 
 // PauseOnFlowControl allows you to wait and sleep while receiving flow control messages.
 func (ch *ConnectionHost) PauseOnFlowControl() {
+
+	ch.connLock.Lock()
+	defer ch.connLock.Unlock()
 
 	for {
 		// nothing we can do (race condition) Blockers
