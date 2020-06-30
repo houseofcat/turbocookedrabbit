@@ -67,7 +67,7 @@ func TestBasicPublish(t *testing.T) {
 func TestCreatePublisherAndPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -79,7 +79,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 func TestPublishAndWaitForReceipt(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -102,7 +102,7 @@ WaitLoop:
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -125,7 +125,7 @@ WaitLoop:
 func TestPublishAccuracy(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -159,7 +159,7 @@ WaitLoop:
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")

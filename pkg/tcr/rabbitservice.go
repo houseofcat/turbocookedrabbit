@@ -37,7 +37,7 @@ func NewRabbitService(
 		return nil, err
 	}
 
-	publisher, err := NewPublisherWithConfig(config, connectionPool)
+	publisher, err := NewPublisherFromConfig(config, connectionPool)
 	if err != nil {
 		return nil, err
 	}
@@ -145,6 +145,8 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 		}
 	}
 
+	// Non-Transient Has A Bug For Now
+	// https://github.com/streadway/amqp/issues/459
 	rs.Publisher.PublishWithConfirmationTransient(
 		&Letter{
 			LetterID: currentCount,

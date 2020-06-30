@@ -25,8 +25,8 @@ type Publisher struct {
 	pubRWLock              *sync.RWMutex
 }
 
-// NewPublisherWithConfig creates and configures a new Publisher.
-func NewPublisherWithConfig(
+// NewPublisherFromConfig creates and configures a new Publisher.
+func NewPublisherFromConfig(
 	config *RabbitSeasoning,
 	cp *ConnectionPool) (*Publisher, error) {
 
@@ -138,13 +138,10 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		timeout = pub.publishTimeOutDuration
 	}
 
-GetChannelAndPublish:
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost := pub.ConnectionPool.GetChannelFromPool()
-
-		// Flush all previous publish confirmations
-		chanHost.FlushConfirms()
+		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
 		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
@@ -175,18 +172,18 @@ GetChannelAndPublish:
 
 			case confirmation := <-chanHost.Confirmations:
 
-				if !confirmation.Ack { // retry publishing
-					goto Publish
+				if !confirmation.Ack {
+					goto Publish //nack has occurred, republish
 				}
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
 				pub.ConnectionPool.ReturnChannel(chanHost, false)
-				break GetChannelAndPublish
+				return
 
 			default:
 
-				time.Sleep(time.Duration(time.Millisecond * 3))
+				time.Sleep(time.Duration(time.Millisecond * 4)) // limits CPU spin up
 			}
 		}
 	}

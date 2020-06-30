@@ -36,8 +36,6 @@ func NewChannelHost(
 		ConnectionID:  connectionID,
 		Ackable:       ackable,
 		CachedChannel: cached,
-		Confirmations: make(chan amqp.Confirmation, 100),
-		Errors:        make(chan *amqp.Error, 100),
 		connHost:      connHost,
 		chanLock:      &sync.Mutex{},
 	}
@@ -86,8 +84,6 @@ func (ch *ChannelHost) FlushConfirms() {
 	ch.chanLock.Lock()
 	defer ch.chanLock.Unlock()
 
-	//	counter := 0
-	//FlushLoop:
 	for {
 		if ch.connHost.Connection.IsClosed() {
 			return
@@ -95,11 +91,7 @@ func (ch *ChannelHost) FlushConfirms() {
 
 		select {
 		case <-ch.Confirmations: // Some weird use case where the Channel is being flooded with confirms after connection disrupt
-			/* 	counter++
-			if counter == 10 {
-				fmt.Printf("ChannelID: %d - confirmations flooded (confirmation deliverytag: %d) - initiating bypass!\r\n", ch.ID, confirmation.DeliveryTag)
-				break FlushLoop
-			} */
+			return
 		default:
 			return
 		}

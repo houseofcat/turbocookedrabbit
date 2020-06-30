@@ -20,7 +20,7 @@ func TestConsumingAfterPublish(t *testing.T) {
 
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -87,7 +87,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -188,7 +188,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -199,7 +199,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 
 	for i := 0; i < count; i++ {
 		//publisher.Publish(letter)
-		publisher.PublishWithConfirmation(letter, time.Second*5)
+		publisher.PublishWithConfirmation(letter, 500*time.Millisecond)
 	}
 
 	<-done1

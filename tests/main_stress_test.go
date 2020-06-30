@@ -18,7 +18,7 @@ func TestDurationAccuracy(t *testing.T) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
@@ -171,7 +171,7 @@ func verifyAccuracy(t *testing.T, conMap cmap.ConcurrentMap) {
 func TestPublishConsumeCountAccuracy(t *testing.T) {
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 

@@ -19,7 +19,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	messageCount := 10000
 	connectionPool, _ := tcr.NewConnectionPool(Seasoning.PoolConfig)
-	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, connectionPool)
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, connectionPool)
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer"]
 	assert.True(b, ok)
@@ -104,7 +104,7 @@ func BenchmarkPublishForDuration(b *testing.B) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	publishDone := make(chan bool, 1)
 	conMap := cmap.New()
@@ -126,7 +126,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(b, ok)
 
