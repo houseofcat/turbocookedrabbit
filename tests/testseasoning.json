@@ -13,8 +13,8 @@
 		"URI": "amqp://guest:guest@localhost:5672/",
 		"ConnectionName": "TurboCookedRabbit",
 		"SleepOnErrorInterval": 100,
-		"MaxCacheChannelCount": 25,
-		"MaxConnectionCount": 5,
+		"MaxCacheChannelCount": 50,
+		"MaxConnectionCount": 10,
 		"Heartbeat": 30,
 		"ConnectionTimeout": 10,
 		"TLSConfig": {
@@ -53,6 +53,6 @@
 		"SleepOnIdleInterval": 0,
 		"SleepOnErrorInterval": 0,
 		"PublishTimeOutInterval": 500,
-		"MaximumChannels": 20
+		"MaximumChannels": 40
 	}
 }

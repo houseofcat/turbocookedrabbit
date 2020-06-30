@@ -21,7 +21,7 @@ func TestMain(m *testing.M) {
 		return
 	}
 
-	RabbitService, err = tcr.NewRabbitService(Seasoning, "", "", nil)
+	RabbitService, err = tcr.NewRabbitService(Seasoning, "", "", nil, nil)
 	if err != nil {
 		return
 	}

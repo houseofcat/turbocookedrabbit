@@ -12,6 +12,16 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
 )
 
+func verifyAccuracyB(b *testing.B, conMap cmap.ConcurrentMap) {
+	// Breakpoint here and check the conMap for 100% accuracy.
+	for item := range conMap.IterBuffered() {
+		state := item.Val.(bool)
+		if !state {
+			fmt.Printf("LetterId: %q was not received.\r\n", item.Key)
+		}
+	}
+}
+
 func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	b.ReportAllocs()
@@ -149,13 +159,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 		b.Error(err)
 	}
 
-	// Breakpoint here and check the conMap for 100% accuracy.
-	for item := range conMap.IterBuffered() {
-		state := item.Val.(bool)
-		if !state {
-			b.Logf("LetterId: %q was not received.", item.Key)
-		}
-	}
+	verifyAccuracyB(b, conMap)
 	BenchCleanup(b)
 }
 
@@ -184,9 +188,6 @@ PublishLoop:
 					messagesFailedToPublish++
 					notice = nil
 				}
-			case err := <-publisher.Errors():
-				b.Logf("%s: Publisher Error - %s\r\n", time.Now(), err)
-				publisherErrors++
 			default:
 				break ReadReceipts
 			}

@@ -12,7 +12,6 @@ import (
 type Publisher struct {
 	Config                 *RabbitSeasoning
 	ConnectionPool         *ConnectionPool
-	errors                 chan error
 	letters                chan *Letter
 	autoStop               chan bool
 	publishReceipts        chan *PublishReceipt
@@ -33,7 +32,6 @@ func NewPublisherFromConfig(
 	return &Publisher{
 		Config:                 config,
 		ConnectionPool:         cp,
-		errors:                 make(chan error, 1000),
 		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
 		autoPublishGroup:       &sync.WaitGroup{},
@@ -56,7 +54,6 @@ func NewPublisher(
 
 	return &Publisher{
 		ConnectionPool:         cp,
-		errors:                 make(chan error, 1000),
 		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
 		autoPublishGroup:       &sync.WaitGroup{},
@@ -166,8 +163,8 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (%dms) - recommend retry/requeue", letter.LetterID, timeout))
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner - recommend retry/requeue", letter.LetterID))
+				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
 				return
 
 			case confirmation := <-chanHost.Confirmations:
@@ -183,7 +180,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 
 			default:
 
-				time.Sleep(time.Duration(time.Millisecond * 4)) // limits CPU spin up
+				time.Sleep(time.Duration(time.Millisecond * 1)) // limits CPU spin up
 			}
 		}
 	}
@@ -312,7 +309,7 @@ func (pub *Publisher) deliverLetters() bool {
 
 				parallelPublishSemaphore <- struct{}{}
 				go func(letter *Letter) {
-					pub.PublishWithConfirmationTransient(letter, pub.publishTimeOutDuration)
+					pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
 					<-parallelPublishSemaphore
 				}(letter)
 
@@ -395,16 +392,10 @@ func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 			publishReceipt.Success = true
 		} else {
 			publishReceipt.FailedLetter = letter
-			pub.errors <- err
 		}
 
 		pub.publishReceipts <- publishReceipt
 	}(letter, err)
-}
-
-// Errors yields all the internal errs for delivering letters.
-func (pub *Publisher) Errors() <-chan error {
-	return pub.errors
 }
 
 // Shutdown cleanly shutdown the publisher and resets it's internal state.

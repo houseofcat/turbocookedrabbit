@@ -10,11 +10,101 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestWithStress(t *testing.T) {
+
+	timeDuration := time.Duration(1 * time.Hour)
+	pubTimeOut := time.After(timeDuration)
+	conTimeOut := time.After(timeDuration + (1 * time.Minute))
+	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
+
+	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher.StartAutoPublishing()
+
+	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	assert.True(t, ok)
+
+	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	conMap := cmap.New()
+
+	publishDone := make(chan bool, 1)
+	go publishQueueLetter(t, conMap, publishDone, pubTimeOut, publisher)
+
+	consumerDone := make(chan bool, 1)
+	consumer.StartConsuming()
+	go consumeDurationAccuracyLoop(t, conMap, consumerDone, conTimeOut, consumer)
+
+	<-publishDone
+	publisher.Shutdown(false)
+
+	<-consumerDone
+	if err := consumer.StopConsuming(false, true); err != nil {
+		t.Error(err)
+	}
+
+	// Breakpoint here and check the conMap for 100% accuracy.
+	verifyAccuracyT(t, conMap)
+	TestCleanup(t)
+}
+
+func publishQueueLetter(
+	t *testing.T,
+	conMap cmap.ConcurrentMap,
+	done chan bool,
+	timeOut <-chan time.Time,
+	publisher *tcr.Publisher) {
+
+	queueErrors := 0
+	messagesPublished := 0
+	messagesFailedToPublish := 0
+	publisherErrors := 0
+
+PublishLoop:
+	for {
+		// Read all the queued receipts before next publish.
+	ReadReceipts:
+		for {
+			select {
+			case notice := <-publisher.PublishReceipts():
+				if notice.Success {
+					messagesPublished++
+					notice = nil
+				} else {
+					fmt.Printf("%s: Publisher failed for LetterID: %d\r\n", time.Now(), notice.LetterID)
+					messagesFailedToPublish++
+					notice = nil
+				}
+			default:
+				break ReadReceipts
+			}
+		}
+
+		select {
+		case <-timeOut:
+			break PublishLoop
+		default:
+			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
+			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+
+			if !publisher.QueueLetter(newLetter) {
+				queueErrors++
+			}
+		}
+	}
+
+	fmt.Printf("Failed to Queue For Publishing: %d\r\n", queueErrors)
+	fmt.Printf("Publisher Errors: %d\r\n", publisherErrors)
+	fmt.Printf("Messages Published: %d\r\n", messagesPublished)
+	fmt.Printf("Messages Failed to Publish: %d\r\n", messagesFailedToPublish)
+
+	done <- true
+}
+
 func TestDurationAccuracy(t *testing.T) {
 
-	timeDuration := time.Duration(2 * time.Second)
+	timeDuration := time.Duration(5 * time.Minute)
 	pubTimeOut := time.After(timeDuration)
-	conTimeOut := time.After(timeDuration + (1 * time.Second))
+	conTimeOut := time.After(timeDuration + (1 * time.Minute))
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
@@ -41,7 +131,7 @@ func TestDurationAccuracy(t *testing.T) {
 	}
 
 	// Breakpoint here and check the conMap for 100% accuracy.
-	verifyAccuracy(t, conMap)
+	verifyAccuracyT(t, conMap)
 	TestCleanup(t)
 }
 
@@ -70,9 +160,6 @@ PublishLoop:
 					messagesFailedToPublish++
 					notice = nil
 				}
-			case err := <-publisher.Errors():
-				fmt.Printf("%s: Publisher Error - %s\r\n", time.Now(), err)
-				publisherErrors++
 			default:
 				break ReadReceipts
 			}
@@ -123,18 +210,18 @@ ConsumeLoop:
 			messagesReceived++
 			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Body)
 			if err != nil {
-				fmt.Printf("message was not deserializeable")
+				fmt.Printf("message was not deserializeable\r\n")
 			} else {
 				// Accuracy check
 				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
 					state := tmp.(bool)
 					if state {
-						fmt.Printf("duplicate letter (%d) received!", body.LetterID)
+						fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
 					} else {
 						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
 					}
 				} else {
-					fmt.Printf("letter (%d) received that wasn't published!", body.LetterID)
+					fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
 				}
 			}
 
@@ -158,12 +245,12 @@ ConsumeLoop:
 	done <- true
 }
 
-func verifyAccuracy(t *testing.T, conMap cmap.ConcurrentMap) {
+func verifyAccuracyT(t *testing.T, conMap cmap.ConcurrentMap) {
 	// Breakpoint here and check the conMap for 100% accuracy.
 	for item := range conMap.IterBuffered() {
 		state := item.Val.(bool)
 		if !state {
-			fmt.Printf("LetterId: %q was not received.\r\n", item.Key)
+			fmt.Printf("LetterId: %q was published but never received.\r\n", item.Key)
 		}
 	}
 }
@@ -186,7 +273,7 @@ func TestPublishConsumeCountAccuracy(t *testing.T) {
 	consumeAccuracyLoop(t, conMap, consumer, pubCount)
 
 	// Breakpoint here to manually check the conMap for 100% accuracy.
-	verifyAccuracy(t, conMap)
+	verifyAccuracyT(t, conMap)
 
 	// How this test works:
 	// 1.) Try to publish (X) messages with server based ack/confirmation.
@@ -239,9 +326,6 @@ func publishAccuracyLoop(
 						messagesFailedToPublish++
 						notice = nil
 					}
-				case err := <-publisher.Errors():
-					fmt.Printf("%s: Publisher Error - %s\r\n", time.Now(), err)
-					publisherErrors++
 				case <-pubDone:
 					break MonitorLoop
 				default:
@@ -351,4 +435,113 @@ AcknowledgeLoop:
 	fmt.Printf("Messages Acked: %d\r\n", messagesAcked)
 	fmt.Printf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
 	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+}
+
+var conmap cmap.ConcurrentMap
+
+func TestWithRabbitServiceStress(t *testing.T) {
+
+	timeDuration := time.Duration(5 * time.Minute)
+	pubTimeOut := time.After(timeDuration)
+	conTimeOut := time.After(timeDuration + (1 * time.Minute))
+	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
+	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
+
+	conmap = cmap.New()
+
+	publishDone := make(chan bool, 1)
+	go publishRabbitServiceQueue(t, publishDone, pubTimeOut)
+
+	consumerDone := make(chan bool, 1)
+	go consumerRabbitService(t, consumerDone, conTimeOut)
+
+	<-publishDone
+	<-consumerDone
+
+	// Breakpoint here and check the conMap for 100% accuracy.
+	verifyAccuracyT(t, conmap)
+	TestCleanup(t)
+}
+
+func publishRabbitServiceQueue(
+	t *testing.T,
+	done chan bool,
+	timeOut <-chan time.Time) {
+
+PublishLoop:
+	for {
+
+		select {
+		case <-timeOut:
+			break PublishLoop
+		default:
+			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
+			conmap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			RabbitService.QueueLetter(newLetter)
+		}
+	}
+
+	done <- true
+}
+
+func consumerRabbitService(
+	t *testing.T,
+	done chan bool,
+	timeOut <-chan time.Time) {
+
+	consumer, _ := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	consumer.StartConsumingWithAction(consumerAction)
+
+	consumerErrors := 0
+
+ConsumeLoop:
+	for {
+		select {
+		case <-timeOut:
+			break ConsumeLoop
+
+		case err := <-consumer.Errors():
+
+			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
+			consumerErrors++
+
+		default:
+			time.Sleep(time.Microsecond)
+			break
+		}
+	}
+
+	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
+
+	if err := consumer.StopConsuming(false, true); err != nil {
+		t.Error(err)
+	}
+
+	done <- true
+}
+
+func consumerAction(msg *tcr.ReceivedMessage) {
+
+	body, err := tcr.ReadWrappedBodyFromJSONBytes(msg.Body)
+
+	if err != nil {
+		fmt.Printf("message was not deserializeable\r\n")
+	} else {
+		// Accuracy check
+		if tmp, ok := conmap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+			state := tmp.(bool)
+			if state {
+				fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
+			} else {
+				conmap.Set(fmt.Sprintf("%d", body.LetterID), true)
+			}
+		} else {
+			fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
+		}
+	}
+
+	err = msg.Acknowledge()
+	if err != nil {
+		fmt.Printf("Consumer Ack Error: %s\r\n", err)
+	}
 }

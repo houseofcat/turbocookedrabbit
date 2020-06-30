@@ -30,7 +30,8 @@ func NewRabbitService(
 	config *RabbitSeasoning,
 	passphrase string,
 	salt string,
-	processPublishReceipts func(*PublishReceipt)) (*RabbitService, error) {
+	processPublishReceipts func(*PublishReceipt),
+	processError func(error)) (*RabbitService, error) {
 
 	connectionPool, err := NewConnectionPool(config.PoolConfig)
 	if err != nil {
@@ -80,7 +81,6 @@ func NewRabbitService(
 
 	// Start the background monitors and logging.
 	go rs.collectConsumerErrors()
-	go rs.collectPublisherErrors()
 	go rs.monitorForShutdown()
 
 	// Monitors all publish events
@@ -88,6 +88,13 @@ func NewRabbitService(
 		go rs.invokeProcessPublishReceipts(processPublishReceipts)
 	} else { // Default action is to retry publishing all failures.
 		go rs.processPublishReceipts()
+	}
+
+	// Monitors all errors
+	if processError != nil {
+		go rs.invokeProcessError(processError)
+	} else { // Default action is to retry publishing all failures.
+		go rs.processErrors()
 	}
 
 	// Start the AutoPublisher
@@ -364,24 +371,6 @@ MonitorLoop:
 	}
 }
 
-func (rs *RabbitService) collectPublisherErrors() {
-
-MonitorLoop:
-	for {
-		if rs.shutdown {
-			break MonitorLoop // Prevent leaking goroutine
-		}
-
-		select {
-		case err := <-rs.Publisher.Errors():
-			rs.centralErr <- err
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
-		}
-	}
-}
-
 func (rs *RabbitService) invokeProcessPublishReceipts(processReceipts func(*PublishReceipt)) {
 
 ProcessLoop:
@@ -421,6 +410,41 @@ ProcessLoop:
 				}
 
 			}
+		default:
+			time.Sleep(rs.monitorSleepInterval)
+			break
+		}
+	}
+}
+
+func (rs *RabbitService) invokeProcessError(processError func(error)) {
+
+ProcessLoop:
+	for {
+		if rs.shutdown {
+			break ProcessLoop // Prevent leaking goroutine
+		}
+
+		select {
+		case err := <-rs.centralErr:
+			processError(err)
+		default:
+			time.Sleep(rs.monitorSleepInterval)
+			break
+		}
+	}
+}
+
+func (rs *RabbitService) processErrors() {
+
+ProcessLoop:
+	for {
+		if rs.shutdown {
+			break ProcessLoop // Prevent leaking goroutine
+		}
+		select {
+		case err := <-rs.centralErr:
+			fmt.Printf("TCR Central Err: %s\r\n", err)
 		default:
 			time.Sleep(rs.monitorSleepInterval)
 			break

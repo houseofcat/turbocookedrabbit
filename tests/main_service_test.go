@@ -11,7 +11,7 @@ import (
 func TestCreateRabbitService(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	service, err := tcr.NewRabbitService(Seasoning, "", "", nil)
+	service, err := tcr.NewRabbitService(Seasoning, "", "", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -22,7 +22,7 @@ func TestCreateRabbitServiceWithEncryption(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil)
+	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -33,7 +33,7 @@ func TestRabbitServicePublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil)
+	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -47,7 +47,7 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil)
+	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -61,7 +61,7 @@ func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil)
+	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 

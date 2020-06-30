@@ -118,13 +118,11 @@ WaitForReceiptsLoop:
 		select {
 		case <-timeoutAfter:
 			t.Fatal("test timeout")
-		case <-pub.Errors():
-
 		case receipt := <-pub.PublishReceipts():
 
 			if receipt.Success {
 				publishSuccessCount++
-				if publishSuccessCount == count {
+				if count == publishSuccessCount+publishFailureCount {
 					break WaitForReceiptsLoop
 				}
 			} else {
@@ -179,7 +177,7 @@ WaitForConsumer:
 func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	timeoutAfter := time.After(time.Minute * 5)
+	timeoutAfter := time.After(time.Minute * 2)
 	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NoError(t, err)
 	assert.NotNil(t, consumer)
@@ -192,19 +190,43 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	count := 100000
+	count := 10000
 
 	go monitorPublish(t, timeoutAfter, publisher, count, done1)
 	go monitorConsumer(t, timeoutAfter, consumer, count, done2)
 
 	for i := 0; i < count; i++ {
-		//publisher.Publish(letter)
 		publisher.PublishWithConfirmation(letter, 500*time.Millisecond)
 	}
 
 	<-done1
 	<-done2
 	err = consumer.StopConsuming(false, false)
+	assert.NoError(t, err)
+
+	TestCleanup(t)
+}
+
+// TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
+func TestLargePublishConfirmation(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	timeoutAfter := time.After(time.Minute * 2)
+	done1 := make(chan struct{}, 1)
+
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	assert.NoError(t, err)
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	count := 10000
+
+	go monitorPublish(t, timeoutAfter, publisher, count, done1)
+
+	for i := 0; i < count; i++ {
+		publisher.PublishWithConfirmation(letter, 50*time.Millisecond)
+	}
+
+	<-done1
 	assert.NoError(t, err)
 
 	TestCleanup(t)

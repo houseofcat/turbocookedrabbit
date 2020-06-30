@@ -89,9 +89,10 @@ func (ch *ChannelHost) FlushConfirms() {
 			return
 		}
 
+		// Some weird use case where the Channel is being flooded with confirms after connection disrupt
 		select {
-		case <-ch.Confirmations: // Some weird use case where the Channel is being flooded with confirms after connection disrupt
-			return
+		case <-ch.Confirmations:
+			return // did not used to be a return, leaving code as is for future revisit
 		default:
 			return
 		}

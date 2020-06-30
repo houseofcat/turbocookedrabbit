@@ -169,12 +169,27 @@ func (con *Consumer) StartConsuming() {
 		con.FlushErrors()
 		con.FlushStop()
 
-		go con.startConsumeLoop()
+		go con.startConsumeLoop(nil)
 		con.started = true
 	}
 }
 
-func (con *Consumer) startConsumeLoop() {
+// StartConsumingWithAction starts the Consumer invoking a method on every ReceivedMessage.
+func (con *Consumer) StartConsumingWithAction(action func(*ReceivedMessage)) {
+	con.conLock.Lock()
+	defer con.conLock.Unlock()
+
+	if con.Enabled {
+
+		con.FlushErrors()
+		con.FlushStop()
+
+		go con.startConsumeLoop(action)
+		con.started = true
+	}
+}
+
+func (con *Consumer) startConsumeLoop(action func(*ReceivedMessage)) {
 
 ConsumeLoop:
 	for {
@@ -204,7 +219,7 @@ ConsumeLoop:
 		}
 
 		// Process delivered messages by the consumer, returns true when we are to stop all consuming.
-		if con.processDeliveries(deliveryChan, chanHost) {
+		if con.processDeliveries(deliveryChan, chanHost, action) {
 			break ConsumeLoop
 		}
 	}
@@ -224,7 +239,7 @@ ConsumeLoop:
 }
 
 // ProcessDeliveries is the inner loop for processing the deliveries and returns true to break outer loop.
-func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *ChannelHost) bool {
+func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHost *ChannelHost, action func(*ReceivedMessage)) bool {
 
 	for {
 		// Listen for channel closure (close errors).
@@ -250,7 +265,11 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 				delivery.DeliveryTag,
 				chanHost.Channel)
 
-			con.receivedMessages <- msg
+			if action != nil {
+				action(msg)
+			} else {
+				con.receivedMessages <- msg
+			}
 
 		default:
 			if con.sleepOnIdleInterval > 0 {
