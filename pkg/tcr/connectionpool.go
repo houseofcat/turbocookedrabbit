@@ -196,6 +196,7 @@ func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, erred bool) {
 		} else {
 			chanHost.FlushConfirms()
 		}
+
 		cp.channels <- chanHost
 		return
 	}
@@ -271,6 +272,16 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 		}
 
 		cp.ReturnConnection(connHost, false)
+
+		if ackable {
+			err := channel.Confirm(false)
+			if err != nil {
+				if cp.sleepOnErrorInterval > 0 {
+					time.Sleep(cp.sleepOnErrorInterval)
+				}
+				continue
+			}
+		}
 		return channel
 	}
 }

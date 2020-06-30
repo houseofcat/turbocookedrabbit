@@ -2,6 +2,7 @@ package tcr
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/streadway/amqp"
@@ -62,7 +63,7 @@ func (ch *ChannelHost) Close() {
 	ch.Channel.Close()
 }
 
-// MakeChannel tries to create (or re-recreate) the channel from the ConnectionHost its attached to.
+// MakeChannel tries to create (or re-create) the channel from the ConnectionHost its attached to.
 func (ch *ChannelHost) MakeChannel() (err error) {
 	ch.chanLock.Lock()
 	defer ch.chanLock.Unlock()
@@ -72,11 +73,19 @@ func (ch *ChannelHost) MakeChannel() (err error) {
 		return err
 	}
 
-	ch.Confirmations = make(chan amqp.Confirmation, 100)
-	ch.Errors = make(chan *amqp.Error, 100)
+	if ch.Ackable {
+		err = ch.Channel.Confirm(false)
+		if err != nil {
+			return err
+		}
 
+		ch.Confirmations = make(chan amqp.Confirmation, 100)
+		ch.Channel.NotifyPublish(ch.Confirmations)
+	}
+
+	ch.Errors = make(chan *amqp.Error, 100)
 	ch.Channel.NotifyClose(ch.Errors)
-	ch.Channel.NotifyPublish(ch.Confirmations)
+
 	return nil
 }
 
@@ -85,9 +94,20 @@ func (ch *ChannelHost) FlushConfirms() {
 	ch.chanLock.Lock()
 	defer ch.chanLock.Unlock()
 
+	counter := 0
+FlushLoop:
 	for {
+		if ch.connHost.Connection.IsClosed() {
+			return
+		}
+
 		select {
-		case <-ch.Confirmations:
+		case confirmation := <-ch.Confirmations: // Some weird use case where the Channel is being flooded with confirms after connection disrupt
+			counter++
+			if counter == 10 {
+				fmt.Printf("ChannelID: %d confirmations flooded (confirmation deliverytag: %d) - initiating bypass!\r\n", ch.ID, confirmation.DeliveryTag)
+				break FlushLoop
+			}
 		default:
 			return
 		}

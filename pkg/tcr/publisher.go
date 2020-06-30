@@ -192,6 +192,75 @@ GetChannelAndPublish:
 	}
 }
 
+// PublishWithConfirmationTransient sends a single message to the address on the letter with confirmation capabilities on transient Channels.
+// This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+// A timeout failure drops the letter back in the PublishReceipts. When combined with QueueLetter, it automatically
+//   gets requeued for re-publish.
+// A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
+func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout time.Duration) {
+
+	if timeout == 0 {
+		timeout = pub.publishTimeOutDuration
+	}
+
+	timeoutAfter := time.After(timeout)
+
+	for {
+		// Has to use an Ackable channel for Publish Confirmations.
+		channel := pub.ConnectionPool.GetTransientChannel(true)
+
+		confirms := make(chan amqp.Confirmation, 1)
+
+		channel.NotifyPublish(confirms)
+
+	Publish:
+		err := channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      amqp.Table(letter.Envelope.Headers),
+				DeliveryMode: letter.Envelope.DeliveryMode,
+			},
+		)
+		if err != nil {
+			channel.Close()
+			if pub.sleepOnErrorInterval < 0 {
+				time.Sleep(pub.sleepOnErrorInterval)
+			}
+			continue // Take it again! From the top!
+		}
+
+		// Wait for very next confirmation on this channel, which should be our confirmation.
+		for {
+			select {
+			case <-timeoutAfter:
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (%dms) - recommend retry/requeue", letter.LetterID, timeout))
+				channel.Close()
+				return
+
+			case confirmation := <-confirms:
+
+				if !confirmation.Ack {
+					goto Publish //nack has occurred, republish
+				}
+
+				// Happy Path, publish was received by server and we didn't timeout client side.
+				pub.publishReceipt(letter, nil)
+				channel.Close()
+				return
+
+			default:
+
+				time.Sleep(time.Duration(time.Millisecond * 4)) // limits CPU spin up
+			}
+		}
+	}
+}
+
 // PublishReceipts yields all the success and failures during all publish events. Highly recommend susbscribing to this.
 func (pub *Publisher) PublishReceipts() <-chan *PublishReceipt {
 	return pub.publishReceipts
@@ -236,8 +305,8 @@ AutoPublishLoop:
 
 func (pub *Publisher) deliverLetters() bool {
 
-	// Allow parallel publishing with unique channels (upto n/2 + 1).
-	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.MaxCacheChannelCount/2+1)
+	// Allow parallel publishing with transient channels.
+	parallelPublishSemaphore := make(chan struct{}, pub.Config.PublisherConfig.MaximumChannels)
 
 	for {
 
@@ -249,7 +318,7 @@ func (pub *Publisher) deliverLetters() bool {
 
 				parallelPublishSemaphore <- struct{}{}
 				go func(letter *Letter) {
-					pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
+					pub.PublishWithConfirmationTransient(letter, pub.publishTimeOutDuration)
 					<-parallelPublishSemaphore
 				}(letter)
 

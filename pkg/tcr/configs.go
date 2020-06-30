@@ -45,11 +45,11 @@ type ConsumerConfig struct {
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.
 type PublisherConfig struct {
-	AutoAck                  bool   `json:"AutoAck"`
-	SleepOnIdleInterval      uint32 `json:"SleepOnIdleInterval"`
-	SleepOnQueueFullInterval uint32 `json:"SleepOnQueueFullInterval"`
-	SleepOnErrorInterval     uint32 `json:"SleepOnErrorInterval"`
-	PublishTimeOutInterval   uint32 `json:"PublishTimeOutInterval"`
+	AutoAck                bool   `json:"AutoAck"`
+	SleepOnIdleInterval    uint32 `json:"SleepOnIdleInterval"`
+	SleepOnErrorInterval   uint32 `json:"SleepOnErrorInterval"`
+	PublishTimeOutInterval uint32 `json:"PublishTimeOutInterval"`
+	MaximumChannels        uint32 `json:"MaximumChannels"`
 }
 
 // TopologyConfig allows you to build simple toplogies from a JSON file.

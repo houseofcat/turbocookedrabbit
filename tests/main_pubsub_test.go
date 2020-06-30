@@ -174,3 +174,38 @@ WaitForConsumer:
 	assert.Equal(t, count, receivedMessageCount, "Received Message Count: %d  Expected Count: %d", receivedMessageCount, count)
 	done <- struct{}{}
 }
+
+// TestLargeConsumingAfterLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
+func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	timeoutAfter := time.After(time.Minute * 5)
+	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	done1 := make(chan struct{}, 1)
+	done2 := make(chan struct{}, 1)
+	consumer.StartConsuming()
+
+	publisher, err := tcr.NewPublisherWithConfig(Seasoning, ConnectionPool)
+	assert.NoError(t, err)
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	count := 100000
+
+	go monitorPublish(t, timeoutAfter, publisher, count, done1)
+	go monitorConsumer(t, timeoutAfter, consumer, count, done2)
+
+	for i := 0; i < count; i++ {
+		//publisher.Publish(letter)
+		publisher.PublishWithConfirmation(letter, time.Second*5)
+	}
+
+	<-done1
+	<-done2
+	err = consumer.StopConsuming(false, false)
+	assert.NoError(t, err)
+
+	TestCleanup(t)
+}
