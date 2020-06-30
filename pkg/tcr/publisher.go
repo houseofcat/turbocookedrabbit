@@ -138,8 +138,6 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		timeout = pub.publishTimeOutDuration
 	}
 
-	timeoutAfter := time.After(timeout)
-
 GetChannelAndPublish:
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
@@ -149,6 +147,7 @@ GetChannelAndPublish:
 		chanHost.FlushConfirms()
 
 	Publish:
+		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
 		err := chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
@@ -180,6 +179,7 @@ GetChannelAndPublish:
 					goto Publish
 				}
 
+				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
 				pub.ConnectionPool.ReturnChannel(chanHost, false)
 				break GetChannelAndPublish
@@ -203,17 +203,14 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 		timeout = pub.publishTimeOutDuration
 	}
 
-	timeoutAfter := time.After(timeout)
-
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
 		channel := pub.ConnectionPool.GetTransientChannel(true)
-
 		confirms := make(chan amqp.Confirmation, 1)
-
 		channel.NotifyPublish(confirms)
 
 	Publish:
+		timeoutAfter := time.After(timeout)
 		err := channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,

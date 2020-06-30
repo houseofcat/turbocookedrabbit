@@ -2,7 +2,6 @@ package tcr
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/streadway/amqp"
@@ -48,13 +47,6 @@ func NewChannelHost(
 		return nil, err
 	}
 
-	if ackable {
-		err = chanHost.Channel.Confirm(false)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	return chanHost, nil
 }
 
@@ -94,20 +86,20 @@ func (ch *ChannelHost) FlushConfirms() {
 	ch.chanLock.Lock()
 	defer ch.chanLock.Unlock()
 
-	counter := 0
-FlushLoop:
+	//	counter := 0
+	//FlushLoop:
 	for {
 		if ch.connHost.Connection.IsClosed() {
 			return
 		}
 
 		select {
-		case confirmation := <-ch.Confirmations: // Some weird use case where the Channel is being flooded with confirms after connection disrupt
-			counter++
+		case <-ch.Confirmations: // Some weird use case where the Channel is being flooded with confirms after connection disrupt
+			/* 	counter++
 			if counter == 10 {
-				fmt.Printf("ChannelID: %d confirmations flooded (confirmation deliverytag: %d) - initiating bypass!\r\n", ch.ID, confirmation.DeliveryTag)
+				fmt.Printf("ChannelID: %d - confirmations flooded (confirmation deliverytag: %d) - initiating bypass!\r\n", ch.ID, confirmation.DeliveryTag)
 				break FlushLoop
-			}
+			} */
 		default:
 			return
 		}

@@ -145,7 +145,7 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 		}
 	}
 
-	rs.Publisher.PublishWithConfirmation(
+	rs.Publisher.PublishWithConfirmationTransient(
 		&Letter{
 			LetterID: currentCount,
 			Body:     data,
