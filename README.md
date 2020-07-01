@@ -10,7 +10,6 @@
 [![HitCount](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit.svg)](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit)
 
 ### Developer's Notes
-It was programmed against the following:
 
  * Golang 1.14.4 (2020/06/01)
  * RabbitMQ Server v3.8.5 (simple localhost)
@@ -18,22 +17,73 @@ It was programmed against the following:
  * Streadway/Amqp v1.0.0
 
 ### Breaking Change Notice (v1.x.x -> v2.0.0)
-Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use.
+Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use. The AutoPublish is now using PublishWithConfirmation and so what I now try to emulate is "At Least Once" style of delivery.  
 
-Reason?  
-I am better at Golang in general now and have a year of experience using my own software in a production environment.
+Reason For Rewrite?  
+I am better at Golang, in general, and I now have a year of experience using my own software in a production environment.  
+This rewrite has an even stronger auto-recovery mechanism and even harder Publish (PublishWithConfirmation) system.  
 
-For this rewrite, I was not able to solve all issues with the RabbitMQ Channel life cycle. I have opted for some key functional changes in Consumers and Publishers (AutoPublishing) to recycle channel connectivity... but the ChannelPool is now gone. We cache Ackable channels inside the ConnectionPool, other Channels are now transient. It is paramount for the user to always return a cache channel still and indicate if there was an error. However there is no longer a wait in place recovery mechanism for Channels to repair themselves.
+In some ways, performance has significantly increased. In other ways, it sacrified performance for resilience.  
 
-Overall, nearlly all the code has changed. I am sorry. The upside is a lot of thought went to stitching components together so it should no longer feel as clunky to write code for.
+### Work Recently Finished
+ * New PublishWithConfirmation feature was added.  
+ * Removed ChannelPools.  
+ * Rewrite for v2.0.0.  
 
 ### Basic Performance
 
+## AutoPublisher
 
-### Work Recently Finished
- * New PublishWithConfirmation feature was added.
- * Removed ChannelPools.
- * Rewrite for v2.0.0.
+<details><summary>Click for creating Publisher performance!</summary>
+<p>
+
+i7 8700K @ 4.7GHz
+Samsung EVO 970
+RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.  
+Single Queue Publish (Without Confirmations)
+Messages Transient Type, 1500-2500 bytes, wrapped themselves, uncompressed.
+100,000 Count Publish Test
+NON-DEBUG
+
+```
+Benchmark Starts: 2020-07-01 13:01:37.6260111 -0400 EDT m=+0.044880301
+Benchmark End: 2020-07-01 13:01:40.6130211 -0400 EDT m=+3.031890301
+Messages: 33478.294348 msg/s
+```
+
+</p>
+</details>
+
+<details><summary>Click for creating AutoPublisher performance!</summary>
+<p>
+
+i7 8700K @ 4.7GHz
+Samsung EVO 970
+RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.  
+Single Queue Publish (With Confirmations) / Single Consumer
+Messages Durable Type, 1500-2500 bytes, wrapped themselves, uncompressed.
+Two Hour Stress Test, Consumer/Publisher running in tandem.
+DEBUG
+
+```
+Failed to Queue For Publishing: 0
+Publisher Errors: 0
+Messages Published: 25882186
+Messages Failed to Publish: 132
+Consumer Errors: 0
+Messages Acked: 25883360
+Messages Failed to Ack: 0
+Messages Received: 25883360
+Messages Unexpected: 0
+Messages Duplicated: 0
+PASS
+```
+
+AutoPublisher (PublishWithConfirmation) averaged around `3,594.75 msg/s`.  
+Consumer averaged around `3,594.91 msg/s`.  
+
+</p>
+</details>
 
 ## The Seasoning/Config
 
@@ -51,19 +101,13 @@ The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
 <details><summary>Click for creating publisher examples!</summary>
 <p>
 
-Assuming you have a **ChannelPool** already setup. Creating a publisher can be achieved like so:
+Assuming you have a **ConnectionPool** already setup. Creating a publisher can be achieved like so:
 
 ```golang
-publisher, err := publisher.NewPublisher(Seasoning, channelPool, nil)
+	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 ```
 
-Assuming you have a **ChannelPool** and **ConnectionPool** setup. Creating a publisher can be achieved like so:
-
-```golang
-publisher, err := publisher.NewPublisher(Seasoning, channelPool, connectionPool)
-```
-
-The errors here indicate I was unable to create a Publisher - probably due to the ChannelPool/ConnectionPool given.
+The errors here indicate I was unable to create a Publisher - probably due to the ConnectionPool given.
 
 </p>
 </details>
@@ -80,9 +124,9 @@ letter := utils.CreateMockLetter(1, "", "TcrTestQueue", nil)
 publisher.Publish(letter)
 ```
 
-This **CreateLetter** method creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of TestQueueName. The body is nil, the helper function creates bytes for "h e l l o   w o r l d".
+This **CreateMockLetter** method creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of `"TcrTestQueue"`. The helper function creates bytes for "h e l l o   w o r l d" as a message body.
 
-The concept of a Letter may seem clunky on a single publish. I don't disagree and you still have `streadway/amqp` to rely on. The **letter** idea makes more sense with **AutoPublish**.
+The concept of a Letter may seem clunky but the real advantage is async publishing and replay-ability. And you still have `streadway/amqp` to rely on should prefer simple publshing.
 
 </p>
 </details>
@@ -95,14 +139,14 @@ The concept of a Letter may seem clunky on a single publish. I don't disagree an
 Once you have a publisher, you can perform **StartAutoPublish**!
 
 ```golang
-allowInternalRetry := false
-publisher.StartAutoPublish(allowInternalRetry)
+// This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently.
+publisher.StartAutoPublishing()
 
-ListeningForNotificationsLoop:
+ReceivePublishConfirmations:
 for {
     select {
-    case notification := <-publisher.Notifications():
-        if !notification.Success {
+case publish := <-publisher.PublishReceipts():
+        if !publish.Success {
             /* Handle Requeue or a manual Re-Publish */
         }
     default:
@@ -110,10 +154,7 @@ for {
     }
 }
 ```
-
-This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently.
-
-That could be simple like this...
+Then just invoke QueueLetter to queue up a letter on send. It returns false if it failed to queue up the letter to send. Usually that happens when Shutdown has been called.  
 
 ```golang
 publisher.QueueLetter(letter) // How simple is that!
@@ -131,7 +172,7 @@ for _, letter := range letters {
 }
 ```
 
-So you can see why we use these message containers called **letter**. The letter has the **body** and **envelope** inside of it. It has everything you need to publish it. Think of it a small, highly configurable, **unit of work** and **address**.
+So you can see why we use these message containers called **letter**. The letter has the **body** and **envelope** inside of it. It has everything you need to publish it. Think of it a small, highly configurable, **message body** and the intended **address**. This allows for async replay on failure.
 
 Notice that you don't have anything to do with channels and connections (even on outage)!
 
@@ -146,9 +187,7 @@ Notice that you don't have anything to do with channels and connections (even on
 Let's say the above example was too simple for you... ...let's up the over engineering a notch on what you can do with AutoPublish.
 
 ```golang
-
-allowInternalRetry := true
-publisher.StartAutoPublish(allowInternalRetry) // this will retry based on the Letter.RetryCount passed in.
+publisher.StartAutoPublish() // this will retry based on the Letter.RetryCount passed in.
 
 timer := time.NewTimer(1 * time.Minute) // Stop Listening to notifications after 1 minute.
 
@@ -157,18 +196,18 @@ channelFailureCount := 0
 successCount := 0
 failureCount := 0
 
-ListeningForNotificationsLoop:
+ReceivePublishConfirmations:
     for {
         select {
         case <-timer.C:
-            break ListeningForNotificationsLoop  
+            break ReceivePublishConfirmations  
         case chanErr := <-channelPool.Errors():
             if chanErr != nil {
                 channelFailureCount++ // Count ChannelPool failures.
             }
             break
-        case notification := <-publisher.Notifications():
-            if notification.Success {
+    	case publish := <-publisher.PublishReceipts():
+            if publish.Success {
                 successCount++
             } else {
                 failureCount++
@@ -176,7 +215,7 @@ ListeningForNotificationsLoop:
 
             // I am only expecting to publish 1000 messages
             if successCount+failureCount == messageCount { 
-                break ListeningForNotificationsLoop
+                break ReceivePublishConfirmations
             }
 
             break
@@ -190,51 +229,8 @@ ListeningForNotificationsLoop:
 We have finished our work, we **succeeded** or **failed** to publish **1000** messages. So now we want to shutdown everything!
 
 ```golang
-publisher.StopAutoPublish()
-// channelPool.Shutdown() // don't forget to cleanup (if you have a pointer to your channel pool nearby)!
+publisher.Shutdown(false)
 ```
-
-</p>
-</details>
-
----
-
-<details><summary>Click for a clean AutoPublish benchmark!</summary>
-<p>
-
-Early on the performance was not really there on Publish - some 500 msgs/s. Which is great, but not the numbers found during development. Somewhere along the way I introduced one too many race conditions. Also aggressively throttled configurations don't help either. Any who, I isolated the components and benched just AutoPublish and with a few tweaks - I started seeing raw concurrent/parallel Publishing performance for a single a Publisher!
-
-Ran this benchmark with the following Publisher settings and distributed over 10 queues (i % 10).
-
-```javascript
-"PublisherConfig":{
-	"SleepOnIdleInterval": 0,
-	"SleepOnQueueFullInterval": 1,
-	"SleepOnErrorInterval": 1000,
-	"LetterBuffer": 10000,
-	"MaxOverBuffer": 2000,
-	"NotificationBuffer": 1000
-}
-```
-
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -benchmem -run=^$ github.com/houseofcat/turbocookedrabbit/publisher -bench "^(BenchmarkAutoPublishRandomLetters)$" -v
-	goos: windows
-	goarch: amd64
-	pkg: github.com/houseofcat/turbocookedrabbit/publisher
-	BenchmarkAutoPublishRandomLetters-8            1        7346832700 ns/op        563734704 B/op   4525448 allocs/op
-	--- BENCH: BenchmarkAutoPublishRandomLetters-8
-		publisher_bench_test.go:21: 2019-09-15 18:58:57.6932202 -0400 EDT m=+0.107877301: Purging Queues...
-		publisher_bench_test.go:37: 2019-09-15 18:58:57.6972462 -0400 EDT m=+0.111903301: Building Letters
-		publisher_bench_test.go:42: 2019-09-15 18:58:58.9048792 -0400 EDT m=+1.319536301: Finished Building Letters
-		publisher_bench_test.go:43: 2019-09-15 18:58:58.9048792 -0400 EDT m=+1.319536301: Total Size Created: 199.844457 MB
-		publisher_bench_test.go:62: 2019-09-15 18:58:58.9058787 -0400 EDT m=+1.320535801: Queueing Letters
-		publisher_bench_test.go:67: 2019-09-15 18:59:02.669778 -0400 EDT m=+5.084435101: Finished Queueing letters after 3.7638993s
-		publisher_bench_test.go:68: 2019-09-15 18:59:02.669778 -0400 EDT m=+5.084435101: 26568.192194 Msg/s
-		publisher_bench_test.go:74: 2019-09-15 18:59:04.6839535 -0400 EDT m=+7.098610601: Purging Queues...
-	PASS
-	ok      github.com/houseofcat/turbocookedrabbit/publisher       10.092s
-
-Noice!
 
 </p>
 </details>
@@ -249,8 +245,7 @@ Noice!
 Consumer provides a simple Get and GetBatch much like the Publisher has a simple Publish.
 
 ```golang
-autoAck := true
-message, err = consumer.Get("TcrTestQueue", autoAck)
+delivery, err := consumer.Get("TcrTestQueue")
 ```
 
 Exit Conditions:
@@ -263,8 +258,7 @@ We also provide a simple Batch version of this call.
 
 
 ```golang
-autoAck := false
-messages, err = consumer.GetBatch("TcrTestQueue", 10, autoAck)
+delivery, err := consumer.GetBatch("TcrTestQueue", 10)
 ```
 
 Exit Conditions:
@@ -305,27 +299,14 @@ Here is a **JSON map/dictionary** wrapped in a **ConsumerConfigs**.
 ```javascript
 "ConsumerConfigs": {
 	"TurboCookedRabbitConsumer-Ackable": {
-		"QueueName": "ConsumerTestQueue",
+		"Enabled": true,
+		"QueueName": "TcrTestQueue",
 		"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
 		"AutoAck": false,
 		"Exclusive": false,
 		"NoWait": false,
-		"QosCountOverride": 5,
-		"MessageBuffer": 100,
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 100,
-		"SleepOnIdleInterval": 0
-	},
-	"TurboCookedRabbitConsumer-AutoAck": {
-		"QueueName": "ConsumerTestQueue",
-		"ConsumerName": "TurboCookedRabbitConsumer-AutoAck",
-		"AutoAck": true,
-		"Exclusive": false,
-		"NoWait": true,
-		"QosCountOverride": 5,
-		"MessageBuffer": 100,
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 100,
+		"QosCountOverride": 100,
+		"SleepOnErrorInterval": 0,
 		"SleepOnIdleInterval": 0
 	}
 },
@@ -337,10 +318,10 @@ And finding this object after it was loaded from a JSON file.
 consumerConfig, ok := config.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"]
 ```
 
-Creating the Consumer from Config after creating a ChannelPool.
+Creating the Consumer from Config after creating a ConnectionPool.
 
 ```golang
-consumer, err := consumer.NewConsumerFromConfig(consumerConfig, channelPool)
+consumer, err := consumer.NewConsumerFromConfig(consumerConfig, connectionPool)
 ```
 
 Then start Consumer?
@@ -376,15 +357,26 @@ ConsumeMessages:
     }
 ```
 
+Alternatively you could provide an action for the consumer (this will bypass your internal message buffer).
+
+```golang
+consumer.StartConsumingWithAction(
+		func(msg *tcr.ReceivedMessage) {
+			if err := msg.Acknowledge(); err != nil {
+				fmt.Printf("Error acking message: %v\r\n", msg.Body)
+			}
+		})
+```
+
 </p>
 </details>
 
 ---
 
-<details><summary>Wait! What the hell is coming out of <-Messages()</summary>
+<details><summary>Wait! What the hell is coming out of <-ReceivedMessages()</summary>
 <p>
 
-Great question. I toyed with the idea of returning Letters like Publisher uses (and I may still at some point) but for now you receive a `models.Message`.
+Great question. I toyed with the idea of returning Letters like Publisher uses (and I may still at some point) but for now you receive a `models.ReceivedMessage`.
 
 ***But... why***? Because the payload/data/message body is in there but, more importantly, it contains the means of quickly acking the message! It didn't feel right being merged with a `models.Letter`. I may revert and use the base `amqp.Delivery` which does all this and more... I just didn't want users to have to also pull in `streadway/amqp` to simplify their imports. If you were already using it wouldn't be an issue. This design is still being code reviewed in my head.
 
@@ -410,11 +402,11 @@ for {
     case <-ctx.Done():
         fmt.Print("\r\nContextTimeout\r\n")
         break ConsumeMessages
-    case message := <-consumer.Messages(): // View Messages
+    case message := <-consumer.ReceivedMessages(): // View Messages
         fmt.Printf("Message Received: %s\r\n", string(message.Body))
     case err := <-consumer.Errors(): // View Consumer errors
         /* Handle */
-    case err := <-channelPool.Errors(): // View ChannelPool errors
+    case err := <-ConnectionPool.Errors(): // View ChannelPool errors
         /* Handle */
     default:
         time.Sleep(100 * time.Millisecond)
@@ -426,7 +418,9 @@ for {
 Here you may trigger StopConsuming with this
 
 ```golang
-consumer.StopConsuming(false)
+immediately := false
+flushMessages := false
+err = consumer.StopConsuming(immediately, flushMessages)
 ```
 
 But be mindful there are Channel Buffers internally that may be full and goroutines waiting to add even more.
@@ -439,7 +433,7 @@ consumer.FlushErrors() // errors can quickly build up if you stop listening to t
 consumer.FlushMessages() // lets say the ackable messages you have can't be acked and you just need to flush them all out of memory
 ```
 
-Becareful with FlushMessages(). If you are `autoAck = false` and receiving ackAble messages, this is safe. You will merely **wipe them from your memory** and ***they are still in the original queue***.
+Becareful with `FlushMessages()`. If you are `autoAck = true` and receiving ackAble messages, this is not safe. You will **wipe them from your memory** and ***they are still in the original queue***. If you were using manual ack, i.e. `autoAck = false` then you are free to do so. Your next consumer will pick up where you left off.
 
 Here I demonstrate a very busy ***ConsumerLoop***. Just replace all the counter variables with logging and then an action performed with the message and this could be a production microservice loop.
 
@@ -449,27 +443,24 @@ ConsumeLoop:
 		select {
 		case <-timeOut:
 			break ConsumeLoop
-		case notice := <-publisher.Notifications():
-			if notice.Success {
-				fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
+		case receipt := <-publisher.PublishReceipts():
+			if receipt.Success {
+				fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), receipt.LetterID)
 				messagesPublished++
 			} else {
-				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				fmt.Printf("%s: Published Failed Error - LetterID: %d\r\n", time.Now(), receipt.LetterID)
 				messagesFailedToPublish++
 			}
-		case err := <-ChannelPool.Errors():
-			fmt.Printf("%s: ChannelPool Error - %s\r\n", time.Now(), err)
-			channelPoolErrors++
 		case err := <-ConnectionPool.Errors():
 			fmt.Printf("%s: ConnectionPool Error - %s\r\n", time.Now(), err)
 			connectionPoolErrors++
 		case err := <-consumer.Errors():
 			fmt.Printf("%s: Consumer Error - %s\r\n", time.Now(), err)
 			consumerErrors++
-		case message := <-consumer.Messages():
+		case message := <-consumer.ReceivedMessages():
 			messagesReceived++
 			fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
-			go func(msg *models.Message) {
+			go func(msg *models.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
@@ -496,247 +487,20 @@ ConsumeLoop:
 <details><summary>Rabbit Pools, how do they even work?!</summary>
 <p>
 
-ChannelPools are built on top of ConnectionPools and unfortunately, there is a bit of complexity here. Suffice to say I recommend (when creating both pools) to think 1:5 ratio. If you have one Connection, I recommend around 5 Channels to be built on top of it.
+ChannelPools have been removed for simplification. Unfortunately for the ConnectionPool, there is still a bit of complexity here. If you have one Connection, I generally recommend around 5 Channels to be built on top of each connection. Your mileage may vary so be sure to test!
 
-Ex.) ConnectionCount: 5 => ChannelPool: 25
+Ex.) ConnectionCount: 5 => ChannelPool: 25  
 
-I allow most of this to be configured now inside the ChannelPoolConfig and ConnectionPoolConfig. I had previously been hard coding some base variables but that's wrong.
+I allow most features to be configurable via PoolConfig.  
 
 ```javascript
 "PoolConfig": {
-	"ChannelPoolConfig": {
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 1000,
-		"MaxChannelCount": 50,
-		"MaxAckChannelCount": 50,
-		"AckNoWait": false,
-		"GlobalQosCount": 5
-	},
-	"ConnectionPoolConfig": {
-		"URI": "amqp://guest:guest@localhost:5672/",
-		"ErrorBuffer": 10,
-		"SleepOnErrorInterval": 5000,
-		"MaxConnectionCount": 10,
-		"Heartbeat": 5,
-		"ConnectionTimeout": 10,
-		"TLSConfig": {
-			"EnableTLS": false,
-			"PEMCertLocation": "test/catest.pem",
-			"LocalCertLocation": "client/cert.ca",
-			"CertServerName": "hostname-in-cert"
-		}
-	}
-},
-```
-
-Feel free to test out what works for yourself. Suffice to say though, there is a chance for a pause/delay/lag when there are no Channels available. High performance on your system may require fine tuning and benchmarking. The thing is though, you can't just add Connections and Channels evenly. First off Connections, server side are not infinite. You can't keep just adding those.
-
-Every sequential Channel you get from the ChannelPool, was made with a different Connection. They are both backed by a Queue data structure, so this means you can't get the same Connection twice in sequence* (*with the exception of probability and concurrency/parallelism). There is a significant chance for greater throughput/performance by essentially load balancing Connections (which boils down to basically TCP sockets). All this means, layman's terms is that each ChannelPool is built off a Round Robin ConnectionPool (TCP Sockets). The ChannelPool itself adds another distribution of load balancing by ensuring every ChannelPool.GetChannel() is also non-sequential (Queue-structure). It's a double layer of Round Robin.
-
-Why am I sharing any of this? Because the ChannelPool / ConnectionPool can be used 100% independently of everything else. You can implement your own fancy RabbitService using just my ConnectionPool and it won't hurt my feelings. Also - it looks complicated. There is a lot going on under the covers that can be confusing without explaining what I was trying to do. Hell you may even see my mistakes! (Submit PR!)
-
-The following code demonstrates one super important part with ChannelPools: **flag erred Channels**. RabbitMQ server closes Channels on error, meaning this guy is dead. You normally won't know it's dead until the next time you use it - and that can mean messages lost. By flagging the channel as dead properly, on the next GetChannel() call - if we get the channel that was just flagged - we discard it and in place make a new fresh Channel for caller to receive.
-
-```golang
-chanHost, err := pub.ChannelPool.GetChannel()
-if err != nil {
-    pub.sendToNotifications(letter.LetterID, err)
-    pub.ChannelPool.ReturnChannel(chanHost)
-    continue // can't get a channel
-}
-
-pubErr := pub.simplePublish(chanHost.Channel, letter)
-if pubErr != nil {
-    pub.handleErrorAndFlagChannel(err, chanHost.ChannelID, letter.LetterID)
-    pub.ChannelPool.ReturnChannel(chanHost)
-    continue // flag channel and try again
-}
-```
-
-Unfortunately, there are still times when GetChannel() will fail, which is why we still produce errors and I do return those to you.
-
-</p>
-</details>
-
----
-
-<details><summary>Click here to see how to build a Connection and Channel Pool!</summary>
-<p>
-
-Um... this is the easy way to do is with the Configs.
-
-```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
-```
-
-Then you want to Initiate the Pools (this builds your Connections and Channels)
-
-```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
-connectionPool.Initialize()
-channelPool.Initialize()
-```
-
-I saw this as rather cumbersome... so I provided some short-cuts. The following instantiates a ConnectionPool internally to the ChannelPool. The only thing you lose here is the ability to share or use the ConnectionPool independently of the ChannelPool.
-
-```golang
-connectionPool, err := pools.NewConnectionPool(Seasoning.PoolConfig, false)
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, connectionPool, false)
-channelPool.Initialize() // auto-initializes the ConnectionPool...
-```
-But I am still pretty lazy.
-
-```golang
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
-channelPool.Initialize()
-```
-
-</p>
-</details>
-
----
-
-<details><summary>Click here to see how to get and use a Channel!</summary>
-<p>
-
-So now you will more than likely want to use your ChannelPool.
-
-```golang
-channelHost, err := channelPool.GetChannel()
-
-channelPool.ReturnChannel(chanHost)
-```
-
-This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer. You can use the ChannelPools yourself if you just like the idea of backing your already existing code behind a ChannelPool/ConnectionPool.
-
-The Publisher/Consumer/Topologer all use code similar to this!
-
-```golang
-channelHost, err := channelPool.GetChannel()
-channelHost.Channel.Publish(
-		exchangeName,
-		routingKey,
-		mandatory,
-		immediate,
-		amqp.Publishing{
-			ContentType: contentType,
-			Body:        body,
-		},
-    )
-channelPool.ReturnChannel(chanHost)
-```
-
-I am working on streamlining the ChannelHost integration with ChannelPool. I want to allow communication between the two by flowing Channel errors up to pool/group. It's a bit clunky currently but I am still thinking how best to do such a thing. Ideally all Channel errors (CloseErrors) would be subscribed to and perhaps AutoFlag the channels as dead and I can consolidate my code if that's determine reliable.
-
-</p>
-</details>
-
----
-
-<details><summary>What happens during an outage?</summary>
-<p>
-
-Well, if you are using a ChannelPool w/ ConnectionPool, it will handle an outage, full or transient, just fine. The Connections/ConnectionHosts will be either heartbeat recovered or be replaced. The Channels will all have to be replaced during the next **GetChannel()** invocation.
-
-There is one small catch though when using ChannelPools.  
-
-Since dead Channels are replaced during a call of **GetChannel()** and you may have replaced all your ConnectionHosts, you may not fully rebuild all your channels. The reason for that is demand/load. I have done my best to force ChannelHost creation and distribution across the individual ConnectionHosts... but unless you are rapidly getting all ChannelHosts, you may never hit your original MaxChannelCount from your PoolConfig based on your use case scenarios. If you can't generate ChannelHost demand through **GetChannel()** calls, then it won't always rebuild. On the other hand, if your **GetChannel()** call count does increase, so to will your ChannelHost counts.
-
-I intend to tweak things here. I have tested multiple back-to-back outages during tests/benches and it has allowed me to improve the user experience / system experience significantly - but refactoring could have brought about bugs. Like I said, I will keep reviewing my work and checking if there are any tweaks.
-
-</p>
-</details>
-
----
-
-<details><summary>Click to see how to properly prepare for an outage!</summary>
-<p>
-
-Observe the following code example:
-
-```golang
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, true)
-
-iterations := 0
-maxIterationCount := 100000
-
-// Shutdown RabbitMQ server after entering loop, then start it again, to test reconnectivity.
-for iterations < maxIterationCount {
-
-	chanHost, err := channelPool.GetChannel()
-	if err != nil {
-		fmt.Printf("%s: Error - GetChannelHost: %s\r\n", time.Now(), err)
-	} else {
-		fmt.Printf("%s: GotChannelHost\r\n", time.Now())
-
-		select {
-		case <-chanHost.CloseErrors():
-			fmt.Printf("%s: Error - ChannelClose: %s\r\n", time.Now(), err)
-		default:
-			break
-		}
-
-		letter := utils.CreateMockRandomLetter("TcrTestQueue")
-		err := chanHost.Channel.Publish(
-			letter.Envelope.Exchange,
-			letter.Envelope.RoutingKey,
-			letter.Envelope.Mandatory, // publish doesn't appear to work when true
-			letter.Envelope.Immediate, // publish doesn't appear to work when true
-			amqp.Publishing{
-				ContentType: letter.Envelope.ContentType,
-				Body:        letter.Body,
-			},
-		)
-
-		if err != nil {
-			fmt.Printf("%s: Error - ChannelPublish: %s\r\n", time.Now(), err)
-			channelPool.FlagChannel(chanHost.ChannelID)
-			fmt.Printf("%s: ChannelFlaggedForRemoval\r\n", time.Now())
-		} else {
-			fmt.Printf("%s: ChannelPublishSuccess\r\n", time.Now())
-		}
-	}
-	channelPool.ReturnChannel(chanHost)
-	iterations++
-	time.Sleep(10 * time.Millisecond)
-}
-
-channelPool.Shutdown()
-```
-
-This is a very tight publish loop. This will blast thousands of messages per hour.
-
-Simulating a server shutdown: `bin\rabbitmq-service.bat stop`
-
-The entire thing loop will pause at **GetChannel()**. It will hault in **GetChannel()** as I preemptively determine the Channel's parent Connection is already closed. We then go into an infinite (but throttled) loop here. The loop consists of regenerating the Channel/ChannelHost (or even the Connection underneath).
-
-What dictates the iteration time of these loops until success is the following:
-
-```javascript
-"ChannelPoolConfig": {
-	"ErrorBuffer": 10,
-	"SleepOnErrorInterval": 1000,
-	"MaxChannelCount": 50,
-	"MaxAckChannelCount": 50,
-	"AckNoWait": false,
-	"GlobalQosCount": 5
-},
-```
-The related settings for outages are here:
-
- * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking/full.
- * SleepOnErrorInterval is the built in sleep when an error or closed Channel is found.
-   * This is the minimum interval waited when rebuilding the ChannelHosts.
-
-```javascript
-"ConnectionPoolConfig": {
 	"URI": "amqp://guest:guest@localhost:5672/",
-	"ErrorBuffer": 10,
-	"SleepOnErrorInterval": 5000,
+	"ConnectionName": "TurboCookedRabbit",
+	"SleepOnErrorInterval": 100,
+	"MaxCacheChannelCount": 50,
 	"MaxConnectionCount": 10,
-	"Heartbeat": 5,
+	"Heartbeat": 30,
 	"ConnectionTimeout": 10,
 	"TLSConfig": {
 		"EnableTLS": false,
@@ -747,120 +511,172 @@ The related settings for outages are here:
 }
 ```
 
-The related settings for outages are here:
+There is a chance for a pause/delay/lag when there are no Connectoins/Channels available. High performance on your system may require fine tuning and benchmarking. The thing is though, you can't just add Connections and Channels evenly. Connections, server side, are not an infinite resource (channel construction/destruction either!). You can't keep just adding connections though.
 
- * ErrorBuffer is the buffer for the Error channel. Important to subscribe to the ChannelPool Error channel some where so it doesn't become blocking.
- * SleepOnErrorInterval is the built in sleep when an error or closed Connection is found.
-   * This is the minimum interval waited when rebuilding the ConnectionHosts.
-   * I recommend this value to be higher than the ChannelHost interval.
+The following code demonstrates one super important part with ConnectionPools: **flag erred Channels**. RabbitMQ server closes Channels on error, meaning this guy is dead. You normally won't know it's dead until the next time you use it - and that can mean messages lost. By flagging the channel as dead, when returning it, we process
+the dead channel and attempt replace it.
 
-</p>
-</details>
+```golang
+// Publish sends a single message to the address on the letter using a cached ChannelHost.
+// Subscribe to PublishReceipts to see success and errors.
+// For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
+func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 
----
+	chanHost := pub.ConnectionPool.GetChannelFromPool()
 
-<details><summary>Click here for more details on the Circuit Breaking!</summary>
-<p>
+	err := chanHost.Channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
+		},
+	)
 
-We will use the above settings in the ChannelPool (**SleepOnErrorInterval = 1000**) and ConnectionPool (**SleepOnErrorInterval = 5000**) here is what will happen to the above code when publishing.
+	if !skipReceipt {
+		pub.publishReceipt(letter, err)
+	}
 
- 1. RabbitMQ Server outage occurs.
- 2. Everything pauses in place, creating infinite loops on **GetChannel()** (which calls **GetConnection()**).  
-    * This can be a bit dangerous itself if you have thousands of goroutines calling **GetChannel()** so plan accordingly.
-	* Some errors can occur in Consumers/Publishers/ChannelPools/ConnectionPools for in transit at the time of outage.
- 3. RabbitMQ Server connectivity is restored.
- 4. The loop iterations start finding connectivity, they build a connection.
-	* The minimum wait time is 5 seconds for the ConnectionHost.
-	* You will also start seeing very slow publishing.
- 5. This same loop is building a ChannelHost.
-    * The minimum wait time after ChannelHost was built is 1 second.
- 6. The total time waited should be about 6 seconds.
- 7. The next **GetChannel()** is called.
-	* Because we use Round Robin connections, the next Connection in the pool is called.
-	* We wait a minimum of time of 5 seconds for recreating the ConnectionHost, then 1 second again for the ChannelHost.
- 8. This behavior continues until all Connections have been successfully restored.
- 9. After ConnectionHosts, restoring the remaining ChannelHosts.
-    * The minimum wait time is now 1 second, no longer the combined total of 6 seconds.
-	* Slightly faster publshing can be observed.
- 10. Once all Channels have been restored, the time wait between publishes is found in the publishing loop: **10 ms**.
-    * The connectivity has been fully regenerated at this point.
-	* Full speed publishing can now be observed.
-
-So you make recognize this as a funky CircuitBreaker pattern.
-
-Circuit Breaker Behaviors 
-
- * We don't spin up memory, we don't spin up CPU.
- * We don't spam connection requests to our RabbitMQ server.
- * Once connectivity is restored, we don't flood the RabbitMQ server.
-   * This is slow-open.
-   * The duration of this time becomes (time(connectionSleep + channelSleep)) * n) where ***n*** is the number of unopened Connections.
- * As connectivity is restored in Connections, we still see throttling behavior.
-   * This is medium-open.
-   * The duration of this time becomes (time(channelSleep) * n) where ***n*** is the number of still unopened Channel.
- * Once connectivity is fully open, publish rate should return to normal (pre-outage speed).
- * At any time, you can revert back to medium-open, slow-open, fully paused.
-   * The loops never stop so you never have to worry about connectivity or reconnectivity.
-
-All of this behavior depends on the healthy config settings that you determine upfront though - so this is all up to you!
-
-Just remember Channels get closed or get killed all the time, you don't want this wait time too high. Connections rarely fully die, so you want this delay reasonably longer.
+	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+}
+```
 
 </p>
 </details>
 
 ---
 
-<details><summary>Click here for some Channel Pool benchmarks!</summary>
+<details><summary>Click here to see how to build a Connection and Channel Pool!</summary>
 <p>
 
-This is a raw AMQP publish test.  We create an AMQP connection, create an AMQP channel, and execute an AMQP publish looped.
-MessageCount: 100,000
-MessageSize: 2500 (2.5KB)
+Um... this is the easy relatively easy to do with configs.
 
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -timeout 30s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestCreateSingleChannelAndPublish)$" -v
-	=== RUN   TestCreateSingleChannelAndPublish
-	--- PASS: TestCreateSingleChannelAndPublish (4.57s)
-		pools_test.go:51: 2019-09-15 14:48:11.615081 -0400 EDT m=+0.085770701: Benchmark Starts
-		pools_test.go:95: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Benchmark End
-		pools_test.go:96: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Time Elapsed 4.5729159s
-		pools_test.go:97: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Publish Errors 0
-		pools_test.go:98: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Publish Actual 100000
-		pools_test.go:99: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: Msgs/s 21867.885215
-		pools_test.go:100: 2019-09-15 14:48:16.1879969 -0400 EDT m=+4.658686601: MB/s 54.669713
-	PASS
-	ok      github.com/houseofcat/turbocookedrabbit/pools   6.188s
+```golang
+cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+```
 
-Apples to Apples comparison using a ChannelPool. As you can see - the numbers went up - but should have been relatively the same. There is some variability with these tests. The important thing to note is that there isn't a significant reduction in performance. You shouldn't see more or less performance - that is the target!
+</p>
+</details>
 
-	PS C:\GitHub\personal\turbocookedrabbit> go.exe test -timeout 30s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetSingleChannelFromPoolAndPublish)" -v
-	=== RUN   TestGetSingleChannelFromPoolAndPublish
-	--- PASS: TestGetSingleChannelFromPoolAndPublish (4.30s)
-		pools_test.go:106: 2019-09-15 14:50:01.2111296 -0400 EDT m=+0.104896201: Benchmark Starts
-		pools_test.go:146: 2019-09-15 14:50:05.5139474 -0400 EDT m=+4.407714001: Benchmark End
-		pools_test.go:147: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Time Elapsed 4.3028178s
-		pools_test.go:148: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Publish Errors 0
-		pools_test.go:149: 2019-09-15 14:50:05.5140242 -0400 EDT m=+4.407790801: Publish Actual 100000
-		pools_test.go:150: 2019-09-15 14:50:05.5140623 -0400 EDT m=+4.407828901: Msgs/s 23240.584345
-		pools_test.go:151: 2019-09-15 14:50:05.5140623 -0400 EDT m=+4.407828901: MB/s 58.101461
-	PASS
-	ok      github.com/houseofcat/turbocookedrabbit/pools   4.507s
+---
 
-Apples to Apple-Orange-Hybrid comparison. Exact same premise, but different ChannelHost per Publish allowing us to publish concurrently. I was just showing off at this point.
+<details><summary>Click here to see how to get and use a Channel!</summary>
+<p>
 
-	PS C:\GitHub\personal\turbocookedrabbit> go test -timeout 10s github.com/houseofcat/turbocookedrabbit/pools -run "^(TestGetMultiChannelFromPoolAndPublish)" -v
-	=== RUN   TestGetMultiChannelFromPoolAndPublish
-	--- PASS: TestGetMultiChannelFromPoolAndPublish (4.95s)
-		pools_test.go:157: 2019-09-15 14:53:41.2687154 -0400 EDT m=+0.091933501: Benchmark Starts
-		pools_test.go:204: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Benchmark End
-		pools_test.go:205: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Time Elapsed 2.9471258s
-		pools_test.go:206: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: ChannelPool Errors 0
-		pools_test.go:207: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Publish Errors 0
-		pools_test.go:208: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Publish Actual 100000
-		pools_test.go:209: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: Msgs/s 33931.364586
-		pools_test.go:210: 2019-09-15 14:53:46.2171263 -0400 EDT m=+5.040344401: MB/s 84.828411
-	PASS
-	ok      github.com/houseofcat/turbocookedrabbit/pools   5.143s
+```golang
+chanHost := ConnectionPool.GetChannelFromPool()
+
+ConnectionPool.ReturnChannel(chanHost, false)
+```
+
+This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer, or RabbitService. You can use the ConnectionPool yourself if you just like the idea of backing your already existing code behind a ConnectionPool that has recovery and TCP socket load balancing!
+
+The Publisher/Consumer/Topologer all use code similar to this!
+
+```golang
+chanHost := ConnectionPool.GetChannelFromPool()
+err := chanHost.Channel.Publish(
+		exchangeName,
+		routingKey,
+		mandatory,
+		immediate,
+		amqp.Publishing{
+			ContentType: contentType,
+			Body:        body,
+		},
+    )
+ConnectionPool.ReturnChannel(chanHost, err != nil)
+```
+
+</p>
+</details>
+
+---
+
+<details><summary>What happens during an outage?</summary>
+<p>
+
+You will get errors performing actions. You indicate to the library your action failed, `err != nil`, and we pause in place trying to restore connectivity.
+
+</p>
+</details>
+
+---
+
+<details><summary>Click to see how one may properly prepare for an outage!</summary>
+<p>
+
+Observe a retry publish strategy with the following code example:
+
+```golang
+cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+if err != nil {
+	// blow up
+}
+
+iterations := 0
+retryCount := 10
+
+for iterations < retryCount {
+
+	chanHost := ConnectionPool.GetChannelFromPool()
+
+	letter := utils.CreateMockRandomLetter("TcrTestQueue")
+
+	err := chanHost.Channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType: letter.Envelope.ContentType,
+			Body:        letter.Body,
+		},
+	)
+
+	if err == nil {
+		channelPool.ReturnChannel(chanHost, false)
+		break 
+	}
+
+	channelPool.ReturnChannel(chanHost, true)
+	time.Sleep(10 * time.Second)
+	iterations++
+
+	if iterations == 10 {
+		break
+	}
+}
+
+cp.Shutdown()
+```
+
+You can test publishing while manually shutting down the RabbitMQ connections! Good for chaos testing!  
+Simulating a server shutdown: `C:\Program Files\RabbitMQ Server\rabbitmq_server-3.8.5\sbin>rabbitmqctl.bat close_all_connections "suck it, trebek"`
+
+SleepOnErrorInterval is the built in sleep when an error or closed Connection/Channel is found.  
+
+```javascript
+"PoolConfig": {
+	"URI": "amqp://guest:guest@localhost:5672/",
+	"ConnectionName": "TurboCookedRabbit",
+	"SleepOnErrorInterval": 100,
+	"MaxCacheChannelCount": 50,
+	"MaxConnectionCount": 10,
+	"Heartbeat": 30,
+	"ConnectionTimeout": 10,
+	"TLSConfig": {
+		"EnableTLS": false,
+		"PEMCertLocation": "test/catest.pem",
+		"LocalCertLocation": "client/cert.ca",
+		"CertServerName": "hostname-in-cert"
+	}
+},
+```
 
 </p>
 </details>
@@ -901,7 +717,7 @@ if err != nil {
 Creating an Queue with a `models.Queue`
 
 ```golang
-err := top.CreateQueueFromConfigeateQueue(queue) // models.Queue
+err := top.CreateQueueFromConfig(queue) // models.Queue
 if err != nil {
     return err
 }
@@ -935,21 +751,55 @@ Here I demonstrate the Topology as JSON (full sample is checked in as `testtopol
 		{
 			"Name": "MyTestExchangeRoot",
 			"Type": "direct",
-			"PassiveDeclare": true,
+			"PassiveDeclare": false,
 			"Durable": true,
 			"AutoDelete": false,
 			"InternalOnly": false,
-			"NoWait": true
+			"NoWait": false
+		},
+		{
+			"Name": "MyTestExchange.Child01",
+			"Type": "direct",
+			"PassiveDeclare": false,
+			"Durable": true,
+			"AutoDelete": false,
+			"InternalOnly": false,
+			"NoWait": false
+		},
+		{
+			"Name": "MyTestExchange.Child02",
+			"Type": "direct",
+			"PassiveDeclare": false,
+			"Durable": true,
+			"AutoDelete": false,
+			"InternalOnly": false,
+			"NoWait": false
 		}
 	],
 	"Queues": [
 		{
 			"Name": "QueueAttachedToRoot",
-			"PassiveDeclare": true,
+			"PassiveDeclare": false,
 			"Durable": true,
 			"AutoDelete": false,
 			"Exclusive": false,
-			"NoWait": true
+			"NoWait": false
+		},
+		{
+			"Name": "QueueAttachedToExch01",
+			"PassiveDeclare": false,
+			"Durable": true,
+			"AutoDelete": false,
+			"Exclusive": false,
+			"NoWait": false
+		},
+		{
+			"Name": "QueueAttachedToExch02",
+			"PassiveDeclare": false,
+			"Durable": true,
+			"AutoDelete": false,
+			"Exclusive": false,
+			"NoWait": false
 		}
 	],
 	"QueueBindings": [
@@ -957,15 +807,33 @@ Here I demonstrate the Topology as JSON (full sample is checked in as `testtopol
 			"QueueName": "QueueAttachedToRoot",
 			"ExchangeName": "MyTestExchangeRoot",
 			"RoutingKey": "RoutingKeyRoot",
-			"NoWait": true
+			"NoWait": false
+		},
+		{
+			"QueueName": "QueueAttachedToExch01",
+			"ExchangeName": "MyTestExchange.Child01",
+			"RoutingKey": "RoutingKey1",
+			"NoWait": false
+		},
+		{
+			"QueueName": "QueueAttachedToExch02",
+			"ExchangeName": "MyTestExchange.Child02",
+			"RoutingKey": "RoutingKey2",
+			"NoWait": false
 		}
 	],
-	"ExchangeBindings":[
+	"ExchangeBindings": [
 		{
 			"ExchangeName": "MyTestExchange.Child01",
 			"ParentExchangeName": "MyTestExchangeRoot",
 			"RoutingKey": "ExchangeKey1",
-			"NoWait": true
+			"NoWait": false
+		},
+		{
+			"ExchangeName": "MyTestExchange.Child02",
+			"ParentExchangeName": "MyTestExchange.Child01",
+			"RoutingKey": "ExchangeKey2",
+			"NoWait": false
 		}
 	]
 }

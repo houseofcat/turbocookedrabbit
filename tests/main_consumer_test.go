@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/fortytw2/leaktest"
@@ -30,6 +31,25 @@ func TestStartStopConsumer(t *testing.T) {
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsuming()
+	err = consumer.StopConsuming(false, false)
+	assert.NoError(t, err)
+
+	TestCleanup(t)
+}
+
+func TestStartWithActionStopConsumer(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+
+	consumer.StartConsumingWithAction(
+		func(msg *tcr.ReceivedMessage) {
+			if err := msg.Acknowledge(); err != nil {
+				fmt.Printf("Error acking message: %v\r\n", msg.Body)
+			}
+		})
 	err = consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
