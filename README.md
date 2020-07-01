@@ -35,13 +35,13 @@ In some ways, performance has significantly increased. In other ways, it sacrifi
 <details><summary>Click for creating Publisher performance!</summary>
 <p>
 
-i7 8700K @ 4.7GHz
-Samsung EVO 970
-RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.  
-Single Queue Publish (Without Confirmations)
-Messages Transient Type, 1500-2500 bytes, wrapped themselves, uncompressed.
-100,000 Count Publish Test
-NON-DEBUG
+i7 8700K @ 4.7GHz  
+Samsung EVO 970  
+RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.    
+Single Queue Publish (Without Confirmations)  
+Messages Transient Type, 1500-2500 bytes, wrapped themselves, uncompressed.  
+100,000 Count Publish Test  
+NON-DEBUG  
 
 ```
 Benchmark Starts: 2020-07-01 13:01:37.6260111 -0400 EDT m=+0.044880301
@@ -55,13 +55,13 @@ Messages: 33478.294348 msg/s
 <details><summary>Click for creating AutoPublisher performance!</summary>
 <p>
 
-i7 8700K @ 4.7GHz
-Samsung EVO 970
-RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.  
-Single Queue Publish (With Confirmations) / Single Consumer
-Messages Durable Type, 1500-2500 bytes, wrapped themselves, uncompressed.
-Two Hour Stress Test, Consumer/Publisher running in tandem.
-DEBUG
+i7 8700K @ 4.7GHz  
+Samsung EVO 970  
+RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.   
+Single Queue Publish (With Confirmations) / Single Consumer  
+Messages Durable Type, 1500-2500 bytes, wrapped themselves, uncompressed.  
+Two Hour Stress Test, Consumer/Publisher running in tandem.  
+DEBUG  
 
 ```
 Failed to Queue For Publishing: 0
