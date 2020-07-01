@@ -92,6 +92,8 @@ Consumer averaged around `3,594.91 msg/s`. Probably limited to the AutoPublisher
 
 ## The Seasoning/Config
 
+<p><details><summary>Click for details on creating a config from file!</summary>
+
 The config.json is just a **quality of life** feature. You don't have to use it. I just like how easy it is to change configurations on the fly.
 
 ```golang
@@ -100,6 +102,10 @@ config, err := tcr.ConvertJSONFileToConfig("testseasoning.json")
 
 The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
 
+</p>
+</details>
+
+---
 
 ## The Publisher
 
@@ -109,7 +115,7 @@ The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
 Assuming you have a **ConnectionPool** already setup. Creating a publisher can be achieved like so:
 
 ```golang
-publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 ```
 
 The errors here indicate I was unable to create a Publisher.
@@ -162,18 +168,16 @@ case publish := <-publisher.PublishReceipts():
 Then just invoke QueueLetter to queue up a letter on send. It returns false if it failed to queue up the letter to send. Usually that happens when Shutdown has been called.  
 
 ```golang
-publisher.QueueLetter(letter) // How simple is that!
+ok := publisher.QueueLetter(letter) // How simple is that!
 ```
 
 ...or more complex such as...
 
 ```golang
 for _, letter := range letters {
-    // will queue up to the letter buffer
-    // will allow blocking calls upto max over buffer
-    // after reaching full LetterBuffer+MaxOverBuffer, it spins a
-    //    sleep loop based on the SleepOnErrorInterval for Publishers
-    publisher.QueueLetter(letter)
+    if publisher.QueueLetter(letter) {
+		//report sucess
+	}
 }
 ```
 
@@ -278,7 +282,10 @@ Here is what that may look like:
 
 ```golang
 requeueError := true
-for _, message := range messages {
+for {
+	select {
+		case msg := <-consumer.ReceivedMessages()
+	}  {
     /* Do some processing with message */
 
     if err != nil {
@@ -326,7 +333,7 @@ consumerConfig, ok := config.ConsumerConfigs["TurboCookedRabbitConsumer-AutoAck"
 Creating the Consumer from Config after creating a ConnectionPool.
 
 ```golang
-consumer, err := consumer.NewConsumerFromConfig(consumerConfig, connectionPool)
+consumer := consumer.NewConsumerFromConfig(consumerConfig, connectionPool)
 ```
 
 Then start Consumer?
@@ -438,7 +445,7 @@ consumer.FlushErrors() // errors can quickly build up if you stop listening to t
 consumer.FlushMessages() // lets say the ackable messages you have can't be acked and you just need to flush them all out of memory
 ```
 
-Becareful with `FlushMessages()`. If you are `autoAck = true` and receiving ackAble messages, this is not safe. You will **wipe them from your memory** and ***they are still in the original queue***. If you were using manual ack, i.e. `autoAck = false` then you are free to do so. Your next consumer will pick up where you left off.
+Becareful with `FlushMessages()`. If you are `autoAck = true` and receiving ackAble messages, this is not safe. You will **wipe them from your memory** and ***they are not still in the original queue!*** If you were using manual ack, i.e. `autoAck = false` then you are free to do so safely. Your next consumer will pick up where you left off.
 
 Here I demonstrate a very busy ***ConsumerLoop***. Just replace all the counter variables with logging and then an action performed with the message and this could be a production microservice loop.
 
@@ -562,6 +569,9 @@ Um... this is the easy relatively easy to do with configs.
 
 ```golang
 cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+if err != nil {
+	// blow up
+}
 ```
 
 </p>
