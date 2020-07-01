@@ -20,16 +20,15 @@
 Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use. The AutoPublish is now using PublishWithConfirmation and so what I now try to emulate is "At Least Once" style of delivery.  
 
 Reason For Rewrite?  
-I am better at Golang, in general, and I now have a year of experience using my own software in a production environment.  
-This rewrite has an even stronger auto-recovery mechanism and even harder Publish (PublishWithConfirmation) system.  
-
-In some ways, performance has significantly increased. In other ways, it sacrified performance for resilience.  
+I am better at Golang, in general, and I now have a year of experience using my own software in a production environment. This rewrite has an even stronger auto-recovery mechanism and even harder Publish (PublishWithConfirmation) system. In some ways, performance has significantly increased. In other ways, it sacrified performance for resilience.  
 
 ### Work Recently Finished
  * New PublishWithConfirmation feature was added.  
  * Removed ChannelPools.  
  * Rewrite for v2.0.0.  
  * Unified to a single package `tcr`.
+
+Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
 
 ### Basic Performance
 
@@ -537,7 +536,7 @@ ConsumeLoop:
 
 ## The Pools
 
-<details><summary>Rabbit Pools, how do they even work?!</summary>
+<details><summary>ConnectionPools, how do they even work?!</summary>
 <p>
 
 ChannelPools have been removed for simplification. Unfortunately for the ConnectionPool, there is still a bit of complexity here. If you have one Connection, I generally recommend around 5 Channels to be built on top of each connection. Your mileage may vary so be sure to test!
@@ -564,10 +563,9 @@ I allow most features to be configurable via PoolConfig.
 }
 ```
 
-There is a chance for a pause/delay/lag when there are no Connectoins/Channels available. High performance on your system may require fine tuning and benchmarking. The thing is though, you can't just add Connections and Channels evenly. Connections, server side, are not an infinite resource (channel construction/destruction either!). You can't keep just adding connections though.
+There is a chance for a pause/delay/lag when there are no Connections/Channels available. High performance on your system may require fine tuning and benchmarking. The thing is though, you can't just add Connections and Channels evenly. Connections, server side, are not an infinite resource (channel construction/destruction isn't really either!). You can't keep just adding connections though so I alleviate that by keeping them cached/pooled for you.
 
-The following code demonstrates one super important part with ConnectionPools: **flag erred Channels**. RabbitMQ server closes Channels on error, meaning this guy is dead. You normally won't know it's dead until the next time you use it - and that can mean messages lost. By flagging the channel as dead, when returning it, we process
-the dead channel and attempt replace it.
+The following code demonstrates one super important part with ConnectionPools: **flag erred Channels**. RabbitMQ server closes Channels on error, meaning this little guy is dead. You normally won't know it's dead until the next time you use it - and that can mean messages lost. By flagging the channel as having had an error, when returning it, we process the dead channel and attempt replace it.
 
 ```golang
 // Publish sends a single message to the address on the letter using a cached ChannelHost.
@@ -620,6 +618,44 @@ if err != nil {
 
 ---
 
+<details><summary>Click here to see how to get and use a Connection!</summary>
+<p>
+
+This isn't really necessary to use `amqp.Connection` directly in my library, but you are free to do so.
+
+```golang
+connHost, err := ConnectionPool.GetConnection()
+channel, err := connHost.Connection.Channel()
+if err != nil {
+	ConnectionPool.ReturnConnection(connHost, true)
+}
+ConnectionPool.ReturnConnection(connHost, false)
+```
+
+This ChannelHost is like a wrapper around the AmqpChannel that adds a few features like Errors and ReturnMessages. You also don't have to use my Publisher, Consumer, and Topologer, or RabbitService. You can use the ConnectionPool by itself if you just like the idea of backing your already existing code behind a ConnectionPool that has recovery and TCP socket load balancing!
+
+The Publisher/Consumer/Topologer all use code similar to this and should help provide a simple understanding of the ConnectionPool.
+
+```golang
+chanHost := ConnectionPool.GetChannelFromPool()
+err := chanHost.Channel.Publish(
+		exchangeName,
+		routingKey,
+		mandatory,
+		immediate,
+		amqp.Publishing{
+			ContentType: contentType,
+			Body:        body,
+		},
+    )
+ConnectionPool.ReturnChannel(chanHost, err != nil)
+```
+
+</p>
+</details>
+
+---
+
 <details><summary>Click here to see how to get and use a Channel!</summary>
 <p>
 
@@ -653,10 +689,26 @@ ConnectionPool.ReturnChannel(chanHost, err != nil)
 
 ---
 
+<details><summary>Click here to see how to get a transient Channel!</summary>
+<p>
+
+This should look like pretty standard RabbitMQ code once you get a normal `amqp.Channel` out.
+
+```golang
+ackable := true
+channel := ConnectionPool.GetTransientChannel(ackable)
+defer channel.Close() // remember to close when you are done!
+```
+
+</p>
+</details>
+
+---
+
 <details><summary>What happens during an outage?</summary>
 <p>
 
-You will get errors performing actions. You indicate to the library your action failed, `err != nil`, and we pause in place trying to restore connectivity.
+You will get errors performing actions. You indicate to the library your action failed, `err != nil`, and we will try restoring connectivity for you.
 
 </p>
 </details>
@@ -679,7 +731,7 @@ retryCount := 10
 
 for iterations < retryCount {
 
-	chanHost := ConnectionPool.GetChannelFromPool()
+	chanHost := ConnectionPool.GetChannelFromPool() // we are always getting channels on each publish
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
@@ -695,11 +747,11 @@ for iterations < retryCount {
 	)
 
 	if err == nil {
-		ConnectionPool.ReturnChannel(chanHost, false)
+		ConnectionPool.ReturnChannel(chanHost, false) // we are always returning the channels
 		break 
 	}
 
-	ConnectionPool.ReturnChannel(chanHost, true)
+	ConnectionPool.ReturnChannel(chanHost, true) // we are always returning the channels
 	time.Sleep(10 * time.Second)
 	iterations++
 
@@ -711,10 +763,12 @@ for iterations < retryCount {
 cp.Shutdown()
 ```
 
-You can test publishing while manually shutting down the RabbitMQ connections! Good for chaos testing!  
-Simulating a server shutdown: `C:\Program Files\RabbitMQ Server\rabbitmq_server-3.8.5\sbin>rabbitmqctl.bat close_all_connections "suck it, trebek"`
+You can create publishing tests in loops while manually shutting down the RabbitMQ connections! This is great for chaos engineering testing!  
 
-SleepOnErrorInterval is the built in sleep when an error or closed Connection/Channel is found.  
+Severing all connections:  
+`C:\Program Files\RabbitMQ Server\rabbitmq_server-3.8.5\sbin>rabbitmqctl.bat close_all_connections "suck it, trebek"`  
+
+SleepOnErrorInterval aids in slowing the system down when errors are occurring. Stops you from rapidly taking down your RabbitMQ nodes when they are experiencing issues.
 
 ```javascript
 "PoolConfig": {
@@ -762,7 +816,7 @@ Or if you prefer it more manual:
 ```golang
 exchangeName := "FancyName"
 exchangeType := "fanout"
-passiveDeclare, durable, autoDelete, internal, noWait := false, false, false, false, false
+passiveDeclare, durable, autoDelete, internal, noWait := false, true, false, false, false
 
 err := top.CreateExchange(exchangeName, exchangeType, passiveDeclare, durable, autoDelete, internal, noWait, nil)
 if err != nil {
@@ -783,7 +837,7 @@ Or, again, if you prefer it more manual:
 
 ```golang
 queueName := "FancyQueueName"
-passiveDeclare, durable, autoDelete, exclusive, noWait := false, false, false, false, false
+passiveDeclare, durable, autoDelete, exclusive, noWait := false, true, false, false, false
 
 err := top.CreateQueue(queueName, passiveDeclare, durable, autoDelete, exclusive, noWait, nil)
 if err != nil {
