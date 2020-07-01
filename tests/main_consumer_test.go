@@ -12,12 +12,10 @@ import (
 func TestCreateConsumer(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	consumer1, err1 := tcr.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
-	assert.NoError(t, err1)
+	consumer1 := tcr.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer1)
 
-	consumer2, err2 := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err2)
+	consumer2 := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer2)
 
 	TestCleanup(t)
@@ -26,12 +24,11 @@ func TestCreateConsumer(t *testing.T) {
 func TestStartStopConsumer(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsuming()
-	err = consumer.StopConsuming(false, false)
+	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 	TestCleanup(t)
@@ -40,8 +37,7 @@ func TestStartStopConsumer(t *testing.T) {
 func TestStartWithActionStopConsumer(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsumingWithAction(
@@ -50,7 +46,7 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 				fmt.Printf("Error acking message: %v\r\n", msg.Body)
 			}
 		})
-	err = consumer.StopConsuming(false, false)
+	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 	TestCleanup(t)
@@ -59,8 +55,7 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 func TestConsumerGet(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	delivery, err := consumer.Get("TcrTestQueue")

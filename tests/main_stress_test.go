@@ -18,13 +18,13 @@ func TestWithStress(t *testing.T) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	publisher.StartAutoPublishing()
 
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 	conMap := cmap.New()
 
 	publishDone := make(chan bool, 1)
@@ -108,11 +108,11 @@ func TestDurationAccuracy(t *testing.T) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 	conMap := cmap.New()
 
 	publishDone := make(chan bool, 1)
@@ -264,11 +264,11 @@ func verifyAccuracyT(t *testing.T, conMap cmap.ConcurrentMap) {
 func TestPublishConsumeCountAccuracy(t *testing.T) {
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	publisher, _ := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer, _ := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
 
 	conMap := cmap.New()
 	count := 10000

@@ -33,11 +33,7 @@ type Consumer struct {
 }
 
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
-func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consumer, error) {
-
-	if config == nil || cp == nil {
-		return nil, errors.New("config or connection pool was nil")
-	}
+func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) *Consumer {
 
 	return &Consumer{
 		Config:               config,
@@ -57,7 +53,7 @@ func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) (*Consume
 		args:                 amqp.Table(config.Args),
 		qosCountOverride:     config.QosCountOverride,
 		conLock:              &sync.Mutex{},
-	}, nil
+	}
 }
 
 // NewConsumer creates a new Consumer to receive messages from a specific queuename.

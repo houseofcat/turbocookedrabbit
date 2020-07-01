@@ -14,15 +14,12 @@ func TestConsumingAfterPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	timeoutAfter := time.After(time.Minute * 1)
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
-
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000 // higher will deadlock publisher since publisher receipts processing wont' be hit yet
 
@@ -68,7 +65,7 @@ WaitForConsumer:
 	}
 	assert.Equal(t, count, receivedMessageCount, "Received Message Count: %d  Expected Count: %d", receivedMessageCount, count)
 
-	err = consumer.StopConsuming(false, false)
+	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 	TestCleanup(t)
@@ -79,17 +76,14 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	timeoutAfter := time.After(time.Minute * 5)
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	done1 := make(chan struct{}, 1)
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
-
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000000
 
@@ -102,7 +96,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 
 	<-done1
 	<-done2
-	err = consumer.StopConsuming(false, false)
+	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 	TestCleanup(t)
@@ -178,17 +172,14 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
 	timeoutAfter := time.After(time.Minute * 2)
-	consumer, err := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
-	assert.NoError(t, err)
+	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	done1 := make(chan struct{}, 1)
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
-
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 10000
 
@@ -201,7 +192,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 
 	<-done1
 	<-done2
-	err = consumer.StopConsuming(false, false)
+	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 	TestCleanup(t)
@@ -214,9 +205,7 @@ func TestLargePublishConfirmation(t *testing.T) {
 	timeoutAfter := time.After(time.Minute * 2)
 	done1 := make(chan struct{}, 1)
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
-
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 10000
 
@@ -227,7 +216,6 @@ func TestLargePublishConfirmation(t *testing.T) {
 	}
 
 	<-done1
-	assert.NoError(t, err)
 
 	TestCleanup(t)
 }

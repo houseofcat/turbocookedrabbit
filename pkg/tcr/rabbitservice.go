@@ -38,15 +38,8 @@ func NewRabbitService(
 		return nil, err
 	}
 
-	publisher, err := NewPublisherFromConfig(config, connectionPool)
-	if err != nil {
-		return nil, err
-	}
-
+	publisher := NewPublisherFromConfig(config, connectionPool)
 	topologer := NewTopologer(connectionPool)
-	if err != nil {
-		return nil, err
-	}
 
 	rs := &RabbitService{
 		ConnectionPool:       connectionPool,
@@ -108,12 +101,9 @@ func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerCon
 
 	for consumerName, consumerConfig := range consumerConfigs {
 
-		consumer, err := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
-		if err != nil {
-			return err
-		}
-
+		consumer := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
 		hostName, err := os.Hostname()
+
 		if err == nil {
 			consumer.ConsumerName = hostName + "-" + consumer.ConsumerName
 		}

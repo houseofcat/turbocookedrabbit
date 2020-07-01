@@ -27,7 +27,7 @@ type Publisher struct {
 // NewPublisherFromConfig creates and configures a new Publisher.
 func NewPublisherFromConfig(
 	config *RabbitSeasoning,
-	cp *ConnectionPool) (*Publisher, error) {
+	cp *ConnectionPool) *Publisher {
 
 	return &Publisher{
 		Config:                 config,
@@ -42,7 +42,7 @@ func NewPublisherFromConfig(
 		pubLock:                &sync.Mutex{},
 		pubRWLock:              &sync.RWMutex{},
 		autoStarted:            false,
-	}, nil
+	}
 }
 
 // NewPublisher creates and configures a new Publisher.
@@ -50,7 +50,7 @@ func NewPublisher(
 	cp *ConnectionPool,
 	sleepOnIdleInterval time.Duration,
 	sleepOnErrorInterval time.Duration,
-	publishTimeOutDuration time.Duration) (*Publisher, error) {
+	publishTimeOutDuration time.Duration) *Publisher {
 
 	return &Publisher{
 		ConnectionPool:         cp,
@@ -64,7 +64,7 @@ func NewPublisher(
 		pubLock:                &sync.Mutex{},
 		pubRWLock:              &sync.RWMutex{},
 		autoStarted:            false,
-	}, nil
+	}
 }
 
 // Publish sends a single message to the address on the letter using a cached ChannelHost.

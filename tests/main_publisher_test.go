@@ -67,8 +67,7 @@ func TestBasicPublish(t *testing.T) {
 func TestCreatePublisherAndPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.Publish(letter, false)
@@ -79,8 +78,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 func TestPublishAndWaitForReceipt(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.Publish(letter, false)
@@ -102,8 +100,7 @@ WaitLoop:
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.PublishWithConfirmation(letter, time.Millisecond*500)
@@ -127,8 +124,7 @@ func TestPublishAccuracy(t *testing.T) {
 
 	t1 := time.Now()
 	fmt.Printf("Benchmark Starts: %s\r\n", t1)
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	letter.Envelope.DeliveryMode = amqp.Transient
@@ -166,8 +162,7 @@ WaitLoop:
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	assert.NoError(t, err)
+	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000

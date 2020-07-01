@@ -36,13 +36,16 @@ In some ways, performance has significantly increased. In other ways, it sacrifi
 <details><summary>Click for creating Publisher performance!</summary>
 <p>
 
+Test Settings
+```
 i7 8700K @ 4.7GHz  
 Samsung EVO 970  
 RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.    
 Single Queue Publish (Without Confirmations)  
 Messages Transient Type, 1500-2500 bytes, wrapped themselves, uncompressed.  
 100,000 Count Publish Test  
-NON-DEBUG  
+NON-DEBUG
+```
 
 ```
 Benchmark Starts: 2020-07-01 13:01:37.6260111 -0400 EDT m=+0.044880301
@@ -56,6 +59,8 @@ Messages: 33478.294348 msg/s
 <details><summary>Click for creating AutoPublisher performance!</summary>
 <p>
 
+Test Settings
+```
 i7 8700K @ 4.7GHz  
 Samsung EVO 970  
 RabbitMQ Server 3.8.5 / Erlang 23.0 installed on the same host.   
@@ -63,6 +68,7 @@ Single Queue Publish (With Confirmations) / Single Consumer
 Messages Durable Type, 1500-2500 bytes, wrapped themselves, uncompressed.  
 Two Hour Stress Test, Consumer/Publisher running in tandem.  
 DEBUG  
+```
 
 ```
 Failed to Queue For Publishing: 0
@@ -79,7 +85,7 @@ PASS
 ```
 
 AutoPublisher (PublishWithConfirmation) averaged around `3,594.75 msg/s`.  
-Consumer averaged around `3,594.91 msg/s`.  
+Consumer averaged around `3,594.91 msg/s`. Probably limited to the AutoPublisher.  
 
 </p>
 </details>
@@ -106,7 +112,7 @@ Assuming you have a **ConnectionPool** already setup. Creating a publisher can b
 publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 ```
 
-The errors here indicate I was unable to create a Publisher - probably due to the ConnectionPool given.
+The errors here indicate I was unable to create a Publisher.
 
 </p>
 </details>
