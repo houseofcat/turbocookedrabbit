@@ -70,11 +70,26 @@ func NewPublisher(
 // Publish sends a single message to the address on the letter using a cached ChannelHost.
 // Subscribe to PublishReceipts to see success and errors.
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
-func (pub *Publisher) Publish(letter *Letter) {
+func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 
 	chanHost := pub.ConnectionPool.GetChannelFromPool()
 
-	err := pub.simplePublish(chanHost, letter)
+	err := chanHost.Channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      amqp.Table(letter.Envelope.Headers),
+			DeliveryMode: letter.Envelope.DeliveryMode,
+		},
+	)
+
+	if !skipReceipt {
+		pub.publishReceipt(letter, err)
+	}
 
 	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
 }
@@ -104,25 +119,6 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 			DeliveryMode: letter.Envelope.DeliveryMode,
 		},
 	)
-}
-
-func (pub *Publisher) simplePublish(chanHost *ChannelHost, letter *Letter) error {
-
-	err := chanHost.Channel.Publish(
-		letter.Envelope.Exchange,
-		letter.Envelope.RoutingKey,
-		letter.Envelope.Mandatory,
-		letter.Envelope.Immediate,
-		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      amqp.Table(letter.Envelope.Headers),
-			DeliveryMode: letter.Envelope.DeliveryMode,
-		},
-	)
-
-	pub.publishReceipt(letter, err)
-	return err
 }
 
 // PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.

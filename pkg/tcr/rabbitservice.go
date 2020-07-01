@@ -212,7 +212,8 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 				Immediate:    false,
 				DeliveryMode: 2,
 			},
-		})
+		},
+		false)
 
 	return nil
 }
@@ -243,7 +244,8 @@ func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey strin
 				Immediate:    false,
 				DeliveryMode: 2,
 			},
-		})
+		},
+		false)
 
 	return nil
 }
@@ -260,7 +262,7 @@ func (rs *RabbitService) PublishLetter(letter *Letter) error {
 
 	letter.LetterID = currentCount
 
-	rs.Publisher.Publish(letter)
+	rs.Publisher.Publish(letter, false)
 
 	return nil
 }

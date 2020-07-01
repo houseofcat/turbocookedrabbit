@@ -27,7 +27,7 @@ func TestConsumingAfterPublish(t *testing.T) {
 	count := 1000 // higher will deadlock publisher since publisher receipts processing wont' be hit yet
 
 	for i := 0; i < count; i++ {
-		publisher.Publish(letter)
+		publisher.Publish(letter, false)
 	}
 
 	publishSuccessCount := 0
@@ -97,7 +97,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	go monitorConsumer(t, timeoutAfter, consumer, count, done2)
 
 	for i := 0; i < count; i++ {
-		publisher.Publish(letter)
+		publisher.Publish(letter, false)
 	}
 
 	<-done1

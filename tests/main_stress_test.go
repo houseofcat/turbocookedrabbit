@@ -12,7 +12,7 @@ import (
 
 func TestWithStress(t *testing.T) {
 
-	timeDuration := time.Duration(1 * time.Hour)
+	timeDuration := time.Duration(2 * time.Hour)
 	pubTimeOut := time.After(timeDuration)
 	conTimeOut := time.After(timeDuration + (1 * time.Minute))
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
@@ -193,6 +193,8 @@ func consumeDurationAccuracyLoop(
 	messagesAcked := 0
 	messagesFailedToAck := 0
 	consumerErrors := 0
+	surpriseMessages := 0
+	duplicateMessages := 0
 
 ConsumeLoop:
 	for {
@@ -216,11 +218,13 @@ ConsumeLoop:
 				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
 					state := tmp.(bool)
 					if state {
+						duplicateMessages++
 						fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
 					} else {
 						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
 					}
 				} else {
+					surpriseMessages++
 					fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
 				}
 			}
@@ -241,6 +245,8 @@ ConsumeLoop:
 	fmt.Printf("Messages Acked: %d\r\n", messagesAcked)
 	fmt.Printf("Messages Failed to Ack: %d\r\n", messagesFailedToAck)
 	fmt.Printf("Messages Received: %d\r\n", messagesReceived)
+	fmt.Printf("Messages Unexpected: %d\r\n", surpriseMessages)
+	fmt.Printf("Messages Duplicated: %d\r\n", duplicateMessages)
 
 	done <- true
 }
@@ -441,7 +447,7 @@ var conmap cmap.ConcurrentMap
 
 func TestWithRabbitServiceStress(t *testing.T) {
 
-	timeDuration := time.Duration(5 * time.Minute)
+	timeDuration := time.Duration(2 * time.Hour)
 	pubTimeOut := time.After(timeDuration)
 	conTimeOut := time.After(timeDuration + (1 * time.Minute))
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())

@@ -71,7 +71,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	publisher.Publish(letter)
+	publisher.Publish(letter, false)
 
 	ConnectionPool.Shutdown()
 }
@@ -83,7 +83,7 @@ func TestPublishAndWaitForReceipt(t *testing.T) {
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	publisher.Publish(letter)
+	publisher.Publish(letter, false)
 
 WaitLoop:
 	for {
@@ -125,34 +125,41 @@ WaitLoop:
 func TestPublishAccuracy(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
+	t1 := time.Now()
+	fmt.Printf("Benchmark Starts: %s\r\n", t1)
 	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 	assert.NoError(t, err)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	count := 1000
+	letter.Envelope.DeliveryMode = amqp.Transient
+	count := 100000.0
 
-	for i := 0; i < count; i++ {
-		publisher.Publish(letter)
+	for i := 0.0; i < count; i++ {
+		publisher.Publish(letter, true)
 	}
 
-	successCount := 0
-WaitLoop:
-	for {
-		select {
-		case receipt := <-publisher.PublishReceipts():
-			if receipt.Success {
-				successCount++
-				if successCount == count {
-					break WaitLoop
+	/* 	successCount := 0
+	WaitLoop:
+		for {
+			select {
+			case receipt := <-publisher.PublishReceipts():
+				if receipt.Success {
+					successCount++
+					if successCount == count {
+						break WaitLoop
+					}
 				}
+			default:
+				time.Sleep(time.Millisecond * 1)
 			}
-		default:
-			time.Sleep(time.Millisecond * 1)
 		}
-	}
 
-	assert.Equal(t, count, successCount)
+		assert.Equal(t, count, successCount) */
 
+	t2 := time.Now()
+	diff := t2.Sub(t1)
+	fmt.Printf("Benchmark End: %s\r\n", t2)
+	fmt.Printf("Messages: %f msg/s\r\n", count/diff.Seconds())
 	TestCleanup(t)
 }
 
