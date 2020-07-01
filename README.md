@@ -32,8 +32,6 @@ In some ways, performance has significantly increased. In other ways, it sacrifi
 
 ### Basic Performance
 
-## AutoPublisher
-
 <details><summary>Click for creating Publisher performance!</summary>
 <p>
 
@@ -136,10 +134,10 @@ The concept of a Letter may seem clunky but the real advantage is async publishi
 <details><summary>Click for AutoPublish example!</summary>
 <p>
 
-Once you have a publisher, you can perform **StartAutoPublish**!
+Once you have a publisher, you can perform **StartAutoPublishing**!
 
 ```golang
-// This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently.
+// This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently but with individual RabbitMQ channels.
 publisher.StartAutoPublishing()
 
 ReceivePublishConfirmations:
@@ -845,16 +843,16 @@ I have provided a helper method for turning it into a TopologyConfig.
 topologyConfig, err := utils.ConvertJSONFileToTopologyConfig("testtopology.json")
 ```
 
-Creating a simple and shareable ChannelPool.
+Creating a simple and shareable ConnectoinPool.
 
 ```golang
-channelPool, err := pools.NewChannelPool(Seasoning.PoolConfig, nil, false)
+cp, err := pools.NewChannelPool(Seasoning.PoolConfig)
 ```
 
-Using the ChannelPool to create our Topologer.
+Using the ConnectionPool to create our Topologer.
 
 ```golang
-topologer := topology.NewTopologer(channelPool)
+topologer := topology.NewTopologer(cp)
 ```
 
 Assuming you have a blank slate RabbitMQ server, this shouldn't error out as long as you can connect to it.
@@ -881,48 +879,30 @@ That's it really. In the future I will have more features. Just know that I thin
 Here I demonstrate the steps of loading the JSON configuration and creating a new RabbitService!
 
 ```golang
-var err error
-Config, err = utils.ConvertJSONFileToConfig("testseasoning.json")
-if err != nil {
-	fmt.Print(err)
-	return
-}
-
-Service, err = NewRabbitService(Config)
-if err != nil {
-	fmt.Print(err)
-	return
-}
-
-Service.StartService(false)
+service, err := tcr.NewRabbitService(Seasoning, "", "", nil, nil)
 ```
 
-The **Service.StartService(true/false)** begins monitoring errors and notifications in the background while at the same time centralizing all the errors from the sub-processes. You should subscribe to these errors... just need to turn on **.CentralErr()**
-
-It also starts the internal Publisher's AutoPublisher so you need that **.Notifications()**
+or with encryption/salt added  
 
 ```golang
-func serviceMonitor(done chan bool, se   
-	go func() {
-	MonitorLoop:
-		for {
-			select {
-			case <-done:
-				break MonitorLoop
-			case <-service.CentralErr():
-			case <-service.Notifications():
-			}
-		}
+service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+```  
 
-	}()
-}
+optionally providing actions for processing errors and publish receipts
+
+```golang
+	processPublishReceipts func(*PublishReceipt),
+	processError func(error)
 ```
+
+RabbitService provides default behaviors for these options. On Error for example, we write to console. On PublishReceipts that are unsuccesful, we requeue the message for Publish on your behalf.
 
 The service has direct access to a Publisher and Topologer
 
 ```golang
 rs.Topologer.CreateExchangeFromConfig(exchange)
-rs.Publisher.Publish(letter)
+skipReceipt := true
+rs.Publisher.Publish(letter, skipReceipt)
 ```
 
 The consumer section is more complicated but I read the map of consumers that were in config and built them out for you to use when ready:
@@ -933,7 +913,7 @@ consumer, err := rs.GetConsumer("MyConsumer")
 consumer.StartConsuming()
 ```
 
-And don't forget to subscribe to **Consumer.Messages()** when using **StartConsuming()** to actually get them out of the buffer!
+And don't forget to subscribe to **ReceivedMessages()** when using **StartConsuming()** to actually get them out of the internal buffer!
 
 </p>
 </details>
