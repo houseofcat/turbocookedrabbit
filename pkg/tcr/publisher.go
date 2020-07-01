@@ -1,6 +1,7 @@
 package tcr
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
@@ -160,6 +161,62 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			select {
 			case <-timeoutAfter:
 				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner - recommend retry/requeue", letter.LetterID))
+				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				return
+
+			case confirmation := <-chanHost.Confirmations:
+
+				if !confirmation.Ack {
+					goto Publish //nack has occurred, republish
+				}
+
+				// Happy Path, publish was received by server and we didn't timeout client side.
+				pub.publishReceipt(letter, nil)
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				return
+
+			default:
+
+				time.Sleep(time.Duration(time.Millisecond * 1)) // limits CPU spin up
+			}
+		}
+	}
+}
+
+// PublishWithConfirmationContext sends a single message to the address on the letter with confirmation capabilities.
+// This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+// A timeout failure drops the letter back in the PublishReceipts.
+// A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
+func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter *Letter) {
+
+	for {
+		// Has to use an Ackable channel for Publish Confirmations.
+		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost.FlushConfirms() // Flush all previous publish confirmations
+
+	Publish:
+		err := chanHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      amqp.Table(letter.Envelope.Headers),
+				DeliveryMode: letter.Envelope.DeliveryMode,
+			},
+		)
+		if err != nil {
+			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			continue // Take it again! From the top!
+		}
+
+		// Wait for very next confirmation on this channel, which should be our confirmation.
+		for {
+			select {
+			case <-ctx.Done():
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %d wasn't received before context expired - recommend retry/requeue", letter.LetterID))
 				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
 				return
 

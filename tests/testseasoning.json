@@ -15,7 +15,7 @@
 		"SleepOnErrorInterval": 100,
 		"MaxCacheChannelCount": 50,
 		"MaxConnectionCount": 10,
-		"Heartbeat": 30,
+		"Heartbeat": 6,
 		"ConnectionTimeout": 10,
 		"TLSConfig": {
 			"EnableTLS": false,

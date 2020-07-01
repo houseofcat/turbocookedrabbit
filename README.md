@@ -137,8 +137,69 @@ publisher.Publish(letter)
 
 This **CreateMockLetter** method creates a simple HelloWorld message letter with no ExchangeName and a QueueName/RoutingKey of `"TcrTestQueue"`. The helper function creates bytes for "h e l l o   w o r l d" as a message body.
 
-The concept of a Letter may seem clunky but the real advantage is async publishing and replay-ability. And you still have `streadway/amqp` to rely on should prefer simple publshing.
+The concept of a Letter may seem clunky but the real advantage is async publishing and replay-ability. And you still have `streadway/amqp` to rely on should prefer simple publshing straight to an `amqp.Channel`.
 
+</p>
+</details>
+
+---
+
+<details><summary>Click for simple publish with confirmation example!</summary>
+<p>
+
+We use PublishWithConfirmation when we want a more resilient publish mechanism. It will wait for a publish confirmation until timeout.
+
+```golang
+letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+publisher.PublishWithConfirmation(letter, time.Millisecond*500)
+
+WaitLoop:
+for {
+	select {
+	case receipt := <-publisher.PublishReceipts():
+		if !receipt.Success {
+			// log?
+			// requeue?
+			// break WaitLoop?
+		}
+	default:
+		time.Sleep(time.Millisecond * 1)
+	}
+}
+```
+
+Calling this from inside RabbitService, publish receipts that are not successful are automatically requeued with RabbitService.QueueLetter() for retry.
+
+</p>
+</details>
+
+---
+
+<details><summary>Click for simple publish with confirmation and context example!</summary>
+<p>
+
+```golang
+ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1)*time.Minute)
+letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+
+publisher.PublishWithConfirmationContext(ctx, letter)
+
+WaitLoop:
+for {
+	select {
+	case receipt := <-publisher.PublishReceipts():
+		if !receipt.Success {
+			// log?
+			// requeue?
+			// break WaitLoop?
+		}
+	default:
+		time.Sleep(time.Millisecond * 1)
+	}
+}
+
+cancel()
+```
 </p>
 </details>
 
