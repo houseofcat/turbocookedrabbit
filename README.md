@@ -33,7 +33,7 @@ In some ways, performance has significantly increased. In other ways, it sacrifi
 
 ### Basic Performance
 
-<details><summary>Click for creating Publisher performance!</summary>
+<details><summary>Click for seeing Publisher performance!</summary>
 <p>
 
 Test Settings
@@ -56,7 +56,7 @@ Messages: 33478.294348 msg/s
 </p>
 </details>
 
-<details><summary>Click for creating AutoPublisher performance!</summary>
+<details><summary>Click for seeing AutoPublisher performance!</summary>
 <p>
 
 Test Settings
@@ -118,8 +118,6 @@ Assuming you have a **ConnectionPool** already setup. Creating a publisher can b
 publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 ```
 
-The errors here indicate I was unable to create a Publisher.
-
 </p>
 </details>
 
@@ -168,7 +166,7 @@ for {
 }
 ```
 
-Calling this from inside RabbitService, publish receipts that are not successful are automatically requeued with RabbitService.QueueLetter() for retry.
+The default behavior for a RabbitService subscribed to a publisher's PublishReceipts() is to automatically retry `Success == false` receipts with `QueueLetter()`.
 
 </p>
 </details>
@@ -214,13 +212,15 @@ Once you have a publisher, you can perform **StartAutoPublishing**!
 // This tells the Publisher to start reading an **internal queue**, and process Publishing concurrently but with individual RabbitMQ channels.
 publisher.StartAutoPublishing()
 
-ReceivePublishConfirmations:
+GetPublishReceipts:
 for {
     select {
-case publish := <-publisher.PublishReceipts():
-        if !publish.Success {
-            /* Handle Requeue or a manual Re-Publish */
-        }
+case receipt := <-publisher.PublishReceipts():
+		if !receipt.Success {
+			// log?
+			// requeue?
+			// break WaitLoop?
+		}
     default:
         time.Sleep(1 * time.Millisecond)
     }
@@ -336,26 +336,6 @@ Exit Conditions:
  * On Error: Error Return, Nil Messages Return
  * On Not Ok: Nil Error Return, Available Messages Return (0 upto (nth - 1) message)
  * When BatchSize is Reached: Nil Error Return, All Messages Return (n messages)
-
-Since `autoAck=false` is an option so you will want to have some post processing **ack/nack/rejects**.
-
-Here is what that may look like:
-
-```golang
-requeueError := true
-for {
-	select {
-		case msg := <-consumer.ReceivedMessages()
-	}  {
-    /* Do some processing with message */
-
-    if err != nil {
-        message.Nack(requeueError)
-    }
-
-    message.Acknowledge()
-}
-```
 
 </p>
 </details>
@@ -969,11 +949,15 @@ service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt"
 optionally providing actions for processing errors and publish receipts
 
 ```golang
-	processPublishReceipts func(*PublishReceipt),
-	processError func(error)
+service, err := tcr.NewRabbitService(
+    Seasoning,
+    "PasswordyPassword",
+    "SaltySalt",
+	processPublishReceipts, //func(*PublishReceipt)
+	processError) //func(error)
 ```
 
-RabbitService provides default behaviors for these options. On Error for example, we write to console. On PublishReceipts that are unsuccesful, we requeue the message for Publish on your behalf.
+RabbitService provides default behaviors for these functions when they are `nil`. On Error for example, we write to console. On PublishReceipts that are unsuccesful, we requeue the message for Publish on your behalf using the AutoPublisher.
 
 The service has direct access to a Publisher and Topologer
 
@@ -1099,7 +1083,7 @@ So to reverse it into a struct, you need to:
  * Unmarshal bytes to your struct!
  * Profit!
 
- What about Compcryption (a word I just made up)?
+ What about Comcryption (a word I just made up)?
 
  Good lord, fine!
 
@@ -1121,7 +1105,7 @@ if err != nil {
 }
 ```
 
-So to reverse compcryption, you need to:
+So to reverse comcryption, you need to:
 
  * Consume Message (get your bytes)
  * Decrypt Bytes (with matching type)
@@ -1130,12 +1114,12 @@ So to reverse compcryption, you need to:
 
 Depending on your payloads, if it's tons of random bytes/strings, compression won't do much for you - probably even increase size. AES encryption only adds little byte size overhead for the nonce I believe.
 
-Here is a possible ***good*** use case for compcryption. It is a beefy 5KB+ JSON string of dynamic, but not random, sensitive data. Quite possibly PII/PCI user data dump. Think list of Credit Cards, Transactions, or HIPAA data. Basically anything you would see in GDPR bingo!
+Here is a possible ***good*** use case for comcryption. It is a beefy 5KB+ JSON string of dynamic, but not random, sensitive data. Quite possibly PII/PCI user data dump. Think list of Credit Cards, Transactions, or HIPAA data. Basically anything you would see in GDPR bingo!
 
 So healthy sized JSONs generally compress well ~ 85-97% at times.
 If it's sensitive, it needs to be encrypted.
 Smaller (compressed) bytes encrypt faster.
-Compcryption!
+Comcryption!
 
 So what's the downside? It's slow, might need tweaking still... but ***it's slow***. At least compared to plain publishing.
 
@@ -1158,7 +1142,7 @@ So you can choose wisely :)
 
 I knew I forgot something!
 
-Consider the following example, here we are performing Compcryption.
+Consider the following example, here we are performing Comcryption.
 
 ```golang
 Service.Config.EncryptionConfig.Enabled = true
@@ -1173,7 +1157,7 @@ if err != nil {
 ```
 
 The problem here is that the message could leave you blinded by the dark! I tried to enhance this process, by wrapping your bits.  
-If you wrap your message, it is always of type **tcr.WrappedBody**.  
+If you wrap your message, it is always of type **tcr.WrappedBody** coming back out.  
 
 The following change (with the above code)...
 
@@ -1197,9 +1181,9 @@ wrapData = true
 }
 ```
 
-You definitely can't tell this is MBison's Social Security Number, but can see it's **metadata**.
+You definitely can't tell this is M. Bison's Social Security Number, but can see the **metadata**.
 
-The idea around this *metadata* is that it could help identify when a passphrase was used to create this, then you can determine which key was live based on ***UTCDateTime***.
+The idea around this *metadata* is that it could help identify when a passphrase was used to create this, then you can determine which key was live based on ***UTCDateTime***. This means that you have to work out key rotations from your end of things.
 
 The inner Data deserializes to **[]byte**, which means based on a consumed **tcr.WrappedBody**, you know immediately if it is a compressed, encrypted, or just a JSON []byte.
 
@@ -1211,14 +1195,14 @@ The inner Data deserializes to **[]byte**, which means based on a consumed **tcr
 <details><summary>I think I bitshifted to the 4th dimension... how the hell do I get my object/struct back?</summary>
 <p>
 
-I am going to assume we are Compcrypting, so adjust this example to your needs
+I am going to assume we are Comcrypting, so adjust this example to your needs
 
 First we get our data out of a Consumer, once we have a **tcr.Body.Data** []byte, we can begin reversing it.
 
 ```golang
 var json = jsoniter.ConfigFastest // optional - can use built-in json if you prefer
 
-message := <-consumer.Messages() // get compcrypted message
+message := <-consumer.Messages() // get comprypted message
 
 wrappedBody := &tcr.WrappedBody{}
 err = json.Unmarshal(message.Body, wrappedBody) // unmarshal as ModdedLetter
@@ -1228,7 +1212,8 @@ if err != nil {
 
 buffer := bytes.NewBuffer(wrappedBody.Body.Data)
 
-// Helper function to get the original JSON marshal bytes back.
+// Helper function to get the original data (pre-wrapped) out based on current service settings.
+// You would have to remember to write a decompress/decrypt step without this for comcrypted messages.
 err = tcr.ReadPayload(buffer, Service.Config.CompressionConfig, Service.Config.EncryptionConfig)
 if err != nil {
 	// I probably have a bug.
@@ -1240,10 +1225,6 @@ if err != nil {
 	// You probably have a bug!
 }
 ```
-
-There maybe changes as I am tightening this up a bit.
-
-Be sure to keep an eye on the integration test for this **TestPublishCompressionEncryptionWithWrapAndConsume**
 
 </p>
 </details>
