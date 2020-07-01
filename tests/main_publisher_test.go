@@ -132,34 +132,34 @@ func TestPublishAccuracy(t *testing.T) {
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	letter.Envelope.DeliveryMode = amqp.Transient
-	count := 100000.0
+	count := 100000
 
-	for i := 0.0; i < count; i++ {
-		publisher.Publish(letter, true)
+	for i := 0; i < count; i++ {
+		publisher.Publish(letter, false)
 	}
 
-	/* 	successCount := 0
-	WaitLoop:
-		for {
-			select {
-			case receipt := <-publisher.PublishReceipts():
-				if receipt.Success {
-					successCount++
-					if successCount == count {
-						break WaitLoop
-					}
+	successCount := 0
+WaitLoop:
+	for {
+		select {
+		case receipt := <-publisher.PublishReceipts():
+			if receipt.Success {
+				successCount++
+				if successCount == count {
+					break WaitLoop
 				}
-			default:
-				time.Sleep(time.Millisecond * 1)
 			}
+		default:
+			time.Sleep(time.Millisecond * 1)
 		}
+	}
 
-		assert.Equal(t, count, successCount) */
+	assert.Equal(t, count, successCount)
 
 	t2 := time.Now()
 	diff := t2.Sub(t1)
 	fmt.Printf("Benchmark End: %s\r\n", t2)
-	fmt.Printf("Messages: %f msg/s\r\n", count/diff.Seconds())
+	fmt.Printf("Messages: %f msg/s\r\n", float64(count)/diff.Seconds())
 	TestCleanup(t)
 }
 
