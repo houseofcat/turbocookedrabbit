@@ -29,6 +29,7 @@ In some ways, performance has significantly increased. In other ways, it sacrifi
  * New PublishWithConfirmation feature was added.  
  * Removed ChannelPools.  
  * Rewrite for v2.0.0.  
+ * Unified to a single package `tcr`.
 
 ### Basic Performance
 
@@ -88,7 +89,7 @@ Consumer averaged around `3,594.91 msg/s`.
 The config.json is just a **quality of life** feature. You don't have to use it. I just like how easy it is to change configurations on the fly.
 
 ```golang
-config, err := utils.ConvertJSONFileToConfig("testseasoning.json")
+config, err := tcr.ConvertJSONFileToConfig("testseasoning.json")
 ```
 
 The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
@@ -102,7 +103,7 @@ The full structure `RabbitSeasoning` is available under `pkg/tcr/configs.go`
 Assuming you have a **ConnectionPool** already setup. Creating a publisher can be achieved like so:
 
 ```golang
-	publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+publisher, err := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 ```
 
 The errors here indicate I was unable to create a Publisher - probably due to the ConnectionPool given.
@@ -118,7 +119,7 @@ The errors here indicate I was unable to create a Publisher - probably due to th
 Once you have a publisher, you can perform a relatively simple publish.
 
 ```golang
-letter := utils.CreateMockLetter(1, "", "TcrTestQueue", nil)
+letter := tcr.CreateMockLetter(1, "", "TcrTestQueue", nil)
 publisher.Publish(letter)
 ```
 
@@ -190,7 +191,7 @@ publisher.StartAutoPublish() // this will retry based on the Letter.RetryCount p
 timer := time.NewTimer(1 * time.Minute) // Stop Listening to notifications after 1 minute.
 
 messageCount = 1000
-channelFailureCount := 0
+connectionErrors := 0
 successCount := 0
 failureCount := 0
 
@@ -199,9 +200,9 @@ ReceivePublishConfirmations:
         select {
         case <-timer.C:
             break ReceivePublishConfirmations  
-        case chanErr := <-channelPool.Errors():
-            if chanErr != nil {
-                channelFailureCount++ // Count ChannelPool failures.
+        case err := <-connectionPool.Errors():
+            if err != nil {
+                connectionErrors++ // Count ConnectionPool failures.
             }
             break
     	case publish := <-publisher.PublishReceipts():
@@ -374,9 +375,9 @@ consumer.StartConsumingWithAction(
 <details><summary>Wait! What the hell is coming out of <-ReceivedMessages()</summary>
 <p>
 
-Great question. I toyed with the idea of returning Letters like Publisher uses (and I may still at some point) but for now you receive a `models.ReceivedMessage`.
+Great question. I toyed with the idea of returning Letters like Publisher uses (and I may still at some point) but for now you receive a `tcr.ReceivedMessage`.
 
-***But... why***? Because the payload/data/message body is in there but, more importantly, it contains the means of quickly acking the message! It didn't feel right being merged with a `models.Letter`. I may revert and use the base `amqp.Delivery` which does all this and more... I just didn't want users to have to also pull in `streadway/amqp` to simplify their imports. If you were already using it wouldn't be an issue. This design is still being code reviewed in my head.
+***But... why***? Because the payload/data/message body is in there but, more importantly, it contains the means of quickly acking the message! It didn't feel right being merged with a `tcr.Letter`. I may revert and use the base `amqp.Delivery` which does all this and more... I just didn't want users to have to also pull in `streadway/amqp` to simplify their imports. If you were already using it wouldn't be an issue. This design is still being code reviewed in my head.
 
 One of the complexities of RabbitMQ is that you need to Acknowledge off the same Channel that it was received on. That makes out of process designs like mine prone to two things: hackery and/or memory leaks (passing the channels around everywhere WITH messages).
 
@@ -404,7 +405,7 @@ for {
         fmt.Printf("Message Received: %s\r\n", string(message.Body))
     case err := <-consumer.Errors(): // View Consumer errors
         /* Handle */
-    case err := <-ConnectionPool.Errors(): // View ChannelPool errors
+    case err := <-ConnectionPool.Errors(): // View ConnectionPool errors
         /* Handle */
     default:
         time.Sleep(100 * time.Millisecond)
@@ -458,7 +459,7 @@ ConsumeLoop:
 		case message := <-consumer.ReceivedMessages():
 			messagesReceived++
 			fmt.Printf("%s: ConsumedMessage\r\n", time.Now())
-			go func(msg *models.ReceivedMessage) {
+			go func(msg *tcr.ReceivedMessage) {
 				err := msg.Acknowledge()
 				if err != nil {
 					fmt.Printf("%s: AckMessage Error - %s\r\n", time.Now(), err)
@@ -487,7 +488,7 @@ ConsumeLoop:
 
 ChannelPools have been removed for simplification. Unfortunately for the ConnectionPool, there is still a bit of complexity here. If you have one Connection, I generally recommend around 5 Channels to be built on top of each connection. Your mileage may vary so be sure to test!
 
-Ex.) ConnectionCount: 5 => ChannelPool: 25  
+Ex.) ConnectionCount: 5 => ChannelCount: 25  
 
 I allow most features to be configurable via PoolConfig.  
 
@@ -623,7 +624,7 @@ for iterations < retryCount {
 
 	chanHost := ConnectionPool.GetChannelFromPool()
 
-	letter := utils.CreateMockRandomLetter("TcrTestQueue")
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
 	err := chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
@@ -637,11 +638,11 @@ for iterations < retryCount {
 	)
 
 	if err == nil {
-		channelPool.ReturnChannel(chanHost, false)
+		ConnectionPool.ReturnChannel(chanHost, false)
 		break 
 	}
 
-	channelPool.ReturnChannel(chanHost, true)
+	ConnectionPool.ReturnChannel(chanHost, true)
 	time.Sleep(10 * time.Second)
 	iterations++
 
@@ -688,12 +689,12 @@ SleepOnErrorInterval is the built in sleep when an error or closed Connection/Ch
 
 Coming from plain `streadway/amqp` there isn't too much to it. Call the right method with the right parameters.
 
-I have however integrated those relatively painless methods now with a ChannelPool and added a `TopologyConfig` for a JSON style of batch topology creation/binding. The real advantages here is that I allow things in bulk and allow you to build topology from a **topology.json** file.
+I have however integrated those relatively painless methods now with a ConnectionPool and added a `TopologyConfig` for a JSON style of batch topology creation/binding. The real advantages here is that I allow things in bulk and allow you to build topology from a **topology.json** file.
 
-Creating an Exchange with a `models.Exchange`
+Creating an Exchange with a `tcr.Exchange`
 
 ```golang
-err := top.CreateExchangeFromConfig(exchange) // models.Exchange
+err := top.CreateExchangeFromConfig(exchange) // tcr.Exchange
 if err != nil {
     return err
 }
@@ -712,10 +713,10 @@ if err != nil {
 }
 ```
 
-Creating an Queue with a `models.Queue`
+Creating an Queue with a `tcr.Queue`
 
 ```golang
-err := top.CreateQueueFromConfig(queue) // models.Queue
+err := top.CreateQueueFromConfig(queue) // tcr.Queue
 if err != nil {
     return err
 }
@@ -840,19 +841,19 @@ Here I demonstrate the Topology as JSON (full sample is checked in as `testtopol
 I have provided a helper method for turning it into a TopologyConfig.
 
 ```golang
-topologyConfig, err := utils.ConvertJSONFileToTopologyConfig("testtopology.json")
+topologyConfig, err := tcr.ConvertJSONFileToTopologyConfig("testtopology.json")
 ```
 
-Creating a simple and shareable ConnectoinPool.
+Creating a simple and shareable ConnectionPool.
 
 ```golang
-cp, err := pools.NewChannelPool(Seasoning.PoolConfig)
+cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 ```
 
 Using the ConnectionPool to create our Topologer.
 
 ```golang
-topologer := topology.NewTopologer(cp)
+topologer := tcr.NewTopologer(cp)
 ```
 
 Assuming you have a blank slate RabbitMQ server, this shouldn't error out as long as you can connect to it.
@@ -1095,7 +1096,7 @@ if err != nil {
 ```
 
 The problem here is that the message could leave you blinded by the dark! I tried to enhance this process, by wrapping your bits.  
-If you wrap your message, it is always of type **models.ModdedLetter**.  
+If you wrap your message, it is always of type **tcr.WrappedBody**.  
 
 The following change (with the above code)...
 
@@ -1123,7 +1124,7 @@ You definitely can't tell this is MBison's Social Security Number, but can see i
 
 The idea around this *metadata* is that it could help identify when a passphrase was used to create this, then you can determine which key was live based on ***UTCDateTime***.
 
-The inner Data deserializes to **[]byte**, which means based on a consumed **models.ModdedLetter**, you know immediately if it is a compressed, encrypted, or just a JSON []byte.
+The inner Data deserializes to **[]byte**, which means based on a consumed **tcr.WrappedBody**, you know immediately if it is a compressed, encrypted, or just a JSON []byte.
 
 </p>
 </details>
@@ -1135,23 +1136,23 @@ The inner Data deserializes to **[]byte**, which means based on a consumed **mod
 
 I am going to assume we are Compcrypting, so adjust this example to your needs
 
-First we get our data out of a Consumer, once we have a **models.Body.Data** []byte, we can begin reversing it.
+First we get our data out of a Consumer, once we have a **tcr.Body.Data** []byte, we can begin reversing it.
 
 ```golang
 var json = jsoniter.ConfigFastest // optional - can use built-in json if you prefer
 
 message := <-consumer.Messages() // get compcrypted message
 
-modLetter := &models.ModdedLetter{}
-err = json.Unmarshal(message.Body, modLetter) // unmarshal as ModdedLetter
+wrappedBody := &tcr.WrappedBody{}
+err = json.Unmarshal(message.Body, wrappedBody) // unmarshal as ModdedLetter
 if err != nil {
 	// I probably have a bug.
 }
 
-buffer := bytes.NewBuffer(modLetter.Body.Data)
+buffer := bytes.NewBuffer(wrappedBody.Body.Data)
 
 // Helper function to get the original JSON marshal bytes back.
-err = utils.ReadPayload(buffer, Service.Config.CompressionConfig, Service.Config.EncryptionConfig)
+err = tcr.ReadPayload(buffer, Service.Config.CompressionConfig, Service.Config.EncryptionConfig)
 if err != nil {
 	// I probably have a bug.
 }
