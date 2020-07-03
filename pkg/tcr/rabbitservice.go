@@ -7,6 +7,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/streadway/amqp"
 )
 
 // RabbitService is the struct for containing all you need for RabbitMQ access.
@@ -115,7 +117,11 @@ func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerCon
 }
 
 // PublishWithConfirmation tries to publish and wait for a confirmation.
-func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
+func (rs *RabbitService) PublishWithConfirmation(
+	input interface{},
+	exchangeName, routingKey, metadata string,
+	wrapPayload bool,
+	headers amqp.Table) error {
 
 	if rs.shutdown {
 		return errors.New("unable to publish as service shutdown triggered")
@@ -155,6 +161,7 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 				Mandatory:    false,
 				Immediate:    false,
 				DeliveryMode: 2,
+				Headers:      headers,
 			},
 		},
 		time.Duration(time.Millisecond*300))
@@ -163,7 +170,11 @@ func (rs *RabbitService) PublishWithConfirmation(input interface{}, exchangeName
 }
 
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
-func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
+func (rs *RabbitService) Publish(
+	input interface{},
+	exchangeName, routingKey, metadata string,
+	wrapPayload bool,
+	headers amqp.Table) error {
 
 	if rs.shutdown {
 		return errors.New("unable to publish as service shutdown triggered")
@@ -209,7 +220,10 @@ func (rs *RabbitService) Publish(input interface{}, exchangeName, routingKey str
 }
 
 // PublishData tries to publish.
-func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey string, wrapPayload bool, metadata string) error {
+func (rs *RabbitService) PublishData(
+	data []byte,
+	exchangeName, routingKey string,
+	headers amqp.Table) error {
 
 	if rs.shutdown {
 		return errors.New("unable to publish as service shutdown triggered")
@@ -233,6 +247,7 @@ func (rs *RabbitService) PublishData(data []byte, exchangeName, routingKey strin
 				Mandatory:    false,
 				Immediate:    false,
 				DeliveryMode: 2,
+				Headers:      headers,
 			},
 		},
 		false)

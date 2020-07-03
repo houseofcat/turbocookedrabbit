@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -84,4 +85,59 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 	<-time.After(time.Second * 5) // refresh rate of management API is 5 seconds, this just allows you to see the queue
 
 	RabbitService.Shutdown(true)
+}
+
+// TestPublishWithHeaderAndVerify verifies headers are publishing.
+func TestPublishWithHeaderAndVerify(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+
+	RabbitService.PublishLetter(letter)
+
+	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	assert.NoError(t, err)
+
+	delivery, err := consumer.Get("TcrTestQueue")
+	assert.NoError(t, err)
+
+	if delivery != nil {
+		testHeader, ok := delivery.Headers["x-tcr-testheader"]
+		assert.True(t, ok)
+
+		fmt.Printf("Header Received: %s\r\n", testHeader.(string))
+	}
+
+	RabbitService.Shutdown(true)
+}
+
+// TestPublishWithHeaderAndConsumerReceivedHeader verifies headers are being consumed into ReceivedData.
+func TestPublishWithHeaderAndConsumerReceivedHeader(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+
+	RabbitService.PublishLetter(letter)
+
+	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	consumer.StartConsuming()
+	assert.NoError(t, err)
+
+WaitLoop:
+	for {
+		select {
+		case data := <-consumer.ReceivedMessages():
+
+			testHeader, ok := data.Headers["x-tcr-testheader"]
+			assert.True(t, ok)
+
+			fmt.Printf("Header Received: %s\r\n", testHeader.(string))
+			break WaitLoop
+
+		default:
+			time.Sleep(1 * time.Millisecond)
+		}
+	}
+
+	TestCleanup(t)
 }

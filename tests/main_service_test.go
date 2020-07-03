@@ -38,7 +38,7 @@ func TestRabbitServicePublish(t *testing.T) {
 	assert.NotNil(t, service)
 
 	data := tcr.RandomBytes(1000)
-	service.Publish(data, "", "TcrTestQueue", false, "")
+	service.Publish(data, "", "TcrTestQueue", "", false, nil)
 
 	service.Shutdown(true)
 }

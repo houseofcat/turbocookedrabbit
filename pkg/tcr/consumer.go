@@ -93,7 +93,7 @@ func NewConsumer(
 		autoAck:              autoAck,
 		exclusive:            exclusive,
 		noWait:               noWait,
-		args:                 amqp.Table(args),
+		args:                 args,
 		qosCountOverride:     qosCountOverride,
 		conLock:              &sync.Mutex{},
 	}, nil
@@ -258,6 +258,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 			msg := NewMessage(
 				!con.autoAck,
 				delivery.Body,
+				delivery.Headers,
 				delivery.DeliveryTag,
 				chanHost.Channel)
 

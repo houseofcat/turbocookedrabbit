@@ -29,6 +29,7 @@ func (not *PublishReceipt) ToString() string {
 type ReceivedMessage struct {
 	IsAckable   bool
 	Body        []byte
+	Headers     amqp.Table
 	deliveryTag uint64
 	amqpChan    *amqp.Channel
 }
@@ -37,12 +38,14 @@ type ReceivedMessage struct {
 func NewMessage(
 	isAckable bool,
 	body []byte,
+	headers amqp.Table,
 	deliveryTag uint64,
 	amqpChan *amqp.Channel) *ReceivedMessage {
 
 	return &ReceivedMessage{
 		IsAckable:   isAckable,
 		Body:        body,
+		Headers:     headers,
 		deliveryTag: deliveryTag,
 		amqpChan:    amqpChan,
 	}

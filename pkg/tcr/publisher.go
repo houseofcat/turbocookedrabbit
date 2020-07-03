@@ -83,7 +83,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		amqp.Publishing{
 			ContentType:  letter.Envelope.ContentType,
 			Body:         letter.Body,
-			Headers:      amqp.Table(letter.Envelope.Headers),
+			Headers:      letter.Envelope.Headers,
 			DeliveryMode: letter.Envelope.DeliveryMode,
 		},
 	)
@@ -116,7 +116,7 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 		amqp.Publishing{
 			ContentType:  letter.Envelope.ContentType,
 			Body:         letter.Body,
-			Headers:      amqp.Table(letter.Envelope.Headers),
+			Headers:      letter.Envelope.Headers,
 			DeliveryMode: letter.Envelope.DeliveryMode,
 		},
 	)
@@ -147,7 +147,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			amqp.Publishing{
 				ContentType:  letter.Envelope.ContentType,
 				Body:         letter.Body,
-				Headers:      amqp.Table(letter.Envelope.Headers),
+				Headers:      letter.Envelope.Headers,
 				DeliveryMode: letter.Envelope.DeliveryMode,
 			},
 		)
@@ -203,7 +203,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			amqp.Publishing{
 				ContentType:  letter.Envelope.ContentType,
 				Body:         letter.Body,
-				Headers:      amqp.Table(letter.Envelope.Headers),
+				Headers:      letter.Envelope.Headers,
 				DeliveryMode: letter.Envelope.DeliveryMode,
 			},
 		)
@@ -266,7 +266,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 			amqp.Publishing{
 				ContentType:  letter.Envelope.ContentType,
 				Body:         letter.Body,
-				Headers:      amqp.Table(letter.Envelope.Headers),
+				Headers:      letter.Envelope.Headers,
 				DeliveryMode: letter.Envelope.DeliveryMode,
 			},
 		)

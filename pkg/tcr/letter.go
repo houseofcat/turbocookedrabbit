@@ -1,5 +1,7 @@
 package tcr
 
+import "github.com/streadway/amqp"
+
 // Letter contains the message body and address of where things are going.
 type Letter struct {
 	LetterID   uint64
@@ -15,7 +17,7 @@ type Envelope struct {
 	ContentType  string
 	Mandatory    bool
 	Immediate    bool
-	Headers      map[string]interface{}
+	Headers      amqp.Table
 	DeliveryMode uint8
 }
 
