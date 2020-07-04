@@ -49,7 +49,6 @@ type PublisherConfig struct {
 	SleepOnIdleInterval    uint32 `json:"SleepOnIdleInterval"`
 	SleepOnErrorInterval   uint32 `json:"SleepOnErrorInterval"`
 	PublishTimeOutInterval uint32 `json:"PublishTimeOutInterval"`
-	MaximumChannels        uint32 `json:"MaximumChannels"`
 }
 
 // TopologyConfig allows you to build simple toplogies from a JSON file.

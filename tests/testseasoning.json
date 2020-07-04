@@ -52,7 +52,6 @@
 		"AutoAck": false,
 		"SleepOnIdleInterval": 0,
 		"SleepOnErrorInterval": 0,
-		"PublishTimeOutInterval": 500,
-		"MaximumChannels": 40
+		"PublishTimeOutInterval": 500
 	}
 }

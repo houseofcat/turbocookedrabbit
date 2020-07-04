@@ -350,7 +350,7 @@ AutoPublishLoop:
 func (pub *Publisher) deliverLetters() bool {
 
 	// Allow parallel publishing with transient channels.
-	parallelPublishSemaphore := make(chan struct{}, pub.Config.PublisherConfig.MaximumChannels)
+	parallelPublishSemaphore := make(chan struct{}, pub.Config.PoolConfig.MaxCacheChannelCount/2+1)
 
 	for {
 
