@@ -1,4 +1,4 @@
-module github.com/houseofcat/turbocookedrabbit/v1
+module github.com/houseofcat/turbocookedrabbit
 
 go 1.14
 
