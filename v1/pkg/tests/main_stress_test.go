@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/consumer"
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/publisher"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/consumer"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/publisher"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/utils"
 	"github.com/stretchr/testify/assert"
 )
 

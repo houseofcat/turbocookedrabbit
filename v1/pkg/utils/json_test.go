@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 )

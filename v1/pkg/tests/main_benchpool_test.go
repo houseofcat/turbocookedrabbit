@@ -5,8 +5,8 @@ import (
 	"runtime/trace"
 	"testing"
 
-	"github.com/houseofcat/turbocookedrabbit/pools"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/pools"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/utils"
 	"github.com/streadway/amqp"
 )
 

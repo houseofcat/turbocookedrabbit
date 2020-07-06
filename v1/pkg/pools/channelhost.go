@@ -3,7 +3,7 @@ package pools
 import (
 	"errors"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
 	"github.com/streadway/amqp"
 )
 

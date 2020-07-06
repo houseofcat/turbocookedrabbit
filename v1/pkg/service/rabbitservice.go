@@ -7,12 +7,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/consumer"
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
-	"github.com/houseofcat/turbocookedrabbit/publisher"
-	"github.com/houseofcat/turbocookedrabbit/topology"
-	"github.com/houseofcat/turbocookedrabbit/utils"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/consumer"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/pools"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/publisher"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/topology"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/utils"
 )
 
 // RabbitService is the struct for containing RabbitMQ management.

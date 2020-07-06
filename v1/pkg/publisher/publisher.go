@@ -5,8 +5,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
-	"github.com/houseofcat/turbocookedrabbit/pools"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/pools"
 
 	"github.com/streadway/amqp"
 )
