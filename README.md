@@ -16,6 +16,18 @@
  * Erlang v23.0
  * Streadway/Amqp v1.0.0
 
+### Started Semantic Versioning
+
+ * Separate go.mods.
+ * Separate pkgs.
+
+All legacy work will be done with a new module `/v1/pkg/***`.    
+All v2 work will be done with a new module `/v2/pkg/tcr`.   
+
+Apologies for all the confusion but if I don't do this, apparently I couldn't use the v2.0.0 tagging system and allow people to `@upgrade`. This is a stupid design choice by the `Go Modules` and was irrevocably harder to get VSCode to understand what the hell I was trying to do and therefore, not shit it's pants.  
+
+Root `go.mod` is there, not even sure if it is needed. It does indicate the golang lang version and the module currently in active development. My users may have to change import dependency paths. That's my fault because I was thinking like a totally normal human v2 > v1.x.x and so nobody was able to upgrade without manual intervention. This notice is now in conjunction with the breaking API change notice.  
+
 ### Breaking Change Notice (v1.x.x -> v2.0.0)
 Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use. The AutoPublish is now using PublishWithConfirmation and so what I now try to emulate is "At Least Once" style of delivery.  
 
