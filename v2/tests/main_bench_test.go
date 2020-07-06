@@ -9,7 +9,7 @@ import (
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 )
 
 func verifyAccuracyB(b *testing.B, conMap cmap.ConcurrentMap) {

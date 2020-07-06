@@ -3,7 +3,7 @@ package main_test
 import (
 	"testing"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
 )
 

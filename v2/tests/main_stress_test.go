@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/stretchr/testify/assert"
 )

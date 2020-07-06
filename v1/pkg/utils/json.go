@@ -7,7 +7,7 @@ import (
 
 	jsoniter "github.com/json-iterator/go"
 
-	"github.com/houseofcat/turbocookedrabbit/models"
+	"github.com/houseofcat/turbocookedrabbit/v1/pkg/models"
 )
 
 const (

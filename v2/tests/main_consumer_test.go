@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/fortytw2/leaktest"
-	"github.com/houseofcat/turbocookedrabbit/pkg/tcr"
+	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
 )
 
