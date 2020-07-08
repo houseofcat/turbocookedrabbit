@@ -16,6 +16,22 @@
  * Erlang v23.0
  * Streadway/Amqp v1.0.0
 
+## TO GET (including V2)
+`go get -u "github.com/houseofcat/turbocookedrabbit/v2"`  
+
+If I hotfix legacy
+`go get -u "github.com/houseofcat/turbocookedrabbit/v1"` 
+
+To continue using legacy up to v1.2.3
+`go get -u "github.com/houseofcat/turbocookedrabbit"`  
+
+## TO UPGRADE TO V2
+Everything is unified to TCR.  
+Convert your imports to a single `"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"`.  
+And where you have `pools.` or `models.` or `publisher.` or `utils.` replace it with just this `tcr.`
+
+Why am I being so complicated? See below...
+
 ### Started Semantic Versioning
 
  * Separate go.mods.
@@ -26,7 +42,8 @@ All v2 work will be done with a new module `/v2/pkg/tcr`.
 
 Apologies for all the confusion but if I don't do this, apparently I couldn't use the v2.0.0 tagging system and allow people to `@upgrade`. This is a stupid design choice by the `Go Modules` and was irrevocably harder to get VSCode to understand what the hell I was trying to do and therefore, not shit it's pants.  
 
-Root `go.mod` is there, not even sure if it is needed. It does indicate the golang lang version and the module currently in active development. My users may have to change import dependency paths. That's my fault because I was thinking like a totally normal human v2 > v1.x.x and so nobody was able to upgrade without manual intervention. This notice is now in conjunction with the breaking API change notice.  
+Learn more about the fabulous world of PhD's at Google designing things!  
+https://blog.golang.org/v2-go-modules  
 
 ### Breaking Change Notice (v1.x.x -> v2.0.0)
 Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use. The AutoPublish is now using PublishWithConfirmation and so what I now try to emulate is "At Least Once" style of delivery.  
