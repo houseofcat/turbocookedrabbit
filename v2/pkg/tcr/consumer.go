@@ -23,7 +23,7 @@ type Consumer struct {
 	receivedMessages     chan *ReceivedMessage
 	consumeStop          chan bool
 	stopImmediate        bool
-	started              bool
+	Started              bool
 	autoAck              bool
 	exclusive            bool
 	noWait               bool
@@ -89,7 +89,7 @@ func NewConsumer(
 		receivedMessages:     make(chan *ReceivedMessage, 1000),
 		consumeStop:          make(chan bool, 1),
 		stopImmediate:        false,
-		started:              false,
+		Started:              false,
 		autoAck:              autoAck,
 		exclusive:            exclusive,
 		noWait:               noWait,
@@ -166,7 +166,7 @@ func (con *Consumer) StartConsuming() {
 		con.FlushStop()
 
 		go con.startConsumeLoop(nil)
-		con.started = true
+		con.Started = true
 	}
 }
 
@@ -181,7 +181,7 @@ func (con *Consumer) StartConsumingWithAction(action func(*ReceivedMessage)) {
 		con.FlushStop()
 
 		go con.startConsumeLoop(action)
-		con.started = true
+		con.Started = true
 	}
 }
 
@@ -229,7 +229,7 @@ ConsumeLoop:
 	}
 
 	con.conLock.Lock()
-	con.started = false
+	con.Started = false
 	con.stopImmediate = false
 	con.conLock.Unlock()
 }
@@ -296,7 +296,7 @@ func (con *Consumer) StopConsuming(immediate bool, flushMessages bool) error {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
-	if !con.started {
+	if !con.Started {
 		return errors.New("can't stop a stopped consumer")
 	}
 
