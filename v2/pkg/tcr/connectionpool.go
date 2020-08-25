@@ -22,6 +22,11 @@ type ConnectionPool struct {
 	poolRWLock           *sync.RWMutex
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
+	errors               chan error
+}
+
+func (cp *ConnectionPool) forwardError(err error) {
+	go func() { cp.errors <- err }()
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
@@ -45,6 +50,7 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 		poolRWLock:           &sync.RWMutex{},
 		flaggedConnections:   make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		errors:               make(chan error),
 	}
 
 	if ok := cp.initializeConnections(); !ok {
@@ -94,6 +100,7 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
 	connHost, err := cp.getConnectionFromPool()
 	if err != nil { // errors on bad data in the queue
+		cp.forwardError(err)
 		return nil, err
 	}
 
@@ -123,7 +130,8 @@ func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 
 	healthy := true
 	select {
-	case <-connHost.Errors:
+	case connHostError := <-connHost.Errors:
+		cp.forwardError(connHostError)
 		healthy = false
 	default:
 		break
@@ -229,6 +237,8 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
+			cp.forwardError(err)
+
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -237,6 +247,8 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 
 		chanHost, err := NewChannelHost(connHost, id, connHost.ConnectionID, true, true)
 		if err != nil {
+			cp.forwardError(err)
+
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -256,6 +268,8 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
+			cp.forwardError(err)
+
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -264,6 +278,8 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 
 		channel, err := connHost.Connection.Channel()
 		if err != nil {
+			cp.forwardError(err)
+
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -276,6 +292,8 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 		if ackable {
 			err := channel.Confirm(false)
 			if err != nil {
+				cp.forwardError(err)
+
 				if cp.sleepOnErrorInterval > 0 {
 					time.Sleep(cp.sleepOnErrorInterval)
 				}
