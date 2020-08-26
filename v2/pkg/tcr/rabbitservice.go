@@ -458,3 +458,11 @@ ProcessLoop:
 		}
 	}
 }
+
+// Generate new letter id based on letterCount
+func (rs *RabbitService) GetNewLetterID() uint64 {
+	currentCount := atomic.LoadUint64(&rs.letterCount)
+	atomic.AddUint64(&rs.letterCount, 1)
+
+	return currentCount
+}

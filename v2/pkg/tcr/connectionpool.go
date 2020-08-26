@@ -29,7 +29,7 @@ func (cp *ConnectionPool) forwardError(err error) {
 	go func() { cp.errors <- err }()
 }
 
-// Errors yields all the internal errs for creating connections.
+// Errors yields all the internal errors for connection pool.
 func (cp *ConnectionPool) Errors() <-chan error {
 	return cp.errors
 }
