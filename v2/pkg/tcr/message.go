@@ -27,11 +27,12 @@ func (not *PublishReceipt) ToString() string {
 
 // ReceivedMessage allow for you to acknowledge, after processing the received payload, by its RabbitMQ tag and Channel pointer.
 type ReceivedMessage struct {
-	IsAckable   bool
-	Body        []byte
-	Headers     amqp.Table
-	deliveryTag uint64
-	amqpChan    *amqp.Channel
+	IsAckable     bool
+	Body          []byte
+	Headers       amqp.Table
+	deliveryTag   uint64
+	amqpChan      *amqp.Channel
+	CorrelationId string
 }
 
 // NewMessage creates a new Message.
@@ -40,14 +41,16 @@ func NewMessage(
 	body []byte,
 	headers amqp.Table,
 	deliveryTag uint64,
-	amqpChan *amqp.Channel) *ReceivedMessage {
+	amqpChan *amqp.Channel,
+	correlationId string) *ReceivedMessage {
 
 	return &ReceivedMessage{
-		IsAckable:   isAckable,
-		Body:        body,
-		Headers:     headers,
-		deliveryTag: deliveryTag,
-		amqpChan:    amqpChan,
+		IsAckable:     isAckable,
+		Body:          body,
+		Headers:       headers,
+		deliveryTag:   deliveryTag,
+		amqpChan:      amqpChan,
+		CorrelationId: correlationId,
 	}
 }
 

@@ -260,7 +260,9 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 				delivery.Body,
 				delivery.Headers,
 				delivery.DeliveryTag,
-				chanHost.Channel)
+				chanHost.Channel,
+				delivery.CorrelationId,
+			)
 
 			if action != nil {
 				action(msg)
