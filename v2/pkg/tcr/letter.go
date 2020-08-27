@@ -12,13 +12,14 @@ type Letter struct {
 
 // Envelope contains all the address details of where a letter is going.
 type Envelope struct {
-	Exchange     string
-	RoutingKey   string
-	ContentType  string
-	Mandatory    bool
-	Immediate    bool
-	Headers      amqp.Table
-	DeliveryMode uint8
+	Exchange      string
+	RoutingKey    string
+	ContentType   string
+	Mandatory     bool
+	Immediate     bool
+	Headers       amqp.Table
+	DeliveryMode  uint8
+	CorrelationId string
 }
 
 // WrappedBody is to go inside a Letter struct with indications of the body of data being modified (ex., compressed).

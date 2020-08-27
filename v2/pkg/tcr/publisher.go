@@ -81,10 +81,11 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      letter.Envelope.Headers,
-			DeliveryMode: letter.Envelope.DeliveryMode,
+			ContentType:   letter.Envelope.ContentType,
+			Body:          letter.Body,
+			Headers:       letter.Envelope.Headers,
+			DeliveryMode:  letter.Envelope.DeliveryMode,
+			CorrelationId: letter.Envelope.CorrelationId,
 		},
 	)
 
@@ -114,10 +115,11 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      letter.Envelope.Headers,
-			DeliveryMode: letter.Envelope.DeliveryMode,
+			ContentType:   letter.Envelope.ContentType,
+			Body:          letter.Body,
+			Headers:       letter.Envelope.Headers,
+			DeliveryMode:  letter.Envelope.DeliveryMode,
+			CorrelationId: letter.Envelope.CorrelationId,
 		},
 	)
 }
@@ -145,10 +147,11 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				CorrelationId: letter.Envelope.CorrelationId,
 			},
 		)
 		if err != nil {
@@ -201,10 +204,11 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				CorrelationId: letter.Envelope.CorrelationId,
 			},
 		)
 		if err != nil {
@@ -264,10 +268,11 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				CorrelationId: letter.Envelope.CorrelationId,
 			},
 		)
 		if err != nil {

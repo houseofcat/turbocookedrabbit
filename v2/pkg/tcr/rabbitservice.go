@@ -119,7 +119,7 @@ func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerCon
 // PublishWithConfirmation tries to publish and wait for a confirmation.
 func (rs *RabbitService) PublishWithConfirmation(
 	input interface{},
-	exchangeName, routingKey, metadata string,
+	exchangeName, routingKey, metadata, correlationId string,
 	wrapPayload bool,
 	headers amqp.Table) error {
 
@@ -155,13 +155,14 @@ func (rs *RabbitService) PublishWithConfirmation(
 			LetterID: currentCount,
 			Body:     data,
 			Envelope: &Envelope{
-				Exchange:     exchangeName,
-				RoutingKey:   routingKey,
-				ContentType:  "application/json",
-				Mandatory:    false,
-				Immediate:    false,
-				DeliveryMode: 2,
-				Headers:      headers,
+				Exchange:      exchangeName,
+				RoutingKey:    routingKey,
+				ContentType:   "application/json",
+				Mandatory:     false,
+				Immediate:     false,
+				DeliveryMode:  2,
+				Headers:       headers,
+				CorrelationId: correlationId,
 			},
 		},
 		time.Duration(time.Millisecond*300))
@@ -172,7 +173,7 @@ func (rs *RabbitService) PublishWithConfirmation(
 // Publish tries to publish directly without retry and data optionally wrapped in a ModdedLetter.
 func (rs *RabbitService) Publish(
 	input interface{},
-	exchangeName, routingKey, metadata string,
+	exchangeName, routingKey, metadata, correlationId string,
 	wrapPayload bool,
 	headers amqp.Table) error {
 
@@ -206,12 +207,13 @@ func (rs *RabbitService) Publish(
 			LetterID: currentCount,
 			Body:     data,
 			Envelope: &Envelope{
-				Exchange:     exchangeName,
-				RoutingKey:   routingKey,
-				ContentType:  "application/json",
-				Mandatory:    false,
-				Immediate:    false,
-				DeliveryMode: 2,
+				Exchange:      exchangeName,
+				RoutingKey:    routingKey,
+				ContentType:   "application/json",
+				Mandatory:     false,
+				Immediate:     false,
+				DeliveryMode:  2,
+				CorrelationId: correlationId,
 			},
 		},
 		false)
@@ -222,7 +224,7 @@ func (rs *RabbitService) Publish(
 // PublishData tries to publish.
 func (rs *RabbitService) PublishData(
 	data []byte,
-	exchangeName, routingKey string,
+	exchangeName, routingKey, correlationId string,
 	headers amqp.Table) error {
 
 	if rs.shutdown {
@@ -241,13 +243,14 @@ func (rs *RabbitService) PublishData(
 			LetterID: currentCount,
 			Body:     data,
 			Envelope: &Envelope{
-				Exchange:     exchangeName,
-				RoutingKey:   routingKey,
-				ContentType:  "application/json",
-				Mandatory:    false,
-				Immediate:    false,
-				DeliveryMode: 2,
-				Headers:      headers,
+				Exchange:      exchangeName,
+				RoutingKey:    routingKey,
+				ContentType:   "application/json",
+				Mandatory:     false,
+				Immediate:     false,
+				DeliveryMode:  2,
+				Headers:       headers,
+				CorrelationId: correlationId,
 			},
 		},
 		false)
