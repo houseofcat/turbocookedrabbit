@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -20,6 +21,26 @@ func TestCreateConnectionPoolWithZeroConnections(t *testing.T) {
 	assert.Error(t, err)
 
 	TestCleanup(t)
+}
+
+func TestCreateConnectionPoolWithErrorHandler(t *testing.T) {
+	defer leaktest.Check(t)() // Fail on leaked goroutines.
+
+	seasoning, err := tcr.ConvertJSONFileToConfig("badtest.json")
+	if err != nil {
+		return
+	}
+
+	cp, err := tcr.NewConnectionPoolWithErrorHandler(seasoning.PoolConfig, errorHandler)
+	assert.Nil(t, cp)
+	assert.Error(t, err)
+
+	cp.Shutdown()
+	TestCleanup(t)
+}
+
+func errorHandler(err error) {
+	fmt.Println(err)
 }
 
 func TestCreateConnectionPoolAndGetConnection(t *testing.T) {

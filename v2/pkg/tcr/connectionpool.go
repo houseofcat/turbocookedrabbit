@@ -22,6 +22,7 @@ type ConnectionPool struct {
 	poolRWLock           *sync.RWMutex
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
+	errorHandler         func(error)
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
@@ -54,6 +55,37 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 	return cp, nil
 }
 
+// NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool.
+func NewConnectionPoolWithErrorHandler(config *PoolConfig, errorHandler func(error)) (*ConnectionPool, error) {
+
+	if config.Heartbeat == 0 || config.ConnectionTimeout == 0 {
+		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
+	}
+
+	if config.MaxConnectionCount == 0 {
+		return nil, errors.New("connectionpool maxconnectioncount can't be 0")
+	}
+
+	cp := &ConnectionPool{
+		Config:               *config,
+		uri:                  config.URI,
+		heartbeatInterval:    time.Duration(config.Heartbeat) * time.Second,
+		connectionTimeout:    time.Duration(config.ConnectionTimeout) * time.Second,
+		connections:          queue.New(int64(config.MaxConnectionCount)), // possible overflow error
+		channels:             make(chan *ChannelHost, config.MaxCacheChannelCount),
+		poolRWLock:           &sync.RWMutex{},
+		flaggedConnections:   make(map[uint64]bool),
+		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
+		errorHandler:         errorHandler,
+	}
+
+	if ok := cp.initializeConnections(); !ok {
+		return nil, errors.New("initialization failed during connection creation")
+	}
+
+	return cp, nil
+}
+
 func (cp *ConnectionPool) initializeConnections() bool {
 
 	cp.connectionID = 0
@@ -70,10 +102,16 @@ func (cp *ConnectionPool) initializeConnections() bool {
 			cp.Config.TLSConfig)
 
 		if err != nil {
+			if cp.errorHandler != nil {
+				cp.errorHandler(err)
+			}
 			return false
 		}
 
 		if err = cp.connections.Put(connectionHost); err != nil {
+			if cp.errorHandler != nil {
+				cp.errorHandler(err)
+			}
 			return false
 		}
 
@@ -94,6 +132,9 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
 	connHost, err := cp.getConnectionFromPool()
 	if err != nil { // errors on bad data in the queue
+		if cp.errorHandler != nil {
+			cp.errorHandler(err)
+		}
 		return nil, err
 	}
 
@@ -216,6 +257,9 @@ func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) {
 
 		err := chanHost.MakeChannel() // Creates a new channel and flushes internal buffers automatically.
 		if err != nil {
+			if cp.errorHandler != nil {
+				cp.errorHandler(err)
+			}
 			continue
 		}
 		break
@@ -229,6 +273,9 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
+			if cp.errorHandler != nil {
+				cp.errorHandler(err)
+			}
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -237,6 +284,9 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 
 		chanHost, err := NewChannelHost(connHost, id, connHost.ConnectionID, true, true)
 		if err != nil {
+			if cp.errorHandler != nil {
+				cp.errorHandler(err)
+			}
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
 			}
@@ -256,17 +306,13 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+			cp.handleError(err)
 			continue
 		}
 
 		channel, err := connHost.Connection.Channel()
 		if err != nil {
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+			cp.handleError(err)
 			cp.ReturnConnection(connHost, true)
 			continue
 		}
@@ -276,9 +322,7 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 		if ackable {
 			err := channel.Confirm(false)
 			if err != nil {
-				if cp.sleepOnErrorInterval > 0 {
-					time.Sleep(cp.sleepOnErrorInterval)
-				}
+				cp.handleError(err)
 				continue
 			}
 		}
@@ -314,8 +358,11 @@ func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 // Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
 func (cp *ConnectionPool) Shutdown() {
 
-	wg := &sync.WaitGroup{}
+	if cp == nil {
+		return
+	}
 
+	wg := &sync.WaitGroup{}
 ChannelFlushLoop:
 	for {
 		select {
@@ -333,7 +380,6 @@ ChannelFlushLoop:
 			break ChannelFlushLoop
 		}
 	}
-
 	wg.Wait()
 
 	for !cp.connections.Empty() {
@@ -362,4 +408,13 @@ ChannelFlushLoop:
 	cp.connections = queue.New(int64(cp.Config.MaxConnectionCount))
 	cp.flaggedConnections = make(map[uint64]bool)
 	cp.connectionID = 0
+}
+
+func (cp *ConnectionPool) handleError(err error) {
+	if cp.errorHandler != nil {
+		cp.errorHandler(err)
+	}
+	if cp.sleepOnErrorInterval > 0 {
+		time.Sleep(cp.sleepOnErrorInterval)
+	}
 }

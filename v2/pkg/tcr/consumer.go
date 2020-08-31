@@ -364,3 +364,8 @@ FlushLoop:
 		}
 	}
 }
+
+// Started allows you to determine if a consumer has started.
+func (con *Consumer) Started() bool {
+	return con.started
+}
