@@ -1,6 +1,6 @@
 # TurboCookedRabbit
  A user friendly RabbitMQ library written in Golang to help use <a href="https://github.com/streadway/amqp">streadway/amqp</a>.  
- Based on my work found at [CookedRabbit](https://github.com/houseofcat/CookedRabbit).
+ Based on my work found at [CookedRabbit](https://github.com/houseofcat/RabbitMQ.Core).
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/houseofcat/turbocookedrabbit)](https://goreportcard.com/report/github.com/houseofcat/turbocookedrabbit)
 <a title="" target="_blank" href="https://golangci.com/r/github.com/houseofcat/turbocookedrabbit"><img src="https://golangci.com/badges/github.com/houseofcat/turbocookedrabbit.svg"></a>  
