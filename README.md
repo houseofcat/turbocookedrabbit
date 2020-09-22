@@ -11,7 +11,7 @@
 
 ### Developer's Notes
 
- * Golang 1.14.4 (2020/06/01)
+ * Golang 1.15.2 (2020/09/22)
  * RabbitMQ Server v3.8.5 (simple localhost)
  * Erlang v23.0
  * Streadway/Amqp v1.0.0
