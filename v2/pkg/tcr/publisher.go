@@ -30,6 +30,10 @@ func NewPublisherFromConfig(
 	config *RabbitSeasoning,
 	cp *ConnectionPool) *Publisher {
 
+	if config.PublisherConfig.MaxRetryCount == 0 {
+		config.PublisherConfig.MaxRetryCount = 5
+	}
+
 	return &Publisher{
 		Config:                 config,
 		ConnectionPool:         cp,

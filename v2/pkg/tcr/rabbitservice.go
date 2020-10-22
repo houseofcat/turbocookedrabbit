@@ -408,9 +408,14 @@ ProcessLoop:
 		case receipt := <-rs.Publisher.PublishReceipts():
 			if !receipt.Success {
 				if receipt.FailedLetter != nil {
-					rs.centralErr <- fmt.Errorf("failed to publish letter %d... retrying", receipt.LetterID)
-					if ok := rs.Publisher.QueueLetter(receipt.FailedLetter); !ok {
-						rs.centralErr <- fmt.Errorf("failed to publish a letter %d and autopublisher has been shutdown", receipt.LetterID)
+					if receipt.FailedLetter.RetryCount < rs.Config.PublisherConfig.MaxRetryCount {
+						receipt.FailedLetter.RetryCount++
+						rs.centralErr <- fmt.Errorf("failed to publish letter %d... retrying (count: %d)", receipt.LetterID, receipt.FailedLetter.RetryCount)
+						if ok := rs.Publisher.QueueLetter(receipt.FailedLetter); !ok {
+							rs.centralErr <- fmt.Errorf("failed to publish a letter %d and autopublisher has been shutdown", receipt.LetterID)
+						}
+					} else {
+						rs.centralErr <- fmt.Errorf("failed to retry publish a letter %d, it has exhausted all of it's retries", receipt.LetterID)
 					}
 				} else {
 					rs.centralErr <- fmt.Errorf("failed to publish a letter %d and unable to retry as a copy of the letter was not received", receipt.LetterID)

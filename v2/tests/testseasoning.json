@@ -52,6 +52,7 @@
 		"AutoAck": false,
 		"SleepOnIdleInterval": 0,
 		"SleepOnErrorInterval": 0,
-		"PublishTimeOutInterval": 500
+		"PublishTimeOutInterval": 500,
+		"MaxRetryCount": 5
 	}
 }
