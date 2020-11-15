@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/streadway/amqp"
 )
 
 // PublishReceipt is a way to monitor publishing success and to initiate a retry when using async publishing.
 type PublishReceipt struct {
-	LetterID     uint64
+	LetterID     uuid.UUID
 	FailedLetter *Letter
 	Success      bool
 	Error        error
@@ -27,27 +28,20 @@ func (not *PublishReceipt) ToString() string {
 
 // ReceivedMessage allow for you to acknowledge, after processing the received payload, by its RabbitMQ tag and Channel pointer.
 type ReceivedMessage struct {
-	IsAckable   bool
-	Body        []byte
-	Headers     amqp.Table
-	deliveryTag uint64
-	amqpChan    *amqp.Channel
+	IsAckable     bool
+	CorrelationID string
+	Delivery      amqp.Delivery
 }
 
 // NewMessage creates a new Message.
 func NewMessage(
 	isAckable bool,
-	body []byte,
-	headers amqp.Table,
-	deliveryTag uint64,
-	amqpChan *amqp.Channel) *ReceivedMessage {
+	delivery amqp.Delivery) *ReceivedMessage {
 
 	return &ReceivedMessage{
-		IsAckable:   isAckable,
-		Body:        body,
-		Headers:     headers,
-		deliveryTag: deliveryTag,
-		amqpChan:    amqpChan,
+		IsAckable:     isAckable,
+		CorrelationID: delivery.CorrelationId,
+		Delivery:      delivery,
 	}
 }
 
@@ -59,11 +53,11 @@ func (msg *ReceivedMessage) Acknowledge() error {
 		return errors.New("can't acknowledge, not an ackable message")
 	}
 
-	if msg.amqpChan == nil {
+	if msg.Delivery.Acknowledger == nil {
 		return errors.New("can't acknowledge, internal channel is nil")
 	}
 
-	return msg.amqpChan.Ack(msg.deliveryTag, false)
+	return msg.Delivery.Acknowledger.Ack(msg.Delivery.DeliveryTag, false)
 }
 
 // Nack allows for you to negative acknowledge message on the original channel it was received.
@@ -73,11 +67,11 @@ func (msg *ReceivedMessage) Nack(requeue bool) error {
 		return errors.New("can't nack, not an ackable message")
 	}
 
-	if msg.amqpChan == nil {
+	if msg.Delivery.Acknowledger == nil {
 		return errors.New("can't nack, internal channel is nil")
 	}
 
-	return msg.amqpChan.Nack(msg.deliveryTag, false, requeue)
+	return msg.Delivery.Acknowledger.Nack(msg.Delivery.DeliveryTag, false, requeue)
 }
 
 // Reject allows for you to reject on the original channel it was received.
@@ -87,11 +81,11 @@ func (msg *ReceivedMessage) Reject(requeue bool) error {
 		return errors.New("can't reject, not an ackable message")
 	}
 
-	if msg.amqpChan == nil {
+	if msg.Delivery.Acknowledger == nil {
 		return errors.New("can't reject, internal channel is nil")
 	}
 
-	return msg.amqpChan.Reject(msg.deliveryTag, requeue)
+	return msg.Delivery.Acknowledger.Reject(msg.Delivery.DeliveryTag, requeue)
 }
 
 // ErrorMessage allow for you to replay a message that was returned.

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/streadway/amqp"
 )
 
@@ -131,13 +131,11 @@ func (rs *RabbitService) PublishWithConfirmation(
 		return errors.New("can't have a nil body or an empty exchangename with empty routing key")
 	}
 
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
-
+	var letterID = uuid.New()
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, letterID, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -152,7 +150,7 @@ func (rs *RabbitService) PublishWithConfirmation(
 	// https://github.com/streadway/amqp/issues/459
 	rs.Publisher.PublishWithConfirmationTransient(
 		&Letter{
-			LetterID: currentCount,
+			LetterID: letterID,
 			Body:     data,
 			Envelope: &Envelope{
 				Exchange:     exchangeName,
@@ -184,13 +182,11 @@ func (rs *RabbitService) Publish(
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
 	}
 
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
-
+	var letterID = uuid.New()
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = CreateWrappedPayload(input, currentCount, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, letterID, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -203,7 +199,7 @@ func (rs *RabbitService) Publish(
 
 	rs.Publisher.Publish(
 		&Letter{
-			LetterID: currentCount,
+			LetterID: letterID,
 			Body:     data,
 			Envelope: &Envelope{
 				Exchange:     exchangeName,
@@ -233,12 +229,9 @@ func (rs *RabbitService) PublishData(
 		return errors.New("can't have a nil input or an empty exchangename with empty routing key")
 	}
 
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
-
 	rs.Publisher.Publish(
 		&Letter{
-			LetterID: currentCount,
+			LetterID: uuid.New(),
 			Body:     data,
 			Envelope: &Envelope{
 				Exchange:     exchangeName,
@@ -262,10 +255,9 @@ func (rs *RabbitService) PublishLetter(letter *Letter) error {
 		return errors.New("unable to publish as service shutdown triggered")
 	}
 
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
-
-	letter.LetterID = currentCount
+	if letter.LetterID.String() == "" {
+		letter.LetterID = uuid.New()
+	}
 
 	rs.Publisher.Publish(letter, false)
 
@@ -280,10 +272,9 @@ func (rs *RabbitService) QueueLetter(letter *Letter) error {
 		return errors.New("unable to queue letter as service shutdown triggered")
 	}
 
-	currentCount := atomic.LoadUint64(&rs.letterCount)
-	atomic.AddUint64(&rs.letterCount, 1)
-
-	letter.LetterID = currentCount
+	if letter.LetterID.String() == "" {
+		letter.LetterID = uuid.New()
+	}
 
 	if ok := rs.Publisher.QueueLetter(letter); !ok {
 		return errors.New("unable to queue letter... most likely cause is autopublisher chan was shut")

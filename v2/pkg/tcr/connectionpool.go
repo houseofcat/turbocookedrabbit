@@ -102,16 +102,12 @@ func (cp *ConnectionPool) initializeConnections() bool {
 			cp.Config.TLSConfig)
 
 		if err != nil {
-			if cp.errorHandler != nil {
-				cp.errorHandler(err)
-			}
+			cp.handleError(err)
 			return false
 		}
 
 		if err = cp.connections.Put(connectionHost); err != nil {
-			if cp.errorHandler != nil {
-				cp.errorHandler(err)
-			}
+			cp.handleError(err)
 			return false
 		}
 
@@ -132,9 +128,7 @@ func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
 	connHost, err := cp.getConnectionFromPool()
 	if err != nil { // errors on bad data in the queue
-		if cp.errorHandler != nil {
-			cp.errorHandler(err)
-		}
+		cp.handleError(err)
 		return nil, err
 	}
 
@@ -257,9 +251,7 @@ func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) {
 
 		err := chanHost.MakeChannel() // Creates a new channel and flushes internal buffers automatically.
 		if err != nil {
-			if cp.errorHandler != nil {
-				cp.errorHandler(err)
-			}
+			cp.handleError(err)
 			continue
 		}
 		break
@@ -273,23 +265,13 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
-			if cp.errorHandler != nil {
-				cp.errorHandler(err)
-			}
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+			cp.handleError(err)
 			continue
 		}
 
 		chanHost, err := NewChannelHost(connHost, id, connHost.ConnectionID, true, true)
 		if err != nil {
-			if cp.errorHandler != nil {
-				cp.errorHandler(err)
-			}
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+			cp.handleError(err)
 			cp.ReturnConnection(connHost, true)
 			continue
 		}

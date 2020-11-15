@@ -128,7 +128,7 @@ WaitLoop:
 		select {
 		case data := <-consumer.ReceivedMessages():
 
-			testHeader, ok := data.Headers["x-tcr-testheader"]
+			testHeader, ok := data.Delivery.Headers["x-tcr-testheader"]
 			assert.True(t, ok)
 
 			fmt.Printf("Header Received: %s\r\n", testHeader.(string))

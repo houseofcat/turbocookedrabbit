@@ -43,7 +43,7 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 	consumer.StartConsumingWithAction(
 		func(msg *tcr.ReceivedMessage) {
 			if err := msg.Acknowledge(); err != nil {
-				fmt.Printf("Error acking message: %v\r\n", msg.Body)
+				fmt.Printf("Error acking message: %v\r\n", msg.Delivery.Body)
 			}
 		})
 	err := consumer.StopConsuming(false, false)

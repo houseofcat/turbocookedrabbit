@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	cmap "github.com/orcaman/concurrent-map"
 	"github.com/stretchr/testify/assert"
 
@@ -38,13 +39,10 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 
 	publisher.StartAutoPublishing()
 
-	counter := uint64(0)
-
 	go func() {
 		for i := 0; i < messageCount; i++ {
 			letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-			letter.LetterID = counter
-			counter++
+			letter.LetterID = uuid.New()
 
 			publisher.QueueLetter(letter)
 		}
@@ -237,7 +235,7 @@ ConsumeLoop:
 		case message := <-consumer.ReceivedMessages():
 
 			messagesReceived++
-			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Body)
+			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Delivery.Body)
 			if err != nil {
 				b.Logf("message was not deserializeable")
 			} else {

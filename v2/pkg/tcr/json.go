@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -116,7 +117,7 @@ func CreatePayload(
 // CreateWrappedPayload wraps your data in a plaintext wrapper called ModdedLetter and performs the selected modifications to data.
 func CreateWrappedPayload(
 	input interface{},
-	letterID uint64,
+	letterID uuid.UUID,
 	metadata string,
 	compression *CompressionConfig,
 	encryption *EncryptionConfig) ([]byte, error) {

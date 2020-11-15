@@ -257,10 +257,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 
 			msg := NewMessage(
 				!con.autoAck,
-				delivery.Body,
-				delivery.Headers,
-				delivery.DeliveryTag,
-				chanHost.Channel)
+				delivery)
 
 			if action != nil {
 				action(msg)

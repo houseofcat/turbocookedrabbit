@@ -1,10 +1,13 @@
 package tcr
 
-import "github.com/streadway/amqp"
+import (
+	"github.com/google/uuid"
+	"github.com/streadway/amqp"
+)
 
 // Letter contains the message body and address of where things are going.
 type Letter struct {
-	LetterID   uint64
+	LetterID   uuid.UUID
 	RetryCount uint32
 	Body       []byte
 	Envelope   *Envelope
@@ -23,7 +26,7 @@ type Envelope struct {
 
 // WrappedBody is to go inside a Letter struct with indications of the body of data being modified (ex., compressed).
 type WrappedBody struct {
-	LetterID       uint64      `json:"LetterID"`
+	LetterID       uuid.UUID   `json:"LetterID"`
 	Body           *ModdedBody `json:"Body"`
 	LetterMetadata string      `json:"LetterMetadata"`
 }

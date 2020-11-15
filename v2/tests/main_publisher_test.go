@@ -22,7 +22,7 @@ func TestBasicPublish(t *testing.T) {
 	letters := make([]*tcr.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = tcr.CreateMockLetter(uint64(i), "", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = tcr.CreateMockLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -49,8 +49,9 @@ func TestBasicPublish(t *testing.T) {
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType: letter.Envelope.ContentType,
-				Body:        letter.Body,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				CorrelationId: letter.LetterID.String(),
 			})
 
 		if err != nil {

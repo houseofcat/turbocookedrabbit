@@ -210,7 +210,7 @@ ConsumeLoop:
 		case message := <-consumer.ReceivedMessages():
 
 			messagesReceived++
-			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Body)
+			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Delivery.Body)
 			if err != nil {
 				fmt.Printf("message was not deserializeable\r\n")
 			} else {
@@ -402,7 +402,7 @@ AcknowledgeLoop:
 		case message := <-consumer.ReceivedMessages():
 
 			messagesReceived++
-			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Body)
+			body, err := tcr.ReadWrappedBodyFromJSONBytes(message.Delivery.Body)
 			if err != nil {
 				fmt.Print("message was not deserializeable")
 			} else {
@@ -528,7 +528,7 @@ ConsumeLoop:
 
 func consumerAction(msg *tcr.ReceivedMessage) {
 
-	body, err := tcr.ReadWrappedBodyFromJSONBytes(msg.Body)
+	body, err := tcr.ReadWrappedBodyFromJSONBytes(msg.Delivery.Body)
 
 	if err != nil {
 		fmt.Printf("message was not deserializeable\r\n")

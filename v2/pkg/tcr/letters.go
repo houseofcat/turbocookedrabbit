@@ -2,19 +2,18 @@ package tcr
 
 import (
 	"math/rand"
-	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/streadway/amqp"
 )
 
-var globalLetterID uint64
 var mockRandomSource = rand.NewSource(time.Now().UnixNano())
 var mockRandom = rand.New(mockRandomSource)
 
 // CreateLetter creates a simple letter for publishing.
-func CreateLetter(letterID uint64, exchangeName string, queueName string, body []byte) *Letter {
+func CreateLetter(exchangeName string, queueName string, body []byte) *Letter {
 
 	envelope := &Envelope{
 		Exchange:    exchangeName,
@@ -23,7 +22,7 @@ func CreateLetter(letterID uint64, exchangeName string, queueName string, body [
 	}
 
 	return &Letter{
-		LetterID:   letterID,
+		LetterID:   uuid.New(),
 		RetryCount: uint32(3),
 		Body:       body,
 		Envelope:   envelope,
@@ -31,11 +30,7 @@ func CreateLetter(letterID uint64, exchangeName string, queueName string, body [
 }
 
 // CreateMockLetter creates a mock letter for publishing.
-func CreateMockLetter(letterID uint64, exchangeName string, queueName string, body []byte) *Letter {
-
-	if letterID == 0 {
-		letterID = uint64(1)
-	}
+func CreateMockLetter(exchangeName string, queueName string, body []byte) *Letter {
 
 	if body == nil { //   h   e   l   l   o       w   o   r   l   d
 		body = []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
@@ -49,7 +44,7 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 	}
 
 	return &Letter{
-		LetterID:   letterID,
+		LetterID:   uuid.New(),
 		RetryCount: uint32(3),
 		Body:       body,
 		Envelope:   envelope,
@@ -58,9 +53,6 @@ func CreateMockLetter(letterID uint64, exchangeName string, queueName string, bo
 
 // CreateMockRandomLetter creates a mock letter for publishing with random sizes and random Ids.
 func CreateMockRandomLetter(queueName string) *Letter {
-
-	letterID := atomic.LoadUint64(&globalLetterID)
-	atomic.AddUint64(&globalLetterID, 1)
 
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
@@ -75,7 +67,7 @@ func CreateMockRandomLetter(queueName string) *Letter {
 	envelope.Headers["x-tcr-testheader"] = "HelloWorldHeader"
 
 	return &Letter{
-		LetterID:   letterID,
+		LetterID:   uuid.New(),
 		RetryCount: uint32(0),
 		Body:       body,
 		Envelope:   envelope,
@@ -84,9 +76,6 @@ func CreateMockRandomLetter(queueName string) *Letter {
 
 // CreateMockRandomWrappedBodyLetter creates a mock Letter for publishing with random sizes and random Ids.
 func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
-
-	letterID := atomic.LoadUint64(&globalLetterID)
-	atomic.AddUint64(&globalLetterID, 1)
 
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
@@ -98,7 +87,7 @@ func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
 	}
 
 	wrappedBody := &WrappedBody{
-		LetterID: letterID,
+		LetterID: uuid.New(),
 		Body: &ModdedBody{
 			Encrypted:   false,
 			Compressed:  false,
@@ -111,7 +100,7 @@ func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
 	data, _ := json.Marshal(wrappedBody)
 
 	letter := &Letter{
-		LetterID:   letterID,
+		LetterID:   wrappedBody.LetterID,
 		RetryCount: uint32(0),
 		Body:       data,
 		Envelope:   envelope,
