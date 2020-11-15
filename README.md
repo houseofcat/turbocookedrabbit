@@ -14,7 +14,7 @@
  * Several small quality of life improvements added by request.
  * Breaking Change (v2.1.0) - ReceivedMessage now contains the Amqp.Delivery (no more cloning/copying that functionality)
  * Breaking Change (v2.1.0) - LetterID is now a UUID by default.
- * Breaking Change (v2.1.0) - LetterID is now mapping to CorrelationID in RabbitMQ on Publish and is mapped to a string on ReceivedMessage.
+ * Breaking Change (v2.1.0) - LetterID is now mapping to CorrelationID in RabbitMQ on Publish and is mapped to a string CorrelationID on ReceivedMessage.
 
 The major goals (now that every is working and well) are to aid quality of life and visibility.
 
