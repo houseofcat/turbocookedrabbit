@@ -49,9 +49,10 @@ func TestBasicPublish(t *testing.T) {
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:   letter.Envelope.ContentType,
-				Body:          letter.Body,
-				CorrelationId: letter.LetterID.String(),
+				ContentType: letter.Envelope.ContentType,
+				Body:        letter.Body,
+				MessageId:   letter.LetterID.String(),
+				Timestamp:   time.Now().UTC(),
 			})
 
 		if err != nil {

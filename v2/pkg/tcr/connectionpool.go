@@ -95,7 +95,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 
 		connectionHost, err := NewConnectionHost(
 			cp.uri,
-			cp.Config.ConnectionName+"-"+strconv.FormatUint(cp.connectionID, 10),
+			cp.Config.ApplicationName+"-"+strconv.FormatUint(cp.connectionID, 10),
 			cp.connectionID,
 			cp.heartbeatInterval,
 			cp.connectionTimeout,

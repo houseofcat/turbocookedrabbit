@@ -85,11 +85,13 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:   letter.Envelope.ContentType,
-			Body:          letter.Body,
-			Headers:       letter.Envelope.Headers,
-			DeliveryMode:  letter.Envelope.DeliveryMode,
-			CorrelationId: letter.LetterID.String(),
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      letter.Envelope.Headers,
+			DeliveryMode: letter.Envelope.DeliveryMode,
+			MessageId:    letter.LetterID.String(),
+			Timestamp:    time.Now().UTC(),
+			AppId:        pub.Config.PoolConfig.ApplicationName,
 		},
 	)
 
@@ -119,11 +121,13 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:   letter.Envelope.ContentType,
-			Body:          letter.Body,
-			Headers:       letter.Envelope.Headers,
-			DeliveryMode:  letter.Envelope.DeliveryMode,
-			CorrelationId: letter.LetterID.String(),
+			ContentType:  letter.Envelope.ContentType,
+			Body:         letter.Body,
+			Headers:      letter.Envelope.Headers,
+			DeliveryMode: letter.Envelope.DeliveryMode,
+			MessageId:    letter.LetterID.String(),
+			Timestamp:    time.Now().UTC(),
+			AppId:        pub.Config.PoolConfig.ApplicationName,
 		},
 	)
 }
@@ -151,11 +155,13 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:   letter.Envelope.ContentType,
-				Body:          letter.Body,
-				Headers:       letter.Envelope.Headers,
-				DeliveryMode:  letter.Envelope.DeliveryMode,
-				CorrelationId: letter.LetterID.String(),
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      letter.Envelope.Headers,
+				DeliveryMode: letter.Envelope.DeliveryMode,
+				MessageId:    letter.LetterID.String(),
+				Timestamp:    time.Now().UTC(),
+				AppId:        pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -208,11 +214,13 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:   letter.Envelope.ContentType,
-				Body:          letter.Body,
-				Headers:       letter.Envelope.Headers,
-				DeliveryMode:  letter.Envelope.DeliveryMode,
-				CorrelationId: letter.LetterID.String(),
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      letter.Envelope.Headers,
+				DeliveryMode: letter.Envelope.DeliveryMode,
+				MessageId:    letter.LetterID.String(),
+				Timestamp:    time.Now().UTC(),
+				AppId:        pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -272,11 +280,13 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:   letter.Envelope.ContentType,
-				Body:          letter.Body,
-				Headers:       letter.Envelope.Headers,
-				DeliveryMode:  letter.Envelope.DeliveryMode,
-				CorrelationId: letter.LetterID.String(),
+				ContentType:  letter.Envelope.ContentType,
+				Body:         letter.Body,
+				Headers:      letter.Envelope.Headers,
+				DeliveryMode: letter.Envelope.DeliveryMode,
+				MessageId:    letter.LetterID.String(),
+				Timestamp:    time.Now().UTC(),
+				AppId:        pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -291,7 +301,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner (%dms) - recommend retry/requeue", letter.LetterID, timeout))
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner (%dms) - recommend retry/requeue", letter.LetterID.String(), timeout))
 				channel.Close()
 				return
 

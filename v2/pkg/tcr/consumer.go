@@ -255,7 +255,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 		select {
 		case delivery := <-deliveryChan: // all buffered deliveries are wiped on a channel close error
 
-			msg := NewMessage(
+			msg := NewReceivedMessage(
 				!con.autoAck,
 				delivery)
 

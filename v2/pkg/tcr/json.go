@@ -3,7 +3,6 @@ package tcr
 import (
 	"bytes"
 	"io/ioutil"
-	"time"
 
 	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
@@ -161,7 +160,7 @@ func CreateWrappedPayload(
 		innerData = buffer.Bytes()
 	}
 
-	wrappedBody.Body.UTCDateTime = time.Now().UTC().Format(time.RFC3339)
+	wrappedBody.Body.UTCDateTime = JSONUtcTimestamp()
 	wrappedBody.Body.Data = innerData
 
 	data, err := json.Marshal(&wrappedBody)
