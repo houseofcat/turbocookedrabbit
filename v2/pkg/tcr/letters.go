@@ -91,7 +91,7 @@ func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
 		Body: &ModdedBody{
 			Encrypted:   false,
 			Compressed:  false,
-			UTCDateTime: time.Now().Format(time.RFC3339),
+			UTCDateTime: JSONUtcTimestamp(),
 			Data:        body,
 		},
 	}

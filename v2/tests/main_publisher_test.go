@@ -22,7 +22,7 @@ func TestBasicPublish(t *testing.T) {
 	letters := make([]*tcr.Letter, messageCount)
 
 	for i := 0; i < messageCount; i++ {
-		letters[i] = tcr.CreateMockLetter("", fmt.Sprintf("TestQueue-%d", i%10), nil)
+		letters[i] = tcr.CreateMockLetter("", "TcrTestQueue", nil)
 	}
 
 	elapsed := time.Since(timeStart)
@@ -53,6 +53,7 @@ func TestBasicPublish(t *testing.T) {
 				Body:        letter.Body,
 				MessageId:   letter.LetterID.String(),
 				Timestamp:   time.Now().UTC(),
+				AppId:       "TCR-Test",
 			})
 
 		if err != nil {
@@ -64,6 +65,9 @@ func TestBasicPublish(t *testing.T) {
 	elapsed = time.Since(timeStart)
 	t.Logf("Publish Time: %s\r\n", elapsed)
 	t.Logf("Rate: %f msg/s\r\n", float64(messageCount)/elapsed.Seconds())
+
+	amqpChan.Close()
+	amqpConn.Close()
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
