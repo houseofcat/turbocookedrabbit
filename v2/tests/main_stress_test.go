@@ -70,7 +70,7 @@ PublishLoop:
 					messagesPublished++
 					notice = nil
 				} else {
-					fmt.Printf("%s: Publisher failed for LetterID: %d\r\n", time.Now(), notice.LetterID)
+					fmt.Printf("%s: Publisher failed for LetterID: %s\r\n", time.Now(), notice.LetterID.String())
 					messagesFailedToPublish++
 					notice = nil
 				}
@@ -84,7 +84,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
 
 			if !publisher.QueueLetter(newLetter) {
 				queueErrors++
@@ -170,7 +170,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
 			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
 		}
 	}
@@ -215,17 +215,17 @@ ConsumeLoop:
 				fmt.Printf("message was not deserializeable\r\n")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
 					state := tmp.(bool)
 					if state {
 						duplicateMessages++
-						fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
+						fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
+						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
 					}
 				} else {
 					surpriseMessages++
-					fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
+					fmt.Printf("letter (%s) received that wasn't published!\r\n", body.LetterID.String())
 				}
 			}
 
@@ -256,7 +256,7 @@ func verifyAccuracyT(t *testing.T, conMap cmap.ConcurrentMap) {
 	for item := range conMap.IterBuffered() {
 		state := item.Val.(bool)
 		if !state {
-			fmt.Printf("LetterId: %q was published but never received.\r\n", item.Key)
+			fmt.Printf("LetterID: %q was published but never received.\r\n", item.Key)
 		}
 	}
 }
@@ -349,7 +349,7 @@ func publishAccuracyLoop(
 	go func() {
 		for i := 0; i < count; i++ {
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
 			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
 		}
 
@@ -407,15 +407,15 @@ AcknowledgeLoop:
 				fmt.Print("message was not deserializeable")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
 					state := tmp.(bool)
 					if state {
-						fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
+						fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
+						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
 					}
 				} else {
-					fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
+					fmt.Printf("letter (%s) received that wasn't published!\r\n", body.LetterID.String())
 				}
 			}
 
@@ -482,7 +482,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conmap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			conmap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
 			RabbitService.QueueLetter(newLetter)
 		}
 	}
@@ -534,15 +534,15 @@ func consumerAction(msg *tcr.ReceivedMessage) {
 		fmt.Printf("message was not deserializeable\r\n")
 	} else {
 		// Accuracy check
-		if tmp, ok := conmap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+		if tmp, ok := conmap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
 			state := tmp.(bool)
 			if state {
-				fmt.Printf("duplicate letter (%d) received!\r\n", body.LetterID)
+				fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 			} else {
-				conmap.Set(fmt.Sprintf("%d", body.LetterID), true)
+				conmap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
 			}
 		} else {
-			fmt.Printf("letter (%d) received that wasn't published!\r\n", body.LetterID)
+			fmt.Printf("letter (%s) received that wasn't published!\r\n", body.LetterID.String())
 		}
 	}
 

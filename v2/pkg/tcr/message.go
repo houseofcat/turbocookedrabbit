@@ -20,10 +20,10 @@ type PublishReceipt struct {
 // ToString allows you to quickly log the PublishReceipt struct as a string.
 func (not *PublishReceipt) ToString() string {
 	if not.Success {
-		return fmt.Sprintf("[LetterID: %d] - Publish successful.\r\n", not.LetterID)
+		return fmt.Sprintf("[LetterID: %s] - Publish successful.\r\n", not.LetterID.String())
 	}
 
-	return fmt.Sprintf("[LetterID: %d] - Publish failed.\r\nError: %s\r\n", not.LetterID, not.Error.Error())
+	return fmt.Sprintf("[LetterID: %s] - Publish failed.\r\nError: %s\r\n", not.LetterID.String(), not.Error.Error())
 }
 
 // ReceivedMessage allow for you to acknowledge, after processing the received payload, by its RabbitMQ tag and Channel pointer.

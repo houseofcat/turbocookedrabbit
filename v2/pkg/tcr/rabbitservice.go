@@ -401,15 +401,15 @@ ProcessLoop:
 				if receipt.FailedLetter != nil {
 					if receipt.FailedLetter.RetryCount < rs.Config.PublisherConfig.MaxRetryCount {
 						receipt.FailedLetter.RetryCount++
-						rs.centralErr <- fmt.Errorf("failed to publish letter %d... retrying (count: %d)", receipt.LetterID, receipt.FailedLetter.RetryCount)
+						rs.centralErr <- fmt.Errorf("failed to publish LetterID %s... retrying (count: %d)", receipt.LetterID.String(), receipt.FailedLetter.RetryCount)
 						if ok := rs.Publisher.QueueLetter(receipt.FailedLetter); !ok {
-							rs.centralErr <- fmt.Errorf("failed to publish a letter %d and autopublisher has been shutdown", receipt.LetterID)
+							rs.centralErr <- fmt.Errorf("failed to publish a LetterID %s and autopublisher has been shutdown", receipt.LetterID.String())
 						}
 					} else {
-						rs.centralErr <- fmt.Errorf("failed to retry publish a letter %d, it has exhausted all of it's retries", receipt.LetterID)
+						rs.centralErr <- fmt.Errorf("failed to retry publish a LetterID %s, it has exhausted all of it's retries", receipt.LetterID.String())
 					}
 				} else {
-					rs.centralErr <- fmt.Errorf("failed to publish a letter %d and unable to retry as a copy of the letter was not received", receipt.LetterID)
+					rs.centralErr <- fmt.Errorf("failed to publish a LetterID %s and unable to retry as a copy of the letter was not received", receipt.LetterID.String())
 				}
 
 			}

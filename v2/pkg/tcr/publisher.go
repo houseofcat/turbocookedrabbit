@@ -167,7 +167,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterId: %d wasn't received in a timely manner - recommend retry/requeue", letter.LetterID))
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String()))
 				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
 				return
 
@@ -224,7 +224,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 		for {
 			select {
 			case <-ctx.Done():
-				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %d wasn't received before context expired - recommend retry/requeue", letter.LetterID))
+				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String()))
 				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
 				return
 

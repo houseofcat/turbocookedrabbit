@@ -18,7 +18,7 @@ func verifyAccuracyB(b *testing.B, conMap cmap.ConcurrentMap) {
 	for item := range conMap.IterBuffered() {
 		state := item.Val.(bool)
 		if !state {
-			fmt.Printf("LetterId: %q was not received.\r\n", item.Key)
+			fmt.Printf("LetterID: %s was not received.\r\n", item.Key)
 		}
 	}
 }
@@ -65,10 +65,10 @@ ReceivePublishConfirmations:
 			break ReceivePublishConfirmations
 		case publish := <-publisher.PublishReceipts():
 			if publish.Success {
-				//fmt.Printf("%s: Published Success - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				//fmt.Printf("%s: Published Success - LetterID: %s\r\n", time.Now(), notice.LetterID.String())
 				messagesPublished++
 			} else {
-				//fmt.Printf("%s: Published Failed - LetterID: %d\r\n", time.Now(), notice.LetterID)
+				//fmt.Printf("%s: Published Failed - LetterID: %s\r\n", time.Now(), notice.LetterID.String())
 				messagesFailedToPublish++
 			}
 		case err := <-consumer.Errors():
@@ -196,7 +196,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%d", newLetter.LetterID), false)
+			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
 			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
 		}
 	}
@@ -240,15 +240,15 @@ ConsumeLoop:
 				b.Logf("message was not deserializeable")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%d", body.LetterID)); ok {
+				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
 					state := tmp.(bool)
 					if state {
-						b.Logf("duplicate letter (%d) received!", body.LetterID)
+						b.Logf("duplicate letter (%s) received!", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%d", body.LetterID), true)
+						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
 					}
 				} else {
-					b.Logf("letter (%d) received that wasn't published!", body.LetterID)
+					b.Logf("letter (%s) received that wasn't published!", body.LetterID.String())
 				}
 			}
 

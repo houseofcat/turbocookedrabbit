@@ -9,12 +9,26 @@
 [![Sourcegraph](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit/-/badge.svg)](https://sourcegraph.com/github.com/houseofcat/turbocookedrabbit?badge)  
 [![HitCount](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit.svg)](http://hits.dwyl.io/houseofcat/githubcom/houseofcat/turbocookedrabbit)
 
+### Work Recently Finished (v2.0.0 -> v2.1.0)
+ * Several non-breaking hotfixes up to v2.0.9.
+ * Several small quality of life improvements added by request.
+ * Breaking Change (v2.1.0) - ReceivedMessage now contains the Amqp.Delivery (no more cloning/copying that functionality)
+ * Breaking Change (v2.1.0) - LetterID is now a UUID by default.
+ * Breaking Change (v2.1.0) - LetterID is now mapping to CorrelationID in RabbitMQ on Publish and is mapped to a string on ReceivedMessage.
+
+The major goals (now that every is working and well) are to aid quality of life and visibility.
+
+Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
+
 ### Developer's Notes
 
- * Golang 1.15.2 (2020/09/22)
+ * Golang 1.15.5 (2020/11/15)
  * RabbitMQ Server v3.8.5 (simple localhost)
  * Erlang v23.0
  * Streadway/Amqp v1.0.0
+
+<details><summary>Click here to see how to migrate (or get V2) and breaking details!</summary>
+<p>
 
 ## TO GET (including V2)
 `go get -u "github.com/houseofcat/turbocookedrabbit/v2"`  
@@ -51,13 +65,8 @@ Decided to opt-in for a near total rewrite. Simpler. Cleaner. Easier to use. The
 Reason For Rewrite?  
 I am better at Golang, in general, and I now have a year of experience using my own software in a production environment. This rewrite has an even stronger auto-recovery mechanism and even harder Publish (PublishWithConfirmation) system. In some ways, performance has significantly increased. In other ways, it sacrified performance for resilience.  
 
-### Work Recently Finished
- * New PublishWithConfirmation feature was added.  
- * Removed ChannelPools.  
- * Rewrite for v2.0.0.  
- * Unified to a single package `tcr`.
-
-Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
+</p>
+</details>
 
 ### Basic Performance
 
