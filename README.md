@@ -16,7 +16,7 @@
  * Breaking Change (v2.1.0) - LetterID is now a UUID by default.
  * Breaking Change (v2.1.0) - LetterID is now mapping to CorrelationID in RabbitMQ on Publish and is mapped to a string CorrelationID on ReceivedMessage.
 
-The major goals (now that every is working and well) are to aid quality of life and visibility.
+The major goals (now that everything is working well) are to aid quality of life and visibility.
 
 Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
 
