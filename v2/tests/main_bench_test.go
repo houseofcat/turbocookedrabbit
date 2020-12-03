@@ -128,7 +128,7 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 
 	b.ReportAllocs()
 
-	timeDuration := time.Duration(500 * time.Millisecond)
+	timeDuration := time.Duration(5 * time.Minute)
 	pubTimeOut := time.After(timeDuration)
 	conTimeOut := time.After(timeDuration + (2 * time.Second))
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
@@ -197,7 +197,7 @@ PublishLoop:
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
 			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
-			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
+			publisher.PublishWithConfirmation(newLetter, 1*time.Second)
 		}
 	}
 
