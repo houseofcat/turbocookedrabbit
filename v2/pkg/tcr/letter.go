@@ -22,6 +22,7 @@ type Envelope struct {
 	Immediate    bool
 	Headers      amqp.Table
 	DeliveryMode uint8
+	Priority     uint8
 }
 
 // WrappedBody is to go inside a Letter struct with indications of the body of data being modified (ex., compressed).
