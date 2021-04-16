@@ -70,6 +70,47 @@ func TestBasicPublish(t *testing.T) {
 	amqpConn.Close()
 }
 
+// TestBasicPublishToNonExistentExchange tests what happen when a publish to exchange
+// that doesn't exist also doesn't error. This is a demonstration of server
+// side Dead Lettering.
+func TestBasicPublishToNonExistentExchange(t *testing.T) {
+	defer leaktest.Check(t)()
+
+	letter := tcr.CreateMockLetter("DoesNotExist", "TcrTestQueue", nil)
+	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
+	if err != nil {
+		t.Error(t, err)
+		return
+	}
+
+	amqpChan, err := amqpConn.Channel()
+	if err != nil {
+		t.Error(t, err)
+		return
+	}
+
+	err = amqpChan.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType: letter.Envelope.ContentType,
+			Body:        letter.Body,
+			MessageId:   letter.LetterID.String(),
+			Timestamp:   time.Now().UTC(),
+			AppId:       "TCR-Test",
+		})
+
+	if err != nil {
+		t.Error(t, err)
+		return
+	}
+
+	amqpChan.Close()
+	amqpConn.Close()
+}
+
 func TestCreatePublisherAndPublish(t *testing.T) {
 	defer leaktest.Check(t)() // Fail on leaked goroutines.
 
