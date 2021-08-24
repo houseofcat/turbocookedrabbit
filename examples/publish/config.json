@@ -1,0 +1,35 @@
+{
+    "EncryptionConfig": {
+        "Enabled": false,
+        "Type": "aes",
+        "TimeConsideration": 1,
+        "Threads": 2
+    },
+    "CompressionConfig": {
+        "Enabled": false,
+        "Type": "gzip"
+    },
+    "PoolConfig": {
+        "URI": "amqp://guest:guest@localhost:5672/",
+        "ApplicationName": "TurboCookedRabbit",
+        "SleepOnErrorInterval": 100,
+        "MaxCacheChannelCount": 50,
+        "MaxConnectionCount": 10,
+        "Heartbeat": 6,
+        "ConnectionTimeout": 10,
+        "TLSConfig": {
+            "EnableTLS": false,
+            "PEMCertLocation": "test/catest.pem",
+            "LocalCertLocation": "client/cert.ca",
+            "CertServerName": "hostname-in-cert"
+        }
+    },
+    "ConsumerConfigs": {},
+    "PublisherConfig": {
+        "AutoAck": false,
+        "SleepOnIdleInterval": 0,
+        "SleepOnErrorInterval": 0,
+        "PublishTimeOutInterval": 500,
+        "MaxRetryCount": 5
+    }
+}
