@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/streadway/amqp"
 )
 
@@ -96,7 +95,6 @@ func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
 		},
 	}
 
-	var json = jsoniter.ConfigFastest
 	data, _ := json.Marshal(wrappedBody)
 
 	letter := &Letter{

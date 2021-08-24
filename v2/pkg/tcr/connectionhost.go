@@ -117,6 +117,7 @@ func (ch *ConnectionHost) Connect() bool {
 }
 
 // PauseOnFlowControl allows you to wait and sleep while receiving flow control messages.
+// Sleeps for one second, repeatedly until the blocking has stopped.
 func (ch *ConnectionHost) PauseOnFlowControl() {
 
 	ch.connLock.Lock()

@@ -8,6 +8,8 @@ import (
 	jsoniter "github.com/json-iterator/go"
 )
 
+var json = jsoniter.ConfigFastest
+
 const (
 	// GzipCompressionType helps identify which compression/decompression to use.
 	GzipCompressionType = "gzip"
@@ -28,7 +30,6 @@ func ConvertJSONFileToConfig(fileNamePath string) (*RabbitSeasoning, error) {
 	}
 
 	config := &RabbitSeasoning{}
-	var json = jsoniter.ConfigFastest
 	err = json.Unmarshal(byteValue, config)
 
 	return config, err
@@ -43,7 +44,7 @@ func ConvertJSONFileToTopologyConfig(fileNamePath string) (*TopologyConfig, erro
 	}
 
 	config := &TopologyConfig{}
-	var json = jsoniter.ConfigFastest
+
 	err = json.Unmarshal(byteValue, config)
 
 	return config, err
@@ -52,7 +53,6 @@ func ConvertJSONFileToTopologyConfig(fileNamePath string) (*TopologyConfig, erro
 // ReadWrappedBodyFromJSONBytes simply read the bytes as a Letter.
 func ReadWrappedBodyFromJSONBytes(data []byte) (*WrappedBody, error) {
 
-	var json = jsoniter.ConfigFastest
 	body := &WrappedBody{}
 	err := json.Unmarshal(data, body)
 	if err != nil {
@@ -71,7 +71,6 @@ func ReadJSONFileToInterface(fileNamePath string) (interface{}, error) {
 	}
 
 	var data interface{}
-	var json = jsoniter.ConfigFastest
 	err = json.Unmarshal(byteValue, data)
 
 	return &data, err
@@ -83,7 +82,6 @@ func CreatePayload(
 	compression *CompressionConfig,
 	encryption *EncryptionConfig) ([]byte, error) {
 
-	var json = jsoniter.ConfigFastest
 	data, err := json.Marshal(&input)
 	if err != nil {
 		return nil, err
@@ -127,7 +125,6 @@ func CreateWrappedPayload(
 		Body:           &ModdedBody{},
 	}
 
-	var json = jsoniter.ConfigFastest
 	var err error
 	var innerData []byte
 	innerData, err = json.Marshal(&input)

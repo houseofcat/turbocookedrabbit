@@ -7,7 +7,7 @@ import (
 	"github.com/streadway/amqp"
 )
 
-// ChannelHost is an internal representation of amqp.Connection.
+// ChannelHost is an internal representation of amqp.Channel.
 type ChannelHost struct {
 	Channel       *amqp.Channel
 	ID            uint64
@@ -20,7 +20,7 @@ type ChannelHost struct {
 	chanLock      *sync.Mutex
 }
 
-// NewChannelHost creates a simple ConnectionHost wrapper for management by end-user developer.
+// NewChannelHost creates a simple ChannelHost wrapper for management by end-user developer.
 func NewChannelHost(
 	connHost *ConnectionHost,
 	id uint64,
@@ -89,17 +89,18 @@ func (ch *ChannelHost) FlushConfirms() {
 			return
 		}
 
-		// Some weird use case where the Channel is being flooded with confirms after connection disrupt
+		// Some weird use case where the Channel is being flooded with confirms after connection disruption
+		// It lead to an infinite loop when this method was called.
 		select {
 		case <-ch.Confirmations:
-			return // did not used to be a return, leaving code as is for future revisit
+			return // return prevents the infinite loop here
 		default:
 			return
 		}
 	}
 }
 
-// PauseForFlowControl allows you to wait till sleep while receiving flow control messages.
+// PauseForFlowControl allows you to wait and sleep while receiving flow control messages.
 func (ch *ChannelHost) PauseForFlowControl() {
 
 	ch.connHost.PauseOnFlowControl()
