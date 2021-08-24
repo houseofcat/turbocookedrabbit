@@ -7,22 +7,21 @@
 
 <a title="Release" target="_blank" href="https://github.com/houseofcat/turbocookedrabbit/releases"><img src="https://img.shields.io/github/release/houseofcat/turbocookedrabbit.svg?style=flat-square"></a>  
 
-### Work Recently Finished (v2.0.0 -> v2.1.0)
- * Several non-breaking hotfixes up to v2.0.9.
- * Several small quality of life improvements added by request.
- * Breaking Change (v2.1.0) - ReceivedMessage now contains the Amqp.Delivery (no more cloning/copying that functionality)
- * Breaking Change (v2.1.0) - LetterID is now a UUID by default.
- * Breaking Change (v2.1.0) - LetterID is now mapping to MessageID in RabbitMQ on Publish and is mapped to a string MessageID on ReceivedMessage.
+### Work Recently Finished (v2.1.12)
+ * Dependency updates and comment cleanup.
+   * Now on Go 1.16.
 
-The major goals (now that everything is working well) are to aid quality of life and visibility.
+### Notice
+The v1 API is no longer supported. The tags will be kept to prevent breaking any live applications and the source for archival/forking purposes. No future work will be performed going forward, please migrate to `tcr` packages and `v2+`. Thanks!
 
-Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
+### Goals
+The major goals (now that everything is working well) are to aid quality of life and visibility. Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
 
 ### Developer's Notes
 
- * Golang 1.15.5 (2020/11/15)
- * RabbitMQ Server v3.8.5 (simple localhost)
- * Erlang v23.0
+ * Golang 1.16.5 (2021/08/24)
+ * RabbitMQ Server v3.8.14 (simple localhost)
+ * Erlang v24.0
  * Streadway/Amqp v1.0.0
 
 <details><summary>Click here to see how to migrate (or get V2) and breaking details!</summary>
