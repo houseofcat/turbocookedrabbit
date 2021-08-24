@@ -31,7 +31,7 @@ func CompressWithZstd(data []byte, buffer *bytes.Buffer) error {
 	return zstdWriter.Close()
 }
 
-// DecompressWithZstd uses an external dependency for Zstd to decompress data and places data in the supplied buffer.
+// DecompressWithZstd uses an external dependency for Zstd to decompress data and replaces the supplied buffer with a new buffer with data in it.
 func DecompressWithZstd(buffer *bytes.Buffer) error {
 
 	zstdReader, err := zstd.NewReader(buffer)
@@ -67,7 +67,7 @@ func CompressWithGzip(data []byte, buffer *bytes.Buffer) error {
 	return nil
 }
 
-// DecompressWithGzip uses the standard Gzip Reader to decompress data and places data in the supplied buffer.
+// DecompressWithGzip uses the standard Gzip Reader to decompress data and replaces the supplied buffer with a new buffer with data in it.
 func DecompressWithGzip(buffer *bytes.Buffer) error {
 
 	gzipReader, err := gzip.NewReader(buffer)
