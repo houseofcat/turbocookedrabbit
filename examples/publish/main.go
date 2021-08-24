@@ -9,10 +9,6 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 )
 
-type MyMessage struct {
-	TestMessage string `json:"TestMessage"`
-}
-
 // Examples - Publishing
 // August 24th, 2021
 func main() {
@@ -29,6 +25,9 @@ func main() {
 
 	// Convenience struct JSON publishing
 	// build struct you wish to publish, then publish it.
+	type MyMessage struct {
+		TestMessage string `json:"TestMessage"`
+	}
 	err = rabbitService.Publish(&MyMessage{TestMessage: "Hello World"}, "exchangeName", "routingKey/queueName", "my-test-letter", false, nil)
 	if err != nil {
 		log.Fatal(err)
@@ -58,7 +57,7 @@ func main() {
 			Envelope: &tcr.Envelope{
 				Exchange:     "exchangeName",
 				RoutingKey:   "routingKey/queueName",
-				ContentType:  "application/json",
+				ContentType:  "text/plain",
 				Mandatory:    false,
 				Immediate:    false,
 				DeliveryMode: 2,
@@ -72,7 +71,7 @@ func main() {
 		Envelope: &tcr.Envelope{
 			Exchange:     "exchangeName",
 			RoutingKey:   "routingKey/queuename",
-			ContentType:  "application/json",
+			ContentType:  "text/plain",
 			Mandatory:    false,
 			Immediate:    false,
 			DeliveryMode: 2,
