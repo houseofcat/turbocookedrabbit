@@ -196,7 +196,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
+			conMap.Set(newLetter.LetterID.String(), false)
 			publisher.PublishWithConfirmation(newLetter, 1*time.Second)
 		}
 	}
@@ -240,12 +240,12 @@ ConsumeLoop:
 				b.Logf("message was not deserializeable")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
+				if tmp, ok := conMap.Get(body.LetterID.String()); ok {
 					state := tmp.(bool)
 					if state {
 						b.Logf("duplicate letter (%s) received!", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
+						conMap.Set(body.LetterID.String(), true)
 					}
 				} else {
 					b.Logf("letter (%s) received that wasn't published!", body.LetterID.String())

@@ -22,7 +22,6 @@ type RabbitService struct {
 	consumers            map[string]*Consumer
 	shutdownSignal       chan bool
 	shutdown             bool
-	letterCount          uint64
 	monitorSleepInterval time.Duration
 	serviceLock          *sync.Mutex
 }

@@ -27,8 +27,8 @@ func NewTopologer(cp *ConnectionPool) *Topologer {
 	}
 }
 
-// BuildToplogy builds a topology based on a ToplogyConfig - stops on first error.
-func (top *Topologer) BuildToplogy(config *TopologyConfig, ignoreErrors bool) error {
+// BuildTopology builds a topology based on a TopologyConfig - stops on first error.
+func (top *Topologer) BuildTopology(config *TopologyConfig, ignoreErrors bool) error {
 
 	err := top.BuildExchanges(config.Exchanges, ignoreErrors)
 	if err != nil && !ignoreErrors {
@@ -138,7 +138,7 @@ func (top *Topologer) CreateExchange(
 	return channel.ExchangeDeclare(exchangeName, exchangeType, durable, autoDelete, internal, noWait, amqp.Table(args))
 }
 
-// CreateExchangeFromConfig builds an Exchange toplogy from a config Exchange element.
+// CreateExchangeFromConfig builds an Exchange topology from a config Exchange element.
 func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 
 	channel := top.ConnectionPool.GetTransientChannel(false)

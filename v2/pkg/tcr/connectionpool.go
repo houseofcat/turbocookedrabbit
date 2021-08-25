@@ -207,7 +207,7 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 		cp.flagConnection(connHost.ConnectionID)
 	}
 
-	cp.connections.Put(connHost)
+	_ = cp.connections.Put(connHost)
 }
 
 // GetChannelFromPool gets a cached ackable channel from the Pool if they exist or creates a channel.

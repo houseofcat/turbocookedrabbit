@@ -93,7 +93,7 @@ func TestPublishWithHeaderAndVerify(t *testing.T) {
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
-	RabbitService.PublishLetter(letter)
+	_ = RabbitService.PublishLetter(letter)
 
 	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
 	assert.NoError(t, err)
@@ -117,7 +117,7 @@ func TestPublishWithHeaderAndConsumerReceivedHeader(t *testing.T) {
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
-	RabbitService.PublishLetter(letter)
+	_ = RabbitService.PublishLetter(letter)
 
 	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
 	consumer.StartConsuming()

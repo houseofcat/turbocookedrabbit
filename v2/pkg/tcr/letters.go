@@ -60,7 +60,7 @@ func CreateMockRandomLetter(queueName string) *Letter {
 		RoutingKey:   queueName,
 		ContentType:  "application/json",
 		DeliveryMode: 2,
-		Headers:      make(amqp.Table, 0),
+		Headers:      make(amqp.Table),
 	}
 
 	envelope.Headers["x-tcr-testheader"] = "HelloWorldHeader"

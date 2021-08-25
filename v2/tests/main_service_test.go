@@ -39,7 +39,7 @@ func TestRabbitServicePublish(t *testing.T) {
 	assert.NotNil(t, service)
 
 	data := tcr.RandomBytes(1000)
-	service.Publish(data, "", "TcrTestQueue", "", false, nil)
+	_ = service.Publish(data, "", "TcrTestQueue", "", false, nil)
 
 	service.Shutdown(true)
 }
@@ -53,7 +53,7 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 	assert.NotNil(t, service)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	service.PublishLetter(letter)
+	_ = service.PublishLetter(letter)
 
 	service.Shutdown(true)
 }
@@ -67,7 +67,7 @@ func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
 	assert.NotNil(t, service)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	service.PublishLetter(letter)
+	_ = service.PublishLetter(letter)
 
 	service.Shutdown(true)
 }
@@ -81,17 +81,10 @@ func TestRabbitServicePublishLetterToNonExistentQueueForRetryTesting(t *testing.
 	assert.NotNil(t, service)
 
 	letter := tcr.CreateMockRandomLetter("QueueDoesNotExist")
-	service.QueueLetter(letter)
+	_ = service.QueueLetter(letter)
 
 	timeout := time.After(time.Duration(2 * time.Second))
-
-WaitForAllErrorsLoop:
-	for {
-		select {
-		case <-timeout:
-			break WaitForAllErrorsLoop
-		}
-	}
+	<-timeout
 
 	service.Shutdown(true)
 }

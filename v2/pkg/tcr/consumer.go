@@ -204,7 +204,7 @@ ConsumeLoop:
 
 		// Configure RabbitMQ channel QoS for Consumer
 		if con.qosCountOverride > 0 {
-			chanHost.Channel.Qos(con.qosCountOverride, 0, false)
+			_ = chanHost.Channel.Qos(con.qosCountOverride, 0, false)
 		}
 
 		// Initiate consuming process.
@@ -316,10 +316,6 @@ func (con *Consumer) ReceivedMessages() <-chan *ReceivedMessage {
 // Errors yields all the internal errs for consuming messages.
 func (con *Consumer) Errors() <-chan error {
 	return con.errors
-}
-
-func (con *Consumer) convertDelivery(amqpChan *amqp.Channel, delivery *amqp.Delivery, isAckable bool) {
-
 }
 
 // FlushStop allows you to flush out all previous Stop signals.

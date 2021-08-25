@@ -84,7 +84,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
+			conMap.Set(newLetter.LetterID.String(), false)
 
 			if !publisher.QueueLetter(newLetter) {
 				queueErrors++
@@ -170,7 +170,7 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
+			conMap.Set(newLetter.LetterID.String(), false)
 			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
 		}
 	}
@@ -215,13 +215,13 @@ ConsumeLoop:
 				fmt.Printf("message was not deserializeable\r\n")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
+				if tmp, ok := conMap.Get(body.LetterID.String()); ok {
 					state := tmp.(bool)
 					if state {
 						duplicateMessages++
 						fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
+						conMap.Set(body.LetterID.String(), true)
 					}
 				} else {
 					surpriseMessages++
@@ -349,7 +349,7 @@ func publishAccuracyLoop(
 	go func() {
 		for i := 0; i < count; i++ {
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conMap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
+			conMap.Set(newLetter.LetterID.String(), false)
 			publisher.PublishWithConfirmation(newLetter, 50*time.Millisecond)
 		}
 
@@ -407,12 +407,12 @@ AcknowledgeLoop:
 				fmt.Print("message was not deserializeable")
 			} else {
 				// Accuracy check
-				if tmp, ok := conMap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
+				if tmp, ok := conMap.Get(body.LetterID.String()); ok {
 					state := tmp.(bool)
 					if state {
 						fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 					} else {
-						conMap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
+						conMap.Set(body.LetterID.String(), true)
 					}
 				} else {
 					fmt.Printf("letter (%s) received that wasn't published!\r\n", body.LetterID.String())
@@ -482,8 +482,8 @@ PublishLoop:
 			break PublishLoop
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
-			conmap.Set(fmt.Sprintf("%s", newLetter.LetterID.String()), false)
-			RabbitService.QueueLetter(newLetter)
+			conmap.Set(newLetter.LetterID.String(), false)
+			_ = RabbitService.QueueLetter(newLetter)
 		}
 	}
 
@@ -534,12 +534,12 @@ func consumerAction(msg *tcr.ReceivedMessage) {
 		fmt.Printf("message was not deserializeable\r\n")
 	} else {
 		// Accuracy check
-		if tmp, ok := conmap.Get(fmt.Sprintf("%s", body.LetterID.String())); ok {
+		if tmp, ok := conmap.Get(body.LetterID.String()); ok {
 			state := tmp.(bool)
 			if state {
 				fmt.Printf("duplicate letter (%s) received!\r\n", body.LetterID.String())
 			} else {
-				conmap.Set(fmt.Sprintf("%s", body.LetterID.String()), true)
+				conmap.Set(body.LetterID.String(), true)
 			}
 		} else {
 			fmt.Printf("letter (%s) received that wasn't published!\r\n", body.LetterID.String())

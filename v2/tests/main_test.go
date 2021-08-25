@@ -47,11 +47,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestCleanup(t *testing.T) {
-	RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+	_, _ = RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
 	RabbitService.Shutdown(true)
 }
 
 func BenchCleanup(b *testing.B) {
-	RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+	_, _ = RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
 	RabbitService.Shutdown(true)
 }

@@ -38,7 +38,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 
 	topologer := tcr.NewTopologer(connectionPool)
 
-	err = topologer.BuildToplogy(topologyConfig, true)
+	err = topologer.BuildTopology(topologyConfig, true)
 	assert.NoError(t, err)
 }
 
@@ -64,7 +64,7 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 		if err != nil {
 			assert.NoError(t, err)
 		} else {
-			err = topologer.BuildToplogy(topologyConfig, false)
+			err = topologer.BuildTopology(topologyConfig, false)
 			assert.NoError(t, err)
 		}
 	}
