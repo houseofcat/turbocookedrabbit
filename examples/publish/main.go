@@ -47,8 +47,9 @@ func main() {
 	skipReceipt := true
 	rabbitService.Publisher.Publish(letter, skipReceipt)
 
-	// There is a lot of convenience that you may end up writing. My library is basically a connection pool with a lot of small
-	// conveniences to make using RabbitMQ in general much easier/streamlined.
+	// There is a lot of convenience/boilerplate code that you may end up writing for RabbitMQ and golang.
+	// That's really all my library is, a collection of boilerplate methods and a fairly solid/standard connection pool.
+	// Just makes life easier with RabbitMQ but not necessary. Here are additional examples of publishing.
 
 	// 2.) Convenience RabbitService publishing a struct as JSON.
 	// build struct you wish to publish, then publish it.
