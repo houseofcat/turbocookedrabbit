@@ -23,7 +23,34 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Convenience struct JSON publishing
+	// 1.) Publish directly with a Publisher (create your own or use the one prebuilt in RabbitService.Publisher)
+	// Get ID
+	// Make a Letter (basically context needed to publish your message with the message)
+	// Call Publish
+	id, err := uuid.NewUUID()
+	if err != nil {
+		log.Fatal(err)
+	}
+	letter := &tcr.Letter{
+		LetterID: id,
+		Body:     []byte("Hello World"),
+		Envelope: &tcr.Envelope{
+			Exchange:     "exchangeName",
+			RoutingKey:   "routingKey/queuename",
+			ContentType:  "text/plain",
+			Mandatory:    false,
+			Immediate:    false,
+			Priority:     0,
+			DeliveryMode: 2,
+		},
+	}
+	skipReceipt := true
+	rabbitService.Publisher.Publish(letter, skipReceipt)
+
+	// There is a lot of convenience that you may end up writing. My library is basically a connection pool with a lot of small
+	// conveniences to make using RabbitMQ in general much easier/streamlined.
+
+	// 2.) Convenience RabbitService publishing a struct as JSON.
 	// build struct you wish to publish, then publish it.
 	type MyMessage struct {
 		TestMessage string `json:"TestMessage"`
@@ -33,16 +60,17 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Convenience bytes Publishing
-	// send bytes to exchange/queue
+	// 3.) Convenience RabbitService publishing bytes.
+	// send string (as bytes) to exchange/queue
 	err = rabbitService.PublishData([]byte("Hello World"), "exchangeName", "routingKey/queueName", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	// Manually use the internal Publisher bytes through the convenience service
+	// 4.) Convenience RabbitService Publisher using Publish with Confirmation/Timeout.
 	// First get a UUID ID
-	id, err := uuid.NewUUID()
+	// Get a timeout context
+	id, err = uuid.NewUUID()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -64,8 +92,17 @@ func main() {
 			},
 		})
 
-	// Publish with the internal auto-publisher
-	letter := &tcr.Letter{
+	// 5.) Publish with the internal auto-publisher
+	// Create an ID
+	// Create a Letter
+	// Queue Letter for Publishing by the library.
+	//   Has fault tolerance, retryability, and sends receipts (receipt of publish) to the Receipt Channel to be
+	//   worked on further or retried by the calling application or whatever.
+	id, err = uuid.NewUUID()
+	if err != nil {
+		log.Fatal(err)
+	}
+	letter = &tcr.Letter{
 		LetterID: id,
 		Body:     []byte("Hello World"),
 		Envelope: &tcr.Envelope{
