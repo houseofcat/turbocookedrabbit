@@ -7,9 +7,11 @@
 
 <a title="Release" target="_blank" href="https://github.com/houseofcat/turbocookedrabbit/releases"><img src="https://img.shields.io/github/release/houseofcat/turbocookedrabbit.svg?style=flat-square"></a>  
 
-### Work Recently Finished (v2.1.12)
+### Work Recently Finished (v2.1.2 & 2.1.3)
  * Dependency updates and comment cleanup.
    * Now on Go 1.16.
+ * All changes recommended by `golangci-lint` (mostly cosmetic).
+ * Fixing the func named BuildToplogy -> BuildTopology.
 
 ### Notice
 The v1 API is no longer supported. The tags will be kept to prevent breaking any live applications and the source for archival/forking purposes. No future work will be performed going forward, please migrate to `tcr` packages and `v2+`. Thanks!
