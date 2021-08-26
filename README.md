@@ -1008,7 +1008,7 @@ Assuming you have a blank slate RabbitMQ server, this shouldn't error out as lon
 
 ```golang
 ignoreErrors := false
-err = topologer.BuildToplogy(topologyConfig, ignoreErrors)
+err = topologer.BuildTopology(topologyConfig, ignoreErrors)
 ```
 
 Fin.
