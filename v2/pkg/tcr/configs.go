@@ -2,8 +2,8 @@ package tcr
 
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
-	EncryptionConfig  *EncryptionConfig          `json:"EncryptionConfig yaml:"EncryptionConfig"`
-	CompressionConfig *CompressionConfig         `json:"CompressionConfig yaml:"CompressionConfig"`
+	EncryptionConfig  *EncryptionConfig          `json:"EncryptionConfig" yaml:"EncryptionConfig"`
+	CompressionConfig *CompressionConfig         `json:"CompressionConfig" yaml:"CompressionConfig"`
 	PoolConfig        *PoolConfig                `json:"PoolConfig" yaml:"PoolConfig"`
 	ConsumerConfigs   map[string]*ConsumerConfig `json:"ConsumerConfigs" yaml:"ConsumerConfigs"`
 	PublisherConfig   *PublisherConfig           `json:"PublisherConfig" yaml:"PublisherConfig"`
