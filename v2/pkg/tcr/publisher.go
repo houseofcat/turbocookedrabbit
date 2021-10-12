@@ -150,7 +150,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
-		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
+		timeoutAfter := time.After(timeout * time.Millisecond) // timeoutAfter resets everytime we try to publish.
 		err := chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
@@ -277,7 +277,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 		channel.NotifyPublish(confirms)
 
 	Publish:
-		timeoutAfter := time.After(timeout)
+		timeoutAfter := time.After(timeout  * time.Millisecond)
 		err := channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
