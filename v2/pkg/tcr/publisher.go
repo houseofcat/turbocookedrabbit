@@ -74,6 +74,7 @@ func NewPublisher(
 
 // Publish sends a single message to the address on the letter using a cached ChannelHost.
 // Subscribe to PublishReceipts to see success and errors.
+//
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 
@@ -85,14 +86,16 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      letter.Envelope.Headers,
-			DeliveryMode: letter.Envelope.DeliveryMode,
-			Priority:     letter.Envelope.Priority,
-			MessageId:    letter.LetterID.String(),
-			Timestamp:    time.Now().UTC(),
-			AppId:        pub.Config.PoolConfig.ApplicationName,
+			ContentType:   letter.Envelope.ContentType,
+			Body:          letter.Body,
+			Headers:       letter.Envelope.Headers,
+			DeliveryMode:  letter.Envelope.DeliveryMode,
+			Priority:      letter.Envelope.Priority,
+			MessageId:     letter.LetterID.String(),
+			CorrelationId: letter.Envelope.CorrelationID,
+			Type:          letter.Envelope.Type,
+			Timestamp:     time.Now().UTC(),
+			AppId:         pub.Config.PoolConfig.ApplicationName,
 		},
 	)
 
@@ -101,6 +104,40 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 	}
 
 	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+}
+
+// PublishWithError sends a single message to the address on the letter using a cached ChannelHost.
+//
+// For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
+func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
+
+	chanHost := pub.ConnectionPool.GetChannelFromPool()
+
+	err := chanHost.Channel.Publish(
+		letter.Envelope.Exchange,
+		letter.Envelope.RoutingKey,
+		letter.Envelope.Mandatory,
+		letter.Envelope.Immediate,
+		amqp.Publishing{
+			ContentType:   letter.Envelope.ContentType,
+			Body:          letter.Body,
+			Headers:       letter.Envelope.Headers,
+			DeliveryMode:  letter.Envelope.DeliveryMode,
+			Priority:      letter.Envelope.Priority,
+			MessageId:     letter.LetterID.String(),
+			CorrelationId: letter.Envelope.CorrelationID,
+			Type:          letter.Envelope.Type,
+			Timestamp:     time.Now().UTC(),
+			AppId:         pub.Config.PoolConfig.ApplicationName,
+		},
+	)
+
+	if !skipReceipt {
+		pub.publishReceipt(letter, err)
+	}
+
+	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+	return err
 }
 
 // PublishWithTransient sends a single message to the address on the letter using a transient (new) RabbitMQ channel.
@@ -122,19 +159,22 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 		letter.Envelope.Mandatory,
 		letter.Envelope.Immediate,
 		amqp.Publishing{
-			ContentType:  letter.Envelope.ContentType,
-			Body:         letter.Body,
-			Headers:      letter.Envelope.Headers,
-			DeliveryMode: letter.Envelope.DeliveryMode,
-			Priority:     letter.Envelope.Priority,
-			MessageId:    letter.LetterID.String(),
-			Timestamp:    time.Now().UTC(),
-			AppId:        pub.Config.PoolConfig.ApplicationName,
+			ContentType:   letter.Envelope.ContentType,
+			Body:          letter.Body,
+			Headers:       letter.Envelope.Headers,
+			DeliveryMode:  letter.Envelope.DeliveryMode,
+			Priority:      letter.Envelope.Priority,
+			MessageId:     letter.LetterID.String(),
+			CorrelationId: letter.Envelope.CorrelationID,
+			Type:          letter.Envelope.Type,
+			Timestamp:     time.Now().UTC(),
+			AppId:         pub.Config.PoolConfig.ApplicationName,
 		},
 	)
 }
 
 // PublishWithConfirmation sends a single message to the address on the letter with confirmation capabilities.
+//
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
 // A timeout failure drops the letter back in the PublishReceipts.
 // A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
@@ -157,14 +197,16 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
-				Priority:     letter.Envelope.Priority,
-				MessageId:    letter.LetterID.String(),
-				Timestamp:    time.Now().UTC(),
-				AppId:        pub.Config.PoolConfig.ApplicationName,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				Priority:      letter.Envelope.Priority,
+				MessageId:     letter.LetterID.String(),
+				CorrelationId: letter.Envelope.CorrelationID,
+				Type:          letter.Envelope.Type,
+				Timestamp:     time.Now().UTC(),
+				AppId:         pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -199,6 +241,72 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 	}
 }
 
+// PublishWithConfirmationError sends a single message to the address on the letter with confirmation capabilities.
+//
+// This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+// A timeout failure drops the letter back in the PublishReceipts.
+// A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
+func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.Duration) error {
+
+	if timeout == 0 {
+		timeout = pub.publishTimeOutDuration
+	}
+
+	for {
+		// Has to use an Ackable channel for Publish Confirmations.
+		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost.FlushConfirms() // Flush all previous publish confirmations
+
+	Publish:
+		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
+		err := chanHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				Priority:      letter.Envelope.Priority,
+				MessageId:     letter.LetterID.String(),
+				CorrelationId: letter.Envelope.CorrelationID,
+				Type:          letter.Envelope.Type,
+				Timestamp:     time.Now().UTC(),
+				AppId:         pub.Config.PoolConfig.ApplicationName,
+			},
+		)
+		if err != nil {
+			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			continue // Take it again! From the top!
+		}
+
+		// Wait for very next confirmation on this channel, which should be our confirmation.
+		for {
+			select {
+			case <-timeoutAfter:
+				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String())
+
+			case confirmation := <-chanHost.Confirmations:
+
+				if !confirmation.Ack {
+					goto Publish //nack has occurred, republish
+				}
+
+				// Happy Path, publish was received by server and we didn't timeout client side.
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				return nil
+
+			default:
+
+				time.Sleep(time.Duration(time.Millisecond * 1)) // limits CPU spin up
+			}
+		}
+	}
+}
+
 // PublishWithConfirmationContext sends a single message to the address on the letter with confirmation capabilities.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
 // A timeout failure drops the letter back in the PublishReceipts.
@@ -217,14 +325,16 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
-				Priority:     letter.Envelope.Priority,
-				MessageId:    letter.LetterID.String(),
-				Timestamp:    time.Now().UTC(),
-				AppId:        pub.Config.PoolConfig.ApplicationName,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				Priority:      letter.Envelope.Priority,
+				MessageId:     letter.LetterID.String(),
+				CorrelationId: letter.Envelope.CorrelationID,
+				Type:          letter.Envelope.Type,
+				Timestamp:     time.Now().UTC(),
+				AppId:         pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -259,6 +369,65 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 	}
 }
 
+// PublishWithConfirmationContextError sends a single message to the address on the letter with confirmation capabilities.
+// This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
+// A timeout failure drops the letter back in the PublishReceipts.
+// A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
+func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, letter *Letter) error {
+
+	for {
+		// Has to use an Ackable channel for Publish Confirmations.
+		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost.FlushConfirms() // Flush all previous publish confirmations
+
+	Publish:
+		err := chanHost.Channel.Publish(
+			letter.Envelope.Exchange,
+			letter.Envelope.RoutingKey,
+			letter.Envelope.Mandatory,
+			letter.Envelope.Immediate,
+			amqp.Publishing{
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				Priority:      letter.Envelope.Priority,
+				MessageId:     letter.LetterID.String(),
+				CorrelationId: letter.Envelope.CorrelationID,
+				Type:          letter.Envelope.Type,
+				Timestamp:     time.Now().UTC(),
+				AppId:         pub.Config.PoolConfig.ApplicationName,
+			},
+		)
+		if err != nil {
+			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			continue // Take it again! From the top!
+		}
+
+		// Wait for very next confirmation on this channel, which should be our confirmation.
+		for {
+			select {
+			case <-ctx.Done():
+				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String())
+
+			case confirmation := <-chanHost.Confirmations:
+
+				if !confirmation.Ack {
+					goto Publish //nack has occurred, republish
+				}
+
+				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				return nil
+
+			default:
+
+				time.Sleep(time.Duration(time.Millisecond * 1)) // limits CPU spin up
+			}
+		}
+	}
+}
+
 // PublishWithConfirmationTransient sends a single message to the address on the letter with confirmation capabilities on transient Channels.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
 // A timeout failure drops the letter back in the PublishReceipts. When combined with QueueLetter, it automatically
@@ -284,14 +453,16 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 			letter.Envelope.Mandatory,
 			letter.Envelope.Immediate,
 			amqp.Publishing{
-				ContentType:  letter.Envelope.ContentType,
-				Body:         letter.Body,
-				Headers:      letter.Envelope.Headers,
-				DeliveryMode: letter.Envelope.DeliveryMode,
-				Priority:     letter.Envelope.Priority,
-				MessageId:    letter.LetterID.String(),
-				Timestamp:    time.Now().UTC(),
-				AppId:        pub.Config.PoolConfig.ApplicationName,
+				ContentType:   letter.Envelope.ContentType,
+				Body:          letter.Body,
+				Headers:       letter.Envelope.Headers,
+				DeliveryMode:  letter.Envelope.DeliveryMode,
+				Priority:      letter.Envelope.Priority,
+				MessageId:     letter.LetterID.String(),
+				CorrelationId: letter.Envelope.CorrelationID,
+				Type:          letter.Envelope.Type,
+				Timestamp:     time.Now().UTC(),
+				AppId:         pub.Config.PoolConfig.ApplicationName,
 			},
 		)
 		if err != nil {
