@@ -9,7 +9,7 @@
 
 ### Work Recently Finished (v2.1.2 & 2.1.3)
  * Dependency updates and comment cleanup.
-   * Now on Go 1.16.
+   * Now on Go 1.18.
  * All changes recommended by `golangci-lint` (mostly cosmetic).
  * Fixing the func named BuildToplogy -> BuildTopology.
 
