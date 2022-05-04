@@ -360,5 +360,7 @@ FlushLoop:
 
 // Started allows you to determine if a consumer has started.
 func (con *Consumer) Started() bool {
+	con.conLock.Lock()
+	defer con.conLock.Unlock()
 	return con.started
 }
