@@ -27,32 +27,7 @@ type ConnectionPool struct {
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
-
-	if config.Heartbeat == 0 || config.ConnectionTimeout == 0 {
-		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
-	}
-
-	if config.MaxConnectionCount == 0 {
-		return nil, errors.New("connectionpool maxconnectioncount can't be 0")
-	}
-
-	cp := &ConnectionPool{
-		Config:               *config,
-		uri:                  config.URI,
-		heartbeatInterval:    time.Duration(config.Heartbeat) * time.Second,
-		connectionTimeout:    time.Duration(config.ConnectionTimeout) * time.Second,
-		connections:          queue.New(int64(config.MaxConnectionCount)), // possible overflow error
-		channels:             make(chan *ChannelHost, config.MaxCacheChannelCount),
-		poolRWLock:           &sync.RWMutex{},
-		flaggedConnections:   make(map[uint64]bool),
-		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
-	}
-
-	if ok := cp.initializeConnections(); !ok {
-		return nil, errors.New("initialization failed during connection creation")
-	}
-
-	return cp, nil
+	return NewConnectionPoolWithErrorHandler(config, nil)
 }
 
 // NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool.
