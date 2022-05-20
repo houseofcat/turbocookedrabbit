@@ -2,7 +2,6 @@ package tcr
 
 import (
 	"crypto/tls"
-	"errors"
 	"sync"
 	"time"
 
@@ -45,20 +44,20 @@ func NewConnectionHost(
 		connLock:          &sync.Mutex{},
 	}
 
-	ok := connHost.Connect()
-	if !ok {
-		return nil, errors.New("unable to connect")
+	err := connHost.Connect()
+	if err != nil {
+		return nil, err
 	}
 
 	return connHost, nil
 }
 
 // Connect tries to connect (or reconnect) to the provided properties of the host one time.
-func (ch *ConnectionHost) Connect() bool {
+func (ch *ConnectionHost) Connect() error {
 
 	// Compare, Lock, Recompare Strategy
 	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
-		return true
+		return nil
 	}
 
 	ch.connLock.Lock() // Block all but one.
@@ -66,7 +65,7 @@ func (ch *ConnectionHost) Connect() bool {
 
 	// Recompare, check if an operation is still necessary after acquiring lock.
 	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
-		return true
+		return nil
 	}
 
 	// Proceed with reconnectivity
@@ -80,7 +79,7 @@ func (ch *ConnectionHost) Connect() bool {
 			ch.tlsConfig.PEMCertLocation,
 			ch.tlsConfig.LocalCertLocation)
 		if err != nil {
-			return false
+			return err
 		}
 	}
 
@@ -103,7 +102,7 @@ func (ch *ConnectionHost) Connect() bool {
 		})
 	}
 	if err != nil {
-		return false
+		return err
 	}
 
 	ch.Connection = amqpConn
@@ -113,7 +112,7 @@ func (ch *ConnectionHost) Connect() bool {
 	ch.Connection.NotifyClose(ch.Errors) // ch.Errors is closed by streadway/amqp in some scenarios :(
 	ch.Connection.NotifyBlocked(ch.Blockers)
 
-	return true
+	return nil
 }
 
 // PauseOnFlowControl allows you to wait and sleep while receiving flow control messages.

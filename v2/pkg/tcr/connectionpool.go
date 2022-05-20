@@ -156,11 +156,9 @@ func (cp *ConnectionPool) triggerConnectionRecovery(connHost *ConnectionHost) {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
-		ok := connHost.Connect()
-		if !ok {
-			if cp.sleepOnErrorInterval > 0 {
-				time.Sleep(cp.sleepOnErrorInterval)
-			}
+		err := connHost.Connect()
+		if err != nil {
+			cp.handleError(err)
 			continue
 		}
 		break
