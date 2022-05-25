@@ -23,16 +23,26 @@ type ConnectionPool struct {
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
 	errorHandler         func(error)
+	unhealthyHandler     func(error)
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
-	return NewConnectionPoolWithErrorHandler(config, nil)
+	return NewConnectionPoolWithWithHandlers(config, nil, nil)
 }
 
-// NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool.
+// NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool with an error handler.
 func NewConnectionPoolWithErrorHandler(config *PoolConfig, errorHandler func(error)) (*ConnectionPool, error) {
+	return NewConnectionPoolWithWithHandlers(config, errorHandler, nil)
+}
 
+// NewConnectionPoolWithWithUnhealthyHandler creates hosting structure for the ConnectionPool with an unhealthy handler.
+func NewConnectionPoolWithWithUnhealthyHandler(config *PoolConfig, unhealthyHandler func(error)) (*ConnectionPool, error) {
+	return NewConnectionPoolWithWithHandlers(config, nil, unhealthyHandler)
+}
+
+// NewConnectionPoolWithWithHandlers creates hosting structure for the ConnectionPool with an error and/or unhealthy handler.
+func NewConnectionPoolWithWithHandlers(config *PoolConfig, errorHandler func(error), unhealthyHandler func(error)) (*ConnectionPool, error) {
 	if config.Heartbeat == 0 || config.ConnectionTimeout == 0 {
 		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
 	}
@@ -52,6 +62,7 @@ func NewConnectionPoolWithErrorHandler(config *PoolConfig, errorHandler func(err
 		flaggedConnections:   make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		errorHandler:         errorHandler,
+		unhealthyHandler:     unhealthyHandler,
 	}
 
 	if ok := cp.initializeConnections(); !ok {
@@ -135,8 +146,8 @@ func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 	select {
 	case err := <-connHost.Errors:
 		healthy = false
-		if cp.errorHandler != nil {
-			cp.errorHandler(err)
+		if cp.unhealthyHandler != nil {
+			cp.unhealthyHandler(err)
 		}
 	default:
 		break
@@ -156,9 +167,11 @@ func (cp *ConnectionPool) triggerConnectionRecovery(connHost *ConnectionHost) {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
-		err := connHost.Connect()
-		if err != nil {
-			cp.handleError(err)
+		ok := connHost.ConnectWithErrorHandler(cp.unhealthyHandler)
+		if !ok {
+			if cp.sleepOnErrorInterval > 0 {
+				time.Sleep(cp.sleepOnErrorInterval)
+			}
 			continue
 		}
 		break

@@ -34,10 +34,22 @@ func NewRabbitService(
 	processPublishReceipts func(*PublishReceipt),
 	processError func(error)) (*RabbitService, error) {
 
-	connectionPool, err := NewConnectionPoolWithErrorHandler(config.PoolConfig, processError)
+	connectionPool, err := NewConnectionPool(config.PoolConfig)
 	if err != nil {
 		return nil, err
 	}
+
+	return NewRabbitServiceWithConnectionPool(connectionPool, config, passphrase, salt, processPublishReceipts, processError)
+}
+
+// NewRabbitServiceWithConnectionPool creates everything you need for a RabbitMQ communication service from a connection pool.
+func NewRabbitServiceWithConnectionPool(
+	connectionPool *ConnectionPool,
+	config *RabbitSeasoning,
+	passphrase string,
+	salt string,
+	processPublishReceipts func(*PublishReceipt),
+	processError func(error)) (*RabbitService, error) {
 
 	publisher := NewPublisherFromConfig(config, connectionPool)
 	topologer := NewTopologer(connectionPool)
@@ -55,7 +67,7 @@ func NewRabbitService(
 	}
 
 	// Build a Map for Consumer retrieval.
-	err = rs.createConsumers(config.ConsumerConfigs)
+	err := rs.createConsumers(config.ConsumerConfigs)
 	if err != nil {
 		return nil, err
 	}
