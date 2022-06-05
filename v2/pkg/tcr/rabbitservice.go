@@ -52,10 +52,22 @@ func NewRabbitServiceWithConnectionPool(
 	processError func(error)) (*RabbitService, error) {
 
 	publisher := NewPublisherFromConfig(config, connectionPool)
-	topologer := NewTopologer(connectionPool)
+	return NewRabbitServiceWithPublisher(publisher, config, passphrase, salt, processPublishReceipts, processError)
+}
+
+// NewRabbitServiceWithPublisher creates everything you need for a RabbitMQ communication service from a publisher.
+func NewRabbitServiceWithPublisher(
+	publisher *Publisher,
+	config *RabbitSeasoning,
+	passphrase string,
+	salt string,
+	processPublishReceipts func(*PublishReceipt),
+	processError func(error)) (*RabbitService, error) {
+
+	topologer := NewTopologer(publisher.ConnectionPool)
 
 	rs := &RabbitService{
-		ConnectionPool:       connectionPool,
+		ConnectionPool:       publisher.ConnectionPool,
 		Config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
