@@ -12,11 +12,11 @@ var mockRandomSource = rand.NewSource(time.Now().UnixNano())
 var mockRandom = rand.New(mockRandomSource)
 
 // CreateLetter creates a simple letter for publishing.
-func CreateLetter(exchangeName string, queueName string, body []byte) *Letter {
+func CreateLetter(exchangeName string, routingKey string, body []byte) *Letter {
 
 	envelope := &Envelope{
 		Exchange:    exchangeName,
-		RoutingKey:  queueName,
+		RoutingKey:  routingKey,
 		ContentType: "application/json",
 	}
 
@@ -29,7 +29,7 @@ func CreateLetter(exchangeName string, queueName string, body []byte) *Letter {
 }
 
 // CreateMockLetter creates a mock letter for publishing.
-func CreateMockLetter(exchangeName string, queueName string, body []byte) *Letter {
+func CreateMockLetter(exchangeName string, routingKey string, body []byte) *Letter {
 
 	if body == nil { //   h   e   l   l   o       w   o   r   l   d
 		body = []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
@@ -37,7 +37,7 @@ func CreateMockLetter(exchangeName string, queueName string, body []byte) *Lette
 
 	envelope := &Envelope{
 		Exchange:     exchangeName,
-		RoutingKey:   queueName,
+		RoutingKey:   routingKey,
 		ContentType:  "application/json",
 		DeliveryMode: 2,
 	}
@@ -51,13 +51,13 @@ func CreateMockLetter(exchangeName string, queueName string, body []byte) *Lette
 }
 
 // CreateMockRandomLetter creates a mock letter for publishing with random sizes and random Ids.
-func CreateMockRandomLetter(queueName string) *Letter {
+func CreateMockRandomLetter(routingKey string) *Letter {
 
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
 	envelope := &Envelope{
 		Exchange:     "",
-		RoutingKey:   queueName,
+		RoutingKey:   routingKey,
 		ContentType:  "application/json",
 		DeliveryMode: 2,
 		Headers:      make(amqp.Table),
@@ -74,13 +74,13 @@ func CreateMockRandomLetter(queueName string) *Letter {
 }
 
 // CreateMockRandomWrappedBodyLetter creates a mock Letter for publishing with random sizes and random Ids.
-func CreateMockRandomWrappedBodyLetter(queueName string) *Letter {
+func CreateMockRandomWrappedBodyLetter(routingKey string) *Letter {
 
 	body := RandomBytes(mockRandom.Intn(randomMax-randomMin) + randomMin)
 
 	envelope := &Envelope{
 		Exchange:     "",
-		RoutingKey:   queueName,
+		RoutingKey:   routingKey,
 		ContentType:  "application/json",
 		DeliveryMode: 2,
 	}
