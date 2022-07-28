@@ -95,7 +95,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.Config.PoolConfig.ApplicationName,
+			AppId:         pub.ConnectionPool.Config.ApplicationName,
 		},
 	)
 
@@ -128,7 +128,7 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.Config.PoolConfig.ApplicationName,
+			AppId:         pub.ConnectionPool.Config.ApplicationName,
 		},
 	)
 
@@ -168,7 +168,7 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.Config.PoolConfig.ApplicationName,
+			AppId:         pub.ConnectionPool.Config.ApplicationName,
 		},
 	)
 }
@@ -206,7 +206,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.Config.PoolConfig.ApplicationName,
+				AppId:         pub.ConnectionPool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -274,7 +274,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.Config.PoolConfig.ApplicationName,
+				AppId:         pub.ConnectionPool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -334,7 +334,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.Config.PoolConfig.ApplicationName,
+				AppId:         pub.ConnectionPool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -396,7 +396,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.Config.PoolConfig.ApplicationName,
+				AppId:         pub.ConnectionPool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -462,7 +462,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.Config.PoolConfig.ApplicationName,
+				AppId:         pub.ConnectionPool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
