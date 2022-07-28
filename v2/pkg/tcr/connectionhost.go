@@ -55,6 +55,11 @@ func NewConnectionHost(
 
 // Connect tries to connect (or reconnect) to the provided properties of the host one time.
 func (ch *ConnectionHost) Connect() bool {
+	return ch.ConnectWithErrorHandler(nil)
+}
+
+// ConnectWithErrorHandler tries to connect (or reconnect) to the provided properties of the host one time with an error handler.
+func (ch *ConnectionHost) ConnectWithErrorHandler(errorHandler func(error)) bool {
 
 	// Compare, Lock, Recompare Strategy
 	if ch.Connection != nil && !ch.Connection.IsClosed() /* <- atomic */ {
@@ -80,6 +85,9 @@ func (ch *ConnectionHost) Connect() bool {
 			ch.tlsConfig.PEMCertLocation,
 			ch.tlsConfig.LocalCertLocation)
 		if err != nil {
+			if errorHandler != nil {
+				errorHandler(err)
+			}
 			return false
 		}
 	}
@@ -103,6 +111,9 @@ func (ch *ConnectionHost) Connect() bool {
 		})
 	}
 	if err != nil {
+		if errorHandler != nil {
+			errorHandler(err)
+		}
 		return false
 	}
 

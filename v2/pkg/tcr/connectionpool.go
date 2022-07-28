@@ -23,41 +23,26 @@ type ConnectionPool struct {
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
 	errorHandler         func(error)
+	unhealthyHandler     func(error)
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
 func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
-
-	if config.Heartbeat == 0 || config.ConnectionTimeout == 0 {
-		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
-	}
-
-	if config.MaxConnectionCount == 0 {
-		return nil, errors.New("connectionpool maxconnectioncount can't be 0")
-	}
-
-	cp := &ConnectionPool{
-		Config:               *config,
-		uri:                  config.URI,
-		heartbeatInterval:    time.Duration(config.Heartbeat) * time.Second,
-		connectionTimeout:    time.Duration(config.ConnectionTimeout) * time.Second,
-		connections:          queue.New(int64(config.MaxConnectionCount)), // possible overflow error
-		channels:             make(chan *ChannelHost, config.MaxCacheChannelCount),
-		poolRWLock:           &sync.RWMutex{},
-		flaggedConnections:   make(map[uint64]bool),
-		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
-	}
-
-	if ok := cp.initializeConnections(); !ok {
-		return nil, errors.New("initialization failed during connection creation")
-	}
-
-	return cp, nil
+	return NewConnectionPoolWithHandlers(config, nil, nil)
 }
 
-// NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool.
+// NewConnectionPoolWithErrorHandler creates hosting structure for the ConnectionPool with an error handler.
 func NewConnectionPoolWithErrorHandler(config *PoolConfig, errorHandler func(error)) (*ConnectionPool, error) {
+	return NewConnectionPoolWithHandlers(config, errorHandler, nil)
+}
 
+// NewConnectionPoolWithUnhealthyHandler creates hosting structure for the ConnectionPool with an unhealthy handler.
+func NewConnectionPoolWithUnhealthyHandler(config *PoolConfig, unhealthyHandler func(error)) (*ConnectionPool, error) {
+	return NewConnectionPoolWithHandlers(config, nil, unhealthyHandler)
+}
+
+// NewConnectionPoolWithHandlers creates hosting structure for the ConnectionPool with an error and/or unhealthy handler.
+func NewConnectionPoolWithHandlers(config *PoolConfig, errorHandler func(error), unhealthyHandler func(error)) (*ConnectionPool, error) {
 	if config.Heartbeat == 0 || config.ConnectionTimeout == 0 {
 		return nil, errors.New("connectionpool heartbeat or connectiontimeout can't be 0")
 	}
@@ -77,6 +62,7 @@ func NewConnectionPoolWithErrorHandler(config *PoolConfig, errorHandler func(err
 		flaggedConnections:   make(map[uint64]bool),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		errorHandler:         errorHandler,
+		unhealthyHandler:     unhealthyHandler,
 	}
 
 	if ok := cp.initializeConnections(); !ok {
@@ -158,8 +144,11 @@ func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 
 	healthy := true
 	select {
-	case <-connHost.Errors:
+	case err := <-connHost.Errors:
 		healthy = false
+		if cp.unhealthyHandler != nil {
+			cp.unhealthyHandler(err)
+		}
 	default:
 		break
 	}
@@ -167,7 +156,7 @@ func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 	flagged := cp.isConnectionFlagged(connHost.ConnectionID)
 
 	// Between these three states we do our best to determine that a connection is dead in the various lifecycles.
-	if flagged || !healthy || connHost.Connection.IsClosed( /* atomic */ ) {
+	if flagged || !healthy || connHost.Connection.IsClosed( /* atomic */) {
 		cp.triggerConnectionRecovery(connHost)
 	}
 
@@ -178,7 +167,7 @@ func (cp *ConnectionPool) triggerConnectionRecovery(connHost *ConnectionHost) {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
-		ok := connHost.Connect()
+		ok := connHost.ConnectWithErrorHandler(cp.unhealthyHandler)
 		if !ok {
 			if cp.sleepOnErrorInterval > 0 {
 				time.Sleep(cp.sleepOnErrorInterval)
