@@ -7,7 +7,7 @@
 
 <a title="Release" target="_blank" href="https://github.com/houseofcat/turbocookedrabbit/releases"><img src="https://img.shields.io/github/release/houseofcat/turbocookedrabbit.svg?style=flat-square"></a>  
 
-### Work Recently Finished (v2.1.2 & 2.1.3)
+### Work Recently Finished (v2.2.0)
  * Dependency updates and comment cleanup.
    * Now on Go 1.18.
  * All changes recommended by `golangci-lint` (mostly cosmetic).
@@ -19,12 +19,12 @@ The v1 API is no longer supported. The tags will be kept to prevent breaking any
 ### Goals
 The major goals (now that everything is working well) are to aid quality of life and visibility. Be sure to visit tests for examples on how to do a variety of actions with the library. They are always kept up to date, even if the `README.md` falls short at times.
 
-### Developer's Notes
+### Developer's v3 Notes
 
- * Golang 1.16.5 (2021/08/24)
- * RabbitMQ Server v3.8.14 (simple localhost)
- * Erlang v24.0
- * Streadway/Amqp v1.0.0
+ * Golang 1.18.4 (2022/07/29)
+ * RabbitMQ Server v3.10.6 (simple localhost)
+ * Erlang v25.3
+ * github.com/rabbitmq/amqp091-go
 
 <details><summary>Click here to see how to migrate (or get V2) and breaking details!</summary>
 <p>
