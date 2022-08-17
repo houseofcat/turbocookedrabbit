@@ -2,7 +2,7 @@ package tcr
 
 import (
 	"github.com/google/uuid"
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // Letter contains the message body and address of where things are going.

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/streadway/amqp"
+	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 // ChannelHost is an internal representation of amqp.Channel.

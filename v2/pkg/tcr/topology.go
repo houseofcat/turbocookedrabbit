@@ -1,6 +1,6 @@
 package tcr
 
-import "github.com/streadway/amqp"
+import amqp "github.com/rabbitmq/amqp091-go"
 
 // Exchange allows for you to create Exchange topology.
 type Exchange struct {
@@ -22,7 +22,7 @@ type Queue struct {
 	AutoDelete     bool       `json:"AutoDelete" yaml:"AutoDelete"`
 	Exclusive      bool       `json:"Exclusive" yaml:"Exclusive"`
 	NoWait         bool       `json:"NoWait" yaml:"NoWait"`
-	Type           string     `json:"Type" yaml:"Type"`           // classic or quorum, type of quorum disregards exclusive and enables durable properties when building from config
+	Type           string     `json:"Type" yaml:"Type"`                     // classic or quorum, type of quorum disregards exclusive and enables durable properties when building from config
 	Args           amqp.Table `json:"Args,omitempty" yaml:"Args,omitempty"` // map[string]interface()
 }
 
