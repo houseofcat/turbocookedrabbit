@@ -10,6 +10,7 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
@@ -30,11 +31,12 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			chanHost := ConnectionPool.GetChannelFromPool()
+			chanHost, err := ConnectionPool.GetChannelFromPool()
+			require.NoError(t, err)
 
 			time.Sleep(time.Millisecond * 100) // artificially create channel poool contention by long exposure
 
-			err := chanHost.Channel.Publish("", "TcrTestQueue", false, false, amqp.Publishing{
+			err = chanHost.Channel.Publish("", "TcrTestQueue", false, false, amqp.Publishing{
 				ContentType:  "plaintext/text",
 				Body:         body,
 				DeliveryMode: 2,

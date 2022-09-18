@@ -69,7 +69,8 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	chanHost := cp.GetChannelFromPool()
+	chanHost, err := cp.GetChannelFromPool()
+	assert.NoError(t, err)
 	assert.NotNil(t, chanHost)
 
 	cp.Shutdown()
@@ -84,7 +85,8 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
-	chanHost := cp.GetChannelFromPool()
+	chanHost, err := cp.GetChannelFromPool()
+	assert.NoError(t, err)
 	assert.NotNil(t, chanHost)
 	chanHost.Close()
 
@@ -111,7 +113,8 @@ func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 
 	for i := 0; i < 1000000; i++ {
 
-		chanHost := ConnectionPool.GetChannelFromPool()
+		chanHost, err := ConnectionPool.GetChannelFromPool()
+		assert.NoError(t, err)
 
 		ConnectionPool.ReturnChannel(chanHost, false)
 	}
