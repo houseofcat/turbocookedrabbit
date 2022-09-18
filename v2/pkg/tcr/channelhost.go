@@ -1,7 +1,7 @@
 package tcr
 
 import (
-	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/streadway/amqp"
@@ -28,7 +28,7 @@ func NewChannelHost(
 	ackable, cached bool) (*ChannelHost, error) {
 
 	if connHost.Connection.IsClosed() {
-		return nil, errors.New("can't open a channel - connection is already closed")
+		return nil, fmt.Errorf("can't open channel: %w", ErrConnectionClosed)
 	}
 
 	chanHost := &ChannelHost{
