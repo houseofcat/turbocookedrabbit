@@ -78,9 +78,15 @@ func NewPublisher(
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 
-	chanHost := pub.ConnectionPool.GetChannelFromPool()
+	chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+	if err != nil {
+		// potential problem of loosing the letter
+		// upon shutdown of the connection pool
+		pub.ConnectionPool.ReturnChannel(chanHost, true)
+		return
+	}
 
-	err := chanHost.Channel.Publish(
+	err = chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
 		letter.Envelope.RoutingKey,
 		letter.Envelope.Mandatory,
@@ -111,9 +117,12 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 
-	chanHost := pub.ConnectionPool.GetChannelFromPool()
+	chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+	if err != nil {
+		return err
+	}
 
-	err := chanHost.Channel.Publish(
+	err = chanHost.Channel.Publish(
 		letter.Envelope.Exchange,
 		letter.Envelope.RoutingKey,
 		letter.Envelope.Mandatory,
@@ -145,7 +154,10 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 
-	channel := pub.ConnectionPool.GetTransientChannel(false)
+	channel, err := pub.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return fmt.Errorf("publish failed: %w", err)
+	}
 	defer func() {
 		defer func() {
 			_ = recover()
@@ -186,12 +198,16 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		if err != nil {
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			return
+		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
 		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
-		err := chanHost.Channel.Publish(
+		err = chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -254,12 +270,15 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		if err != nil {
+			return fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String())
+		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
 		timeoutAfter := time.After(timeout) // timeoutAfter resets everytime we try to publish.
-		err := chanHost.Channel.Publish(
+		err = chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -315,11 +334,15 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		if err != nil {
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			return
+		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
-		err := chanHost.Channel.Publish(
+		err = chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -377,11 +400,14 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		if err != nil {
+			return fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String())
+		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
 	Publish:
-		err := chanHost.Channel.Publish(
+		err = chanHost.Channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
@@ -441,13 +467,17 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		channel := pub.ConnectionPool.GetTransientChannel(true)
+		channel, err := pub.ConnectionPool.GetTransientChannel(true)
+		if err != nil {
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			return
+		}
 		confirms := make(chan amqp.Confirmation, 1)
 		channel.NotifyPublish(confirms)
 
 	Publish:
 		timeoutAfter := time.After(timeout)
-		err := channel.Publish(
+		err = channel.Publish(
 			letter.Envelope.Exchange,
 			letter.Envelope.RoutingKey,
 			letter.Envelope.Mandatory,
