@@ -128,7 +128,10 @@ func (top *Topologer) CreateExchange(
 	passiveDeclare, durable, autoDelete, internal, noWait bool,
 	args map[string]interface{}) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	if passiveDeclare {
@@ -141,7 +144,10 @@ func (top *Topologer) CreateExchange(
 // CreateExchangeFromConfig builds an Exchange topology from a config Exchange element.
 func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	if exchange.PassiveDeclare {
@@ -168,7 +174,10 @@ func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 // ExchangeBind binds an exchange to an Exchange.
 func (top *Topologer) ExchangeBind(exchangeBinding *ExchangeBinding) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	return channel.ExchangeBind(
@@ -184,7 +193,10 @@ func (top *Topologer) ExchangeDelete(
 	exchangeName string,
 	ifUnused, noWait bool) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	return channel.ExchangeDelete(exchangeName, ifUnused, noWait)
@@ -193,7 +205,10 @@ func (top *Topologer) ExchangeDelete(
 // ExchangeUnbind removes the binding of an Exchange to an Exchange.
 func (top *Topologer) ExchangeUnbind(exchangeName, routingKey, parentExchangeName string, noWait bool, args map[string]interface{}) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	return channel.ExchangeUnbind(
@@ -214,7 +229,10 @@ func (top *Topologer) CreateQueue(
 	noWait bool,
 	args map[string]interface{}) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	if passiveDeclare {
@@ -222,14 +240,17 @@ func (top *Topologer) CreateQueue(
 		return err
 	}
 
-	_, err := channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
+	_, err = channel.QueueDeclare(queueName, durable, autoDelete, exclusive, noWait, amqp.Table(args))
 	return err
 }
 
 // CreateQueueFromConfig builds a Queue topology from a config Exchange element.
 func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	// classic is automatic and supports all classic properties, quorum type does not so this helps keep things functional
@@ -251,14 +272,17 @@ func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 		return err
 	}
 
-	_, err := channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
+	_, err = channel.QueueDeclare(queue.Name, queue.Durable, queue.AutoDelete, queue.Exclusive, queue.NoWait, queue.Args)
 	return err
 }
 
 // QueueDelete removes the queue from the server (and all bindings) and returns messages purged (count).
 func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error) {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return 0, err
+	}
 	defer channel.Close()
 
 	return channel.QueueDelete(name, ifUnused, ifEmpty, noWait)
@@ -267,7 +291,10 @@ func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (
 // QueueBind binds an Exchange to a Queue.
 func (top *Topologer) QueueBind(queueBinding *QueueBinding) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	return channel.QueueBind(
@@ -301,7 +328,10 @@ func (top *Topologer) PurgeQueues(queueNames []string, noWait bool) (int, error)
 // PurgeQueue removes all messages from the Queue that are not waiting to be Acknowledged and returns the count.
 func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return 0, err
+	}
 	defer channel.Close()
 
 	return channel.QueuePurge(
@@ -312,7 +342,10 @@ func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 // UnbindQueue removes the binding of a Queue to an Exchange.
 func (top *Topologer) UnbindQueue(queueName, routingKey, exchangeName string, args map[string]interface{}) error {
 
-	channel := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return err
+	}
 	defer channel.Close()
 
 	return channel.QueueUnbind(
