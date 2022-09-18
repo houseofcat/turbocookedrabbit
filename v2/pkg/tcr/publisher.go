@@ -200,7 +200,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
 		if err != nil {
-			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
 		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
@@ -272,7 +272,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
 		if err != nil {
-			return fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String())
+			return fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err)
 		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
@@ -336,7 +336,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
 		if err != nil {
-			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
 		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
@@ -402,7 +402,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 		// Has to use an Ackable channel for Publish Confirmations.
 		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
 		if err != nil {
-			return fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String())
+			return fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err)
 		}
 		chanHost.FlushConfirms() // Flush all previous publish confirmations
 
@@ -469,7 +469,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 		// Has to use an Ackable channel for Publish Confirmations.
 		channel, err := pub.ConnectionPool.GetTransientChannel(true)
 		if err != nil {
-			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", err, letter.LetterID.String()))
+			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
 		}
 		confirms := make(chan amqp.Confirmation, 1)

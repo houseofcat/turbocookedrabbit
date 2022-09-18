@@ -413,7 +413,8 @@ ChannelFlushLoop:
 
 			connectionHost, ok := item.(*ConnectionHost)
 			if !ok {
-
+				// library programming error that cannot be handled
+				panic("invalid struct type found in ConnectionPool queue")
 			}
 
 			// Started receiving panics on Connection.Close()
