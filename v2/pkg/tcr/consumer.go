@@ -103,7 +103,10 @@ func NewConsumer(
 func (con *Consumer) Get(queueName string) (*amqp.Delivery, error) {
 
 	// Get Channel
-	channel := con.ConnectionPool.GetTransientChannel(false)
+	channel, err := con.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return nil, err
+	}
 	defer channel.Close()
 
 	// Get Single Message
@@ -127,7 +130,10 @@ func (con *Consumer) GetBatch(queueName string, batchSize int) ([]*amqp.Delivery
 	}
 
 	// Get Channel
-	channel := con.ConnectionPool.GetTransientChannel(false)
+	channel, err := con.ConnectionPool.GetTransientChannel(false)
+	if err != nil {
+		return nil, err
+	}
 	defer channel.Close()
 
 	messages := make([]*amqp.Delivery, 0)
@@ -200,7 +206,16 @@ ConsumeLoop:
 		}
 
 		// Get ChannelHost
-		chanHost := con.ConnectionPool.GetChannelFromPool()
+		chanHost, err := con.ConnectionPool.GetChannelFromPool()
+		if err != nil {
+			if con.sleepOnErrorInterval > 0 {
+				time.Sleep(con.sleepOnErrorInterval)
+			}
+			// in the next loop iteration
+			// the consumer is supposed to be stopped
+			// due to consumer
+			continue
+		}
 
 		// Configure RabbitMQ channel QoS for Consumer
 		if con.qosCountOverride > 0 {
