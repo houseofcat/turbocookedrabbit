@@ -2,6 +2,7 @@ package tcr
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"sync"
 	"time"
@@ -24,6 +25,8 @@ type ConnectionPool struct {
 	sleepOnErrorInterval time.Duration
 	errorHandler         func(error)
 	unhealthyHandler     func(error)
+
+	shutdownChan chan struct{}
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
@@ -63,16 +66,19 @@ func NewConnectionPoolWithHandlers(config *PoolConfig, errorHandler func(error),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		errorHandler:         errorHandler,
 		unhealthyHandler:     unhealthyHandler,
+		shutdownChan:         make(chan struct{}),
 	}
 
-	if ok := cp.initializeConnections(); !ok {
-		return nil, errors.New("initialization failed during connection creation")
+	err := cp.initializeConnections()
+	if err != nil {
+		// we do not "handle" errors that are properly returned
+		return nil, fmt.Errorf("initialization failed during connection creation: %w", err)
 	}
 
 	return cp, nil
 }
 
-func (cp *ConnectionPool) initializeConnections() bool {
+func (cp *ConnectionPool) initializeConnections() error {
 
 	cp.connectionID = 0
 	cp.connections = queue.New(int64(cp.Config.MaxConnectionCount))
@@ -88,23 +94,25 @@ func (cp *ConnectionPool) initializeConnections() bool {
 			cp.Config.TLSConfig)
 
 		if err != nil {
-			cp.handleError(err)
-			return false
+			return err
 		}
 
 		if err = cp.connections.Put(connectionHost); err != nil {
-			cp.handleError(err)
-			return false
+			return fmt.Errorf("%w: %v", ErrConnectionPoolClosed, err)
 		}
 
 		cp.connectionID++
 	}
 
 	for i := uint64(0); i < cp.Config.MaxCacheChannelCount; i++ {
-		cp.channels <- cp.createCacheChannel(i)
+		ch, err := cp.createCacheChannel(i)
+		if err != nil {
+			return err
+		}
+		cp.channels <- ch
 	}
 
-	return true
+	return nil
 }
 
 // GetConnection gets a connection based on whats in the ConnectionPool (blocking under bad network conditions).
@@ -113,8 +121,7 @@ func (cp *ConnectionPool) initializeConnections() bool {
 func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
 
 	connHost, err := cp.getConnectionFromPool()
-	if err != nil { // errors on bad data in the queue
-		cp.handleError(err)
+	if err != nil { // errors upon shutdown
 		return nil, err
 	}
 
@@ -127,14 +134,18 @@ func (cp *ConnectionPool) getConnectionFromPool() (*ConnectionHost, error) {
 
 	// Pull from the queue.
 	// Pauses here indefinitely if the queue is empty.
+	// The only exception to this pausing is when the
+	// pool has been shut down asyncronously and the queue
+	// has been disposed of.
 	structs, err := cp.connections.Get(1)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("%w: %v", ErrConnectionPoolClosed, err)
 	}
 
 	connHost, ok := structs[0].(*ConnectionHost)
 	if !ok {
-		return nil, errors.New("invalid struct type found in ConnectionPool queue")
+		// library programming error that cannot be handled
+		panic("invalid struct type found in ConnectionPool queue")
 	}
 
 	return connHost, nil
@@ -156,7 +167,7 @@ func (cp *ConnectionPool) verifyHealthyConnection(connHost *ConnectionHost) {
 	flagged := cp.isConnectionFlagged(connHost.ConnectionID)
 
 	// Between these three states we do our best to determine that a connection is dead in the various lifecycles.
-	if flagged || !healthy || connHost.Connection.IsClosed( /* atomic */) {
+	if flagged || !healthy || connHost.Connection.IsClosed( /* atomic */ ) {
 		cp.triggerConnectionRecovery(connHost)
 	}
 
@@ -167,6 +178,10 @@ func (cp *ConnectionPool) triggerConnectionRecovery(connHost *ConnectionHost) {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
+		if cp.isShutdown() {
+			return
+		}
+
 		ok := connHost.ConnectWithErrorHandler(cp.unhealthyHandler)
 		if !ok {
 			if cp.sleepOnErrorInterval > 0 {
@@ -196,6 +211,9 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 		cp.flagConnection(connHost.ConnectionID)
 	}
 
+	// upon shutdown this would return an error.
+	// at this point the (e.g. http request) processing would have
+	// already finished, so the user does not need to handle this error
 	_ = cp.connections.Put(connHost)
 }
 
@@ -203,9 +221,15 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 // A non-acked channel is always a transient channel.
 // Blocking if Ackable is true and the cache is empty.
 // If you want a transient Ackable channel (un-managed), use CreateChannel directly.
-func (cp *ConnectionPool) GetChannelFromPool() *ChannelHost {
-
-	return <-cp.channels
+// In case a connection pool shutdown is triggered asynchronously, this
+// method returns an error
+func (cp *ConnectionPool) GetChannelFromPool() (*ChannelHost, error) {
+	select {
+	case <-cp.catchShutdown():
+		return nil, fmt.Errorf("failed to get channel: %w", ErrConnectionPoolClosed)
+	case ch := <-cp.channels:
+		return ch, nil
+	}
 }
 
 // ReturnChannel returns a Channel.
@@ -232,10 +256,25 @@ func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, erred bool) {
 	}(chanHost)
 }
 
-func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) {
+func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) error {
 
 	// InfiniteLoop: Stay here till we reconnect.
 	for {
+		if cp.isShutdown() {
+			// received a shutdown signal while a user held
+			// the cached chanHost that he tries to return
+			// back to the connetion pool
+			wg := &sync.WaitGroup{}
+			go func(ch *ChannelHost) {
+				defer wg.Done()
+				defer func() { _ = recover() }()
+				ch.Close()
+			}(chanHost)
+
+			wg.Wait()
+			return fmt.Errorf("aborting channel reconnection: %w", ErrConnectionPoolClosed)
+		}
+
 		cp.verifyHealthyConnection(chanHost.connHost) // <- blocking operation
 
 		err := chanHost.MakeChannel() // Creates a new channel and flushes internal buffers automatically.
@@ -245,15 +284,23 @@ func (cp *ConnectionPool) reconnectChannel(chanHost *ChannelHost) {
 		}
 		break
 	}
+	return nil
 }
 
 // createCacheChannel allows you create a cached ChannelHost which helps wrap Amqp Channel functionality.
-func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
+// Only returns an error in case a connection pool shutdown was requested.
+// The returned error is a wrapped ErrConnectionPoolClosed.
+func (cp *ConnectionPool) createCacheChannel(id uint64) (*ChannelHost, error) {
 
 	// InfiniteLoop: Stay till we have a good channel.
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
+			if errors.Is(err, ErrConnectionPoolClosed) {
+				return nil, err
+			}
+			// must not be called in case an error is returned.
+			// this handling is only needed for errors that are not returned.
 			cp.handleError(err)
 			continue
 		}
@@ -266,17 +313,22 @@ func (cp *ConnectionPool) createCacheChannel(id uint64) *ChannelHost {
 		}
 
 		cp.ReturnConnection(connHost, false)
-		return chanHost
+		return chanHost, nil
 	}
 }
 
 // GetTransientChannel allows you create an unmanaged amqp Channel with the help of the ConnectionPool.
-func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
+// Only returns an error in case a connection pool shutdown was requested.
+// The returned error is a wrapped ErrConnectionPoolClosed.
+func (cp *ConnectionPool) GetTransientChannel(ackable bool) (*amqp.Channel, error) {
 
 	// InfiniteLoop: Stay till we have a good channel.
 	for {
 		connHost, err := cp.GetConnection()
 		if err != nil {
+			if errors.Is(err, ErrConnectionPoolClosed) {
+				return nil, err
+			}
 			cp.handleError(err)
 			continue
 		}
@@ -297,7 +349,7 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) *amqp.Channel {
 				continue
 			}
 		}
-		return channel
+		return channel, nil
 	}
 }
 
@@ -359,7 +411,10 @@ ChannelFlushLoop:
 		for _, item := range items {
 			wg.Add(1)
 
-			connectionHost := item.(*ConnectionHost)
+			connectionHost, ok := item.(*ConnectionHost)
+			if !ok {
+
+			}
 
 			// Started receiving panics on Connection.Close()
 			go func(*ConnectionHost) {
@@ -370,15 +425,38 @@ ChannelFlushLoop:
 					connectionHost.Connection.Close()
 				}
 			}(connectionHost)
-
 		}
 	}
 
+	// signal shutdown
+	close(cp.shutdownChan)
+	// any further queue access yields an error
+	cp.connections.Dispose()
+
 	wg.Wait()
 
+	// TODO: data race, as shutdown is more of a reset than
+	// a one time shutdown, does it make sense to shutdown only once
+	// and not reset the internal state for reuse?
+	// any of the below variables may be accessed asynchronously
+	// while we change them here
 	cp.connections = queue.New(int64(cp.Config.MaxConnectionCount))
 	cp.flaggedConnections = make(map[uint64]bool)
 	cp.connectionID = 0
+	cp.shutdownChan = make(chan struct{})
+}
+
+func (cp *ConnectionPool) isShutdown() bool {
+	select {
+	case <-cp.shutdownChan:
+		return true
+	default:
+		return false
+	}
+}
+
+func (cp *ConnectionPool) catchShutdown() <-chan struct{} {
+	return cp.shutdownChan
 }
 
 func (cp *ConnectionPool) handleError(err error) {
