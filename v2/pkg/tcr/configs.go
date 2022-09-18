@@ -16,9 +16,9 @@ type PoolConfig struct {
 	Heartbeat            uint32     `json:"Heartbeat" yaml:"Heartbeat"`
 	ConnectionTimeout    uint32     `json:"ConnectionTimeout" yaml:"ConnectionTimeout"`
 	SleepOnErrorInterval uint32     `json:"SleepOnErrorInterval" yaml:"SleepOnErrorInterval"` // sleep length on errors
-	MaxConnectionCount   uint64     `json:"MaxConnectionCount" yaml:"MaxConnectionCount"`   // number of connections to create in the pool
+	MaxConnectionCount   uint64     `json:"MaxConnectionCount" yaml:"MaxConnectionCount"`     // number of connections to create in the pool
 	MaxCacheChannelCount uint64     `json:"MaxCacheChannelCount" yaml:"MaxCacheChannelCount"` // number of channels to be cached in the pool
-	TLSConfig            *TLSConfig `json:"TLSConfig" yaml:"TLSConfig"`            // TLS settings for connection with AMQPS.
+	TLSConfig            *TLSConfig `json:"TLSConfig" yaml:"TLSConfig"`                       // TLS settings for connection with AMQPS.
 }
 
 // TLSConfig represents settings for configuring TLS.
@@ -38,9 +38,9 @@ type ConsumerConfig struct {
 	Exclusive            bool                   `json:"Exclusive" yaml:"Exclusive"`
 	NoWait               bool                   `json:"NoWait" yaml:"NoWait"`
 	Args                 map[string]interface{} `json:"Args" yaml:"Args"`
-	QosCountOverride     int                    `json:"QosCountOverride" yaml:"QosCountOverride"`     // if zero ignored
+	QosCountOverride     int                    `json:"QosCountOverride" yaml:"QosCountOverride"`         // if zero ignored
 	SleepOnErrorInterval uint32                 `json:"SleepOnErrorInterval" yaml:"SleepOnErrorInterval"` // sleep on error
-	SleepOnIdleInterval  uint32                 `json:"SleepOnIdleInterval" yaml:"SleepOnIdleInterval"`  // sleep on idle
+	SleepOnIdleInterval  uint32                 `json:"SleepOnIdleInterval" yaml:"SleepOnIdleInterval"`   // sleep on idle
 }
 
 // PublisherConfig represents settings for configuring global settings for all Publishers with ease.
