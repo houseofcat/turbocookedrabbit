@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/goleak"
 )
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
@@ -18,7 +18,7 @@ import (
 // All publish errors are not recovered but used to trigger channel recovery, total publish count should be lower
 // than expected 10,000 during outages.
 func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	body := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
 
@@ -55,7 +55,7 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 // TestOutageAndQueueLetterAccuracy is similar to the above. It is designed to be slow test connection recovery by severing all connections
 // and then verify connections and channels properly (and evenly over connections) restore.
 func TestOutageAndQueueLetterAccuracy(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
@@ -91,7 +91,7 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 
 // TestPublishWithHeaderAndVerify verifies headers are publishing.
 func TestPublishWithHeaderAndVerify(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
@@ -115,7 +115,7 @@ func TestPublishWithHeaderAndVerify(t *testing.T) {
 
 // TestPublishWithHeaderAndConsumerReceivedHeader verifies headers are being consumed into ReceivedData.
 func TestPublishWithHeaderAndConsumerReceivedHeader(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 

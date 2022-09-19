@@ -4,13 +4,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestCreateRabbitService(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	service, err := tcr.NewRabbitService(Seasoning, "", "", nil, nil)
 	assert.NoError(t, err)
@@ -20,7 +20,7 @@ func TestCreateRabbitService(t *testing.T) {
 }
 
 func TestCreateRabbitServiceWithEncryption(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.EncryptionConfig.Enabled = true
 	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
@@ -31,7 +31,7 @@ func TestCreateRabbitServiceWithEncryption(t *testing.T) {
 }
 
 func TestRabbitServicePublish(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.EncryptionConfig.Enabled = true
 	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
@@ -45,7 +45,7 @@ func TestRabbitServicePublish(t *testing.T) {
 }
 
 func TestRabbitServicePublishLetter(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.EncryptionConfig.Enabled = true
 	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
@@ -59,7 +59,7 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 }
 
 func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.EncryptionConfig.Enabled = true
 	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
@@ -73,7 +73,7 @@ func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
 }
 
 func TestRabbitServicePublishLetterToNonExistentQueueForRetryTesting(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.PublisherConfig.PublishTimeOutInterval = 0 // triggering instant timeouts for retry test
 	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)

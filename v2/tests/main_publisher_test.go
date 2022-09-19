@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 // TestBasicPublish is used for some baseline numbers using primarily streadway/amqp.
 func TestBasicPublish(t *testing.T) {
-	defer leaktest.Check(t)()
+	defer goleak.VerifyNone(t)
 
 	messageCount := 1000
 
@@ -74,7 +74,7 @@ func TestBasicPublish(t *testing.T) {
 // that doesn't exist also doesn't error. This is a demonstration of server
 // side Dead Lettering.
 func TestBasicPublishToNonExistentExchange(t *testing.T) {
-	defer leaktest.Check(t)()
+	defer goleak.VerifyNone(t)
 
 	letter := tcr.CreateMockLetter("DoesNotExist", "TcrTestQueue", nil)
 	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
@@ -112,7 +112,7 @@ func TestBasicPublishToNonExistentExchange(t *testing.T) {
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
@@ -123,7 +123,7 @@ func TestCreatePublisherAndPublish(t *testing.T) {
 }
 
 func TestPublishAndWaitForReceipt(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
@@ -145,7 +145,7 @@ WaitLoop:
 }
 
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 
@@ -167,7 +167,7 @@ WaitLoop:
 }
 
 func TestPublishAccuracy(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	t1 := time.Now()
 	fmt.Printf("Benchmark Starts: %s\r\n", t1)
@@ -207,7 +207,7 @@ WaitLoop:
 }
 
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
 

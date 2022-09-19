@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestCreateConnectionPoolWithZeroConnections(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.PoolConfig.MaxConnectionCount = 0
 
@@ -24,7 +24,7 @@ func TestCreateConnectionPoolWithZeroConnections(t *testing.T) {
 }
 
 func TestCreateConnectionPoolWithErrorHandler(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	seasoning, err := tcr.ConvertJSONFileToConfig("badtest.json")
 	if err != nil {
@@ -44,7 +44,7 @@ func errorHandler(err error) {
 }
 
 func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.PoolConfig.MaxConnectionCount = 1
 
@@ -62,7 +62,7 @@ func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
 }
 
 func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.PoolConfig.MaxConnectionCount = 1
 
@@ -78,7 +78,7 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 }
 
 func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	Seasoning.PoolConfig.MaxConnectionCount = 1
 
@@ -95,7 +95,7 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 }
 
 func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	for i := 0; i < 1000000; i++ {
 
@@ -109,7 +109,7 @@ func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
 }
 
 func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	for i := 0; i < 1000000; i++ {
 
@@ -125,7 +125,7 @@ func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
 // and then verify connections properly restore.
 func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	wg := &sync.WaitGroup{}
 	semaphore := make(chan bool, 100)

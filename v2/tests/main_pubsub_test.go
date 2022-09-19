@@ -4,14 +4,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 // TestConsumingAfterPublish is a combination test of Consuming and Publishing
 func TestConsumingAfterPublish(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	timeoutAfter := time.After(time.Minute * 1)
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
@@ -73,7 +73,7 @@ WaitForConsumer:
 
 // TestLargeConsumingAfterLargePublish is a combination test of Consuming and Publishing
 func TestLargeConsumingAfterLargePublish(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	timeoutAfter := time.After(time.Minute * 5)
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
@@ -169,7 +169,7 @@ WaitForConsumer:
 
 // TestLargeConsumingAfterLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
 func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	timeoutAfter := time.After(time.Minute * 2)
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
@@ -200,7 +200,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 
 // TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
 func TestLargePublishConfirmation(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	timeoutAfter := time.After(time.Minute * 2)
 	done1 := make(chan struct{}, 1)
