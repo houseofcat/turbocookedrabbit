@@ -9,4 +9,7 @@ var (
 
 	// ErrPoolClosed is returned when a connection pool shutdown has been triggered
 	ErrConnectionPoolClosed = errors.New("connection pool closed")
+
+	// ErrServiceShutdown is returned by service methods that cannot be called, asthe service has been shut down.
+	ErrServiceShutdown = errors.New("service shutdown triggered")
 )
