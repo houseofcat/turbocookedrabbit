@@ -202,7 +202,6 @@ ConsumeLoop:
 				break ConsumeLoop
 			}
 		default:
-			break
 		}
 
 		// Get ChannelHost
@@ -269,7 +268,6 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 				return false
 			}
 		default:
-			break
 		}
 
 		// Convert amqp.Delivery into our internal struct for later use.
@@ -290,7 +288,6 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 			if con.sleepOnIdleInterval > 0 {
 				time.Sleep(con.sleepOnIdleInterval)
 			}
-			break
 		}
 
 		// Detect if we should stop consuming.
@@ -301,7 +298,6 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 				return true
 			}
 		default:
-			break
 		}
 	}
 }
