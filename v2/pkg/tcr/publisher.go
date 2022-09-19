@@ -3,7 +3,7 @@ package tcr
 import (
 	"context"
 	"fmt"
-	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/streadway/amqp"
@@ -16,19 +16,14 @@ type Publisher struct {
 	letters                chan *Letter
 	autoStop               chan bool
 	publishReceipts        chan *PublishReceipt
-	autoStarted            bool
-	autoPublishGroup       *sync.WaitGroup
+	autoStarted            int32
 	sleepOnIdleInterval    time.Duration
 	sleepOnErrorInterval   time.Duration
 	publishTimeOutDuration time.Duration
-	pubLock                *sync.Mutex
-	pubRWLock              *sync.RWMutex
 }
 
 // NewPublisherFromConfig creates and configures a new Publisher.
-func NewPublisherFromConfig(
-	config *RabbitSeasoning,
-	cp *ConnectionPool) *Publisher {
+func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publisher {
 
 	if config.PublisherConfig.MaxRetryCount == 0 {
 		config.PublisherConfig.MaxRetryCount = 5
@@ -39,36 +34,26 @@ func NewPublisherFromConfig(
 		ConnectionPool:         cp,
 		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
-		autoPublishGroup:       &sync.WaitGroup{},
 		publishReceipts:        make(chan *PublishReceipt, 1000),
 		sleepOnIdleInterval:    time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnErrorInterval:   time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
 		publishTimeOutDuration: time.Duration(config.PublisherConfig.PublishTimeOutInterval) * time.Millisecond,
-		pubLock:                &sync.Mutex{},
-		pubRWLock:              &sync.RWMutex{},
-		autoStarted:            false,
+		autoStarted:            0, // false
 	}
 }
 
 // NewPublisher creates and configures a new Publisher.
-func NewPublisher(
-	cp *ConnectionPool,
-	sleepOnIdleInterval time.Duration,
-	sleepOnErrorInterval time.Duration,
-	publishTimeOutDuration time.Duration) *Publisher {
+func NewPublisher(cp *ConnectionPool, sleepOnIdleInterval time.Duration, sleepOnErrorInterval time.Duration, publishTimeOutDuration time.Duration) *Publisher {
 
 	return &Publisher{
 		ConnectionPool:         cp,
 		letters:                make(chan *Letter, 1000),
 		autoStop:               make(chan bool, 1),
-		autoPublishGroup:       &sync.WaitGroup{},
 		publishReceipts:        make(chan *PublishReceipt, 1000),
 		sleepOnIdleInterval:    sleepOnIdleInterval,
 		sleepOnErrorInterval:   sleepOnErrorInterval,
 		publishTimeOutDuration: publishTimeOutDuration,
-		pubLock:                &sync.Mutex{},
-		pubRWLock:              &sync.RWMutex{},
-		autoStarted:            false,
+		autoStarted:            0, //false
 	}
 }
 
@@ -537,11 +522,9 @@ func (pub *Publisher) PublishReceipts() <-chan *PublishReceipt {
 
 // StartAutoPublishing starts the Publisher's auto-publishing capabilities.
 func (pub *Publisher) StartAutoPublishing() {
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
 
-	if !pub.autoStarted {
-		pub.autoStarted = true
+	if !pub.isAutoStarted() {
+		pub.setAutoStarted(true)
 		go pub.startAutoPublishingLoop()
 	}
 }
@@ -566,9 +549,7 @@ AutoPublishLoop:
 		}
 	}
 
-	pub.pubLock.Lock()
-	pub.autoStarted = false
-	pub.pubLock.Unlock()
+	pub.setAutoStarted(false)
 }
 
 func (pub *Publisher) deliverLetters() bool {
@@ -614,10 +595,7 @@ func (pub *Publisher) deliverLetters() bool {
 
 // stopAutoPublish stops publishing letters queued up.
 func (pub *Publisher) stopAutoPublish() {
-	pub.pubLock.Lock()
-	defer pub.pubLock.Unlock()
-
-	if !pub.autoStarted {
+	if !pub.isAutoStarted() {
 		return
 	}
 
@@ -682,4 +660,18 @@ func (pub *Publisher) Shutdown(shutdownPools bool) {
 	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
 		pub.ConnectionPool.Shutdown()
 	}
+}
+
+func (pub *Publisher) isAutoStarted() bool {
+	autoStarted := atomic.LoadInt32(&pub.autoStarted)
+	return autoStarted != 0
+}
+
+func (pub *Publisher) setAutoStarted(autoStarted bool) {
+	var i int32 = 0
+	if autoStarted {
+		i = 1
+	}
+
+	atomic.StoreInt32(&pub.autoStarted, i)
 }
