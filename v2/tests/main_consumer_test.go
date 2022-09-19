@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/fortytw2/leaktest"
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/goleak"
 )
 
 func TestCreateConsumer(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	consumer1 := tcr.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer1)
@@ -22,7 +22,7 @@ func TestCreateConsumer(t *testing.T) {
 }
 
 func TestStartStopConsumer(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
@@ -35,7 +35,7 @@ func TestStartStopConsumer(t *testing.T) {
 }
 
 func TestStartWithActionStopConsumer(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
@@ -53,7 +53,7 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 }
 
 func TestConsumerGet(t *testing.T) {
-	defer leaktest.Check(t)() // Fail on leaked goroutines.
+	defer goleak.VerifyNone(t)
 
 	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
 	assert.NotNil(t, consumer)
