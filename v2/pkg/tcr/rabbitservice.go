@@ -20,8 +20,7 @@ type RabbitService struct {
 	encryptionConfigured bool
 	centralErr           chan error
 	consumers            map[string]*Consumer
-	shutdownSignal       chan bool
-	shutdown             bool
+	shutdownSignal       chan struct{}
 	monitorSleepInterval time.Duration
 	serviceLock          *sync.Mutex
 }
@@ -72,9 +71,9 @@ func NewRabbitServiceWithPublisher(
 		Publisher:            publisher,
 		Topologer:            topologer,
 		centralErr:           make(chan error, 1000),
-		shutdownSignal:       make(chan bool, 1),
+		shutdownSignal:       make(chan struct{}),
 		consumers:            make(map[string]*Consumer),
-		monitorSleepInterval: time.Duration(200) * time.Millisecond,
+		monitorSleepInterval: 200 * time.Millisecond,
 		serviceLock:          &sync.Mutex{},
 	}
 
@@ -99,7 +98,6 @@ func NewRabbitServiceWithPublisher(
 
 	// Start the background monitors and logging.
 	go rs.collectConsumerErrors()
-	go rs.monitorForShutdown()
 
 	// Monitors all publish events
 	if processPublishReceipts != nil {
@@ -146,8 +144,8 @@ func (rs *RabbitService) PublishWithConfirmation(
 	wrapPayload bool,
 	headers amqp.Table) error {
 
-	if rs.shutdown {
-		return errors.New("unable to publish as service shutdown triggered")
+	if rs.isShutdown() {
+		return fmt.Errorf("unable to publish: %w", ErrServiceShutdown)
 	}
 
 	if input == nil || (exchangeName == "" && routingKey == "") {
@@ -185,7 +183,7 @@ func (rs *RabbitService) PublishWithConfirmation(
 				Headers:      headers,
 			},
 		},
-		time.Duration(time.Millisecond*300))
+		300*time.Millisecond)
 
 	return nil
 }
@@ -197,8 +195,8 @@ func (rs *RabbitService) Publish(
 	wrapPayload bool,
 	headers amqp.Table) error {
 
-	if rs.shutdown {
-		return errors.New("unable to publish as service shutdown triggered")
+	if rs.isShutdown() {
+		return fmt.Errorf("unable to publish: %w", ErrServiceShutdown)
 	}
 
 	if input == nil || (exchangeName == "" && routingKey == "") {
@@ -244,8 +242,8 @@ func (rs *RabbitService) PublishData(
 	exchangeName, routingKey string,
 	headers amqp.Table) error {
 
-	if rs.shutdown {
-		return errors.New("unable to publish as service shutdown triggered")
+	if rs.isShutdown() {
+		return fmt.Errorf("unable to publish: %w", ErrServiceShutdown)
 	}
 
 	if data == nil || (exchangeName == "" && routingKey == "") {
@@ -274,8 +272,8 @@ func (rs *RabbitService) PublishData(
 // PublishLetter wraps around Publisher to simply Publish.
 func (rs *RabbitService) PublishLetter(letter *Letter) error {
 
-	if rs.shutdown {
-		return errors.New("unable to publish as service shutdown triggered")
+	if rs.isShutdown() {
+		return fmt.Errorf("unable to publish: %w", ErrServiceShutdown)
 	}
 
 	if letter.LetterID.String() == "" {
@@ -291,8 +289,8 @@ func (rs *RabbitService) PublishLetter(letter *Letter) error {
 // Error indicates message was not queued.
 func (rs *RabbitService) QueueLetter(letter *Letter) error {
 
-	if rs.shutdown {
-		return errors.New("unable to queue letter as service shutdown triggered")
+	if rs.isShutdown() {
+		return fmt.Errorf("unable to queue letter : %w", ErrServiceShutdown)
 	}
 
 	if letter.LetterID.String() == "" {
@@ -337,7 +335,7 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 	rs.Publisher.Shutdown(false)
 
 	time.Sleep(time.Second)
-	rs.shutdownSignal <- true
+	close(rs.shutdownSignal)
 	time.Sleep(time.Second)
 
 	if stopConsumers {
@@ -352,33 +350,17 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 	rs.ConnectionPool.Shutdown()
 }
 
-func (rs *RabbitService) monitorForShutdown() {
-
-MonitorLoop:
-	for {
-		select {
-		case <-rs.shutdownSignal:
-			rs.shutdown = true
-			break MonitorLoop // Prevent leaking goroutine
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
-		}
-	}
-}
-
 func (rs *RabbitService) collectConsumerErrors() {
 
-MonitorLoop:
 	for {
+		if rs.isShutdown() {
+			return // Prevent leaking goroutine
+		}
 
+		// TODO: rs.consumers might be written to asynchronously
 		for _, consumer := range rs.consumers {
 		IndividualConsumerLoop:
 			for {
-				if rs.shutdown {
-					break MonitorLoop // Prevent leaking goroutine
-				}
-
 				select {
 				case err := <-consumer.Errors():
 					rs.centralErr <- err
@@ -394,31 +376,22 @@ MonitorLoop:
 
 func (rs *RabbitService) invokeProcessPublishReceipts(processReceipts func(*PublishReceipt)) {
 
-ProcessLoop:
 	for {
-		if rs.shutdown {
-			break ProcessLoop // Prevent leaking goroutine
-		}
-
 		select {
+		case <-rs.catchShutdown():
+			return // Prevent leaking goroutine
 		case receipt := <-rs.Publisher.PublishReceipts():
 			processReceipts(receipt)
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
 		}
 	}
 }
 
 func (rs *RabbitService) processPublishReceipts() {
 
-ProcessLoop:
 	for {
-		if rs.shutdown {
-			break ProcessLoop // Prevent leaking goroutine
-		}
-
 		select {
+		case <-rs.catchShutdown():
+			return // Prevent leaking goroutine
 		case receipt := <-rs.Publisher.PublishReceipts():
 			if !receipt.Success {
 				if receipt.FailedLetter != nil {
@@ -434,46 +407,45 @@ ProcessLoop:
 				} else {
 					rs.centralErr <- fmt.Errorf("failed to publish a LetterID %s and unable to retry as a copy of the letter was not received", receipt.LetterID.String())
 				}
-
 			}
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
 		}
 	}
 }
 
 func (rs *RabbitService) invokeProcessError(processError func(error)) {
 
-ProcessLoop:
 	for {
-		if rs.shutdown {
-			break ProcessLoop // Prevent leaking goroutine
-		}
-
 		select {
+		case <-rs.catchShutdown():
+			return // prevent goroutine leak
 		case err := <-rs.centralErr:
 			processError(err)
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
 		}
 	}
 }
 
 func (rs *RabbitService) processErrors() {
 
-ProcessLoop:
 	for {
-		if rs.shutdown {
-			break ProcessLoop // Prevent leaking goroutine
-		}
 		select {
+		case <-rs.catchShutdown():
+			return // Prevent leaking goroutine
 		case err := <-rs.centralErr:
 			fmt.Printf("TCR Central Err: %s\r\n", err)
-		default:
-			time.Sleep(rs.monitorSleepInterval)
-			break
 		}
 	}
+}
+
+func (rs *RabbitService) isShutdown() bool {
+
+	select {
+	case <-rs.shutdownSignal:
+		return true
+	default:
+		return false
+	}
+}
+
+func (rs *RabbitService) catchShutdown() <-chan struct{} {
+	return rs.shutdownSignal
 }
