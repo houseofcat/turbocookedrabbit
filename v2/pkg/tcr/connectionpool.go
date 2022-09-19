@@ -214,7 +214,11 @@ func (cp *ConnectionPool) ReturnConnection(connHost *ConnectionHost, flag bool) 
 	// upon shutdown this would return an error.
 	// at this point the (e.g. http request) processing would have
 	// already finished, so the user does not need to handle this error
-	_ = cp.connections.Put(connHost)
+	err := cp.connections.Put(connHost)
+	if err != nil {
+		// close connection upon shutdown, as our queue has been closed already
+		connHost.Connection.Close()
+	}
 }
 
 // GetChannelFromPool gets a cached ackable channel from the Pool if they exist or creates a channel.
