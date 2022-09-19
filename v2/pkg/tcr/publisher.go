@@ -3,6 +3,7 @@ package tcr
 import (
 	"context"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -11,12 +12,15 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config                 *RabbitSeasoning
-	ConnectionPool         *ConnectionPool
-	letters                chan *Letter
-	autoStop               chan bool
-	publishReceipts        chan *PublishReceipt
-	autoStarted            int32
+	Config          *RabbitSeasoning
+	ConnectionPool  *ConnectionPool
+	publishReceipts chan *PublishReceipt
+
+	autoStarted    int32
+	letters        chan *Letter
+	shutdownSignal chan struct{}
+	wg             sync.WaitGroup
+
 	sleepOnIdleInterval    time.Duration
 	sleepOnErrorInterval   time.Duration
 	publishTimeOutDuration time.Duration
@@ -30,15 +34,18 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 	}
 
 	return &Publisher{
-		Config:                 config,
-		ConnectionPool:         cp,
-		letters:                make(chan *Letter, 1000),
-		autoStop:               make(chan bool, 1),
-		publishReceipts:        make(chan *PublishReceipt, 1000),
+		Config:         config,
+		ConnectionPool: cp,
+
+		letters:         make(chan *Letter, 1000),
+		publishReceipts: make(chan *PublishReceipt, 1000),
+
+		autoStarted:    0, // false
+		shutdownSignal: make(chan struct{}),
+
 		sleepOnIdleInterval:    time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnErrorInterval:   time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
 		publishTimeOutDuration: time.Duration(config.PublisherConfig.PublishTimeOutInterval) * time.Millisecond,
-		autoStarted:            0, // false
 	}
 }
 
@@ -46,14 +53,17 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 func NewPublisher(cp *ConnectionPool, sleepOnIdleInterval time.Duration, sleepOnErrorInterval time.Duration, publishTimeOutDuration time.Duration) *Publisher {
 
 	return &Publisher{
-		ConnectionPool:         cp,
-		letters:                make(chan *Letter, 1000),
-		autoStop:               make(chan bool, 1),
-		publishReceipts:        make(chan *PublishReceipt, 1000),
+		ConnectionPool: cp,
+
+		letters:         make(chan *Letter, 1000),
+		publishReceipts: make(chan *PublishReceipt, 1000),
+
+		autoStarted:    0, //false
+		shutdownSignal: make(chan struct{}),
+
 		sleepOnIdleInterval:    sleepOnIdleInterval,
 		sleepOnErrorInterval:   sleepOnErrorInterval,
 		publishTimeOutDuration: publishTimeOutDuration,
-		autoStarted:            0, //false
 	}
 }
 
@@ -525,81 +535,41 @@ func (pub *Publisher) StartAutoPublishing() {
 
 	if !pub.isAutoStarted() {
 		pub.setAutoStarted(true)
+		pub.wg.Add(1)
 		go pub.startAutoPublishingLoop()
 	}
 }
 
 // StartAutoPublish starts auto-publishing letters queued up - is locking.
 func (pub *Publisher) startAutoPublishingLoop() {
+	defer pub.wg.Done()
 
-AutoPublishLoop:
-	for {
-		// Detect if we should stop publishing.
-		select {
-		case stop := <-pub.autoStop:
-			if stop {
-				break AutoPublishLoop
-			}
-		default:
-		}
-
-		// Deliver letters queued in the publisher, returns true when we are to stop publishing.
-		if pub.deliverLetters() {
-			break AutoPublishLoop
-		}
-	}
-
+	// Deliver letters queued in the publisher, returns true when we are to stop publishing.
+	pub.deliverLetters()
 	pub.setAutoStarted(false)
 }
 
-func (pub *Publisher) deliverLetters() bool {
+func (pub *Publisher) deliverLetters() {
 
 	// Allow parallel publishing with transient channels.
 	parallelPublishSemaphore := make(chan struct{}, pub.ConnectionPool.Config.MaxCacheChannelCount/2+1)
 
 	for {
-
-		// Publish the letter.
-	PublishLoop:
-		for {
-			select {
-			case letter := <-pub.letters:
-
-				parallelPublishSemaphore <- struct{}{}
-				go func(letter *Letter) {
-					pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
-					<-parallelPublishSemaphore
-				}(letter)
-
-			default:
-
-				if pub.sleepOnIdleInterval > 0 {
-					time.Sleep(pub.sleepOnIdleInterval)
-				}
-				break PublishLoop
-
-			}
-		}
-
-		// Detect if we should stop publishing.
 		select {
-		case stop := <-pub.autoStop:
-			if stop {
-				close(pub.letters)
-				return true
-			}
-		default:
+		case <-pub.catchShutdown():
+			return
+		case letter := <-pub.letters:
+			// Publish the letter.
+			parallelPublishSemaphore <- struct{}{} // throttling
+			pub.wg.Add(1)
+			go func(letter *Letter) {
+				defer pub.wg.Done()
+
+				pub.PublishWithConfirmation(letter, pub.publishTimeOutDuration)
+				<-parallelPublishSemaphore
+			}(letter)
 		}
 	}
-}
-
-// stopAutoPublish stops publishing letters queued up.
-func (pub *Publisher) stopAutoPublish() {
-	if !pub.isAutoStarted() {
-		return
-	}
-
-	go func() { pub.autoStop <- true }() // signal auto publish to stop
 }
 
 // QueueLetters allows you to bulk queue letters that will be consumed by AutoPublish. By default, AutoPublish uses PublishWithConfirmation as the mechanism for publishing.
@@ -622,21 +592,27 @@ func (pub *Publisher) QueueLetter(letter *Letter) bool {
 }
 
 // safeSend should handle a scenario on publishing to a closed channel.
-func (pub *Publisher) safeSend(letter *Letter) (closed bool) {
+func (pub *Publisher) safeSend(letter *Letter) (ok bool) {
 	defer func() {
 		if recover() != nil {
-			closed = false
+			ok = false
 		}
 	}()
 
-	pub.letters <- letter
-	return true // success
+	select {
+	case <-pub.catchShutdown():
+		return false
+	case pub.letters <- letter:
+		return true // success
+	}
 }
 
 // publishReceipt sends the status to the receipt channel.
-func (pub *Publisher) publishReceipt(letter *Letter, err error) {
+func (pub *Publisher) publishReceipt(l *Letter, e error) {
+	pub.wg.Add(1)
+	go func(letter *Letter, err error) {
+		defer pub.wg.Done()
 
-	go func(*Letter, error) {
 		publishReceipt := &PublishReceipt{
 			LetterID: letter.LetterID,
 			Error:    err,
@@ -649,17 +625,22 @@ func (pub *Publisher) publishReceipt(letter *Letter, err error) {
 		}
 
 		pub.publishReceipts <- publishReceipt
-	}(letter, err)
+
+	}(l, e)
 }
 
 // Shutdown cleanly shutdown the publisher and resets it's internal state.
 func (pub *Publisher) Shutdown(shutdownPools bool) {
 
-	pub.stopAutoPublish()
+	close(pub.shutdownSignal)
 
 	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
 		pub.ConnectionPool.Shutdown()
 	}
+
+	// wait for all spawned goroutines to finish execution
+	pub.wg.Wait()
+
 }
 
 func (pub *Publisher) isAutoStarted() bool {
@@ -674,4 +655,8 @@ func (pub *Publisher) setAutoStarted(autoStarted bool) {
 	}
 
 	atomic.StoreInt32(&pub.autoStarted, i)
+}
+
+func (pub *Publisher) catchShutdown() <-chan struct{} {
+	return pub.shutdownSignal
 }
