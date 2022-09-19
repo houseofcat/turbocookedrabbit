@@ -357,7 +357,7 @@ func (rs *RabbitService) collectConsumerErrors() {
 			return // Prevent leaking goroutine
 		}
 
-		// TODO: rs.consumers might be written to asynchronously
+		// TODO: rs.consumers might be written to asynchronously, potential race condition
 		for _, consumer := range rs.consumers {
 		IndividualConsumerLoop:
 			for {
