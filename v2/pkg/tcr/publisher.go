@@ -457,7 +457,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 // PublishWithConfirmationTransient sends a single message to the address on the letter with confirmation capabilities on transient Channels.
 // This is an expensive and slow call - use this when delivery confirmation on publish is your highest priority.
 // A timeout failure drops the letter back in the PublishReceipts. When combined with QueueLetter, it automatically
-//   gets requeued for re-publish.
+// gets requeued for re-publish.
 // A confirmation failure keeps trying to publish (at least until timeout failure occurs.)
 func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout time.Duration) {
 
@@ -558,7 +558,6 @@ AutoPublishLoop:
 				break AutoPublishLoop
 			}
 		default:
-			break
 		}
 
 		// Deliver letters queued in the publisher, returns true when we are to stop publishing.
@@ -609,7 +608,6 @@ func (pub *Publisher) deliverLetters() bool {
 				return true
 			}
 		default:
-			break
 		}
 	}
 }
