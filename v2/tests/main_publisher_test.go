@@ -167,7 +167,7 @@ WaitLoop:
 
 func TestPublishAccuracy(t *testing.T) {
 	cfg, closer := InitTestService(t)
-	defer closer()
+	defer closer() // TODO: fix closer blocking, not able to delete queue
 
 	t1 := time.Now()
 	fmt.Printf("Benchmark Starts: %s\r\n", t1)
@@ -242,5 +242,4 @@ WaitLoop:
 	}
 
 	assert.Equal(t, count, successCount)
-
 }
