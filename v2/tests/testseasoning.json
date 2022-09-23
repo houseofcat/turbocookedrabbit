@@ -10,11 +10,11 @@
 		"Type": "gzip"
 	},
 	"PoolConfig": {
-		"URI": "amqp://guest:guest@localhost:5672/",
+		"URI": "amqp://admin:password@localhost:5672/",
 		"ApplicationName": "TurboCookedRabbit",
 		"SleepOnErrorInterval": 100,
-		"MaxCacheChannelCount": 50,
-		"MaxConnectionCount": 10,
+		"MaxCacheChannelCount": 10,
+		"MaxConnectionCount": 5,
 		"Heartbeat": 6,
 		"ConnectionTimeout": 10,
 		"TLSConfig": {
@@ -26,7 +26,6 @@
 	},
 	"ConsumerConfigs": {
 		"TurboCookedRabbitConsumer": {
-			"Enabled": true,
 			"QueueName": "TcrTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer",
 			"AutoAck": true,
@@ -37,7 +36,6 @@
 			"SleepOnIdleInterval": 0
 		},
 		"TurboCookedRabbitConsumer-Ackable": {
-			"Enabled": true,
 			"QueueName": "TcrTestQueue",
 			"ConsumerName": "TurboCookedRabbitConsumer-Ackable",
 			"AutoAck": false,
