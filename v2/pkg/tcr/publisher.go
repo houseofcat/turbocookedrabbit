@@ -12,18 +12,18 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	Config          *RabbitSeasoning
-	ConnectionPool  *ConnectionPool
-	publishReceipts chan *PublishReceipt
-
-	autoStarted    int32
-	letters        chan *Letter
-	shutdownSignal chan struct{}
-	wg             sync.WaitGroup
-
+	config                 *RabbitSeasoning
 	sleepOnIdleInterval    time.Duration
 	sleepOnErrorInterval   time.Duration
 	publishTimeOutDuration time.Duration
+
+	pool *ConnectionPool
+
+	publishReceipts chan *PublishReceipt
+	autoStarted     int32
+	letters         chan *Letter
+	shutdownSignal  chan struct{}
+	wg              sync.WaitGroup
 }
 
 // NewPublisherFromConfig creates and configures a new Publisher.
@@ -34,8 +34,8 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 	}
 
 	return &Publisher{
-		Config:         config,
-		ConnectionPool: cp,
+		config: config,
+		pool:   cp,
 
 		letters:         make(chan *Letter, 1000),
 		publishReceipts: make(chan *PublishReceipt, 1000),
@@ -53,7 +53,7 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 func NewPublisher(cp *ConnectionPool, sleepOnIdleInterval time.Duration, sleepOnErrorInterval time.Duration, publishTimeOutDuration time.Duration) *Publisher {
 
 	return &Publisher{
-		ConnectionPool: cp,
+		pool: cp,
 
 		letters:         make(chan *Letter, 1000),
 		publishReceipts: make(chan *PublishReceipt, 1000),
@@ -73,11 +73,11 @@ func NewPublisher(cp *ConnectionPool, sleepOnIdleInterval time.Duration, sleepOn
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 
-	chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+	chanHost, err := pub.pool.GetChannelFromPool()
 	if err != nil {
 		// potential problem of loosing the letter
 		// upon shutdown of the connection pool
-		pub.ConnectionPool.ReturnChannel(chanHost, true)
+		pub.pool.ReturnChannel(chanHost, true)
 		return
 	}
 
@@ -96,7 +96,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.ConnectionPool.Config.ApplicationName,
+			AppId:         pub.pool.Config.ApplicationName,
 		},
 	)
 
@@ -104,7 +104,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		pub.publishReceipt(letter, err)
 	}
 
-	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+	pub.pool.ReturnChannel(chanHost, err != nil)
 }
 
 // PublishWithError sends a single message to the address on the letter using a cached ChannelHost.
@@ -112,7 +112,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 
-	chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+	chanHost, err := pub.pool.GetChannelFromPool()
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.ConnectionPool.Config.ApplicationName,
+			AppId:         pub.pool.Config.ApplicationName,
 		},
 	)
 
@@ -140,7 +140,7 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 		pub.publishReceipt(letter, err)
 	}
 
-	pub.ConnectionPool.ReturnChannel(chanHost, err != nil)
+	pub.pool.ReturnChannel(chanHost, err != nil)
 	return err
 }
 
@@ -149,7 +149,7 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 // For proper resilience (at least once delivery guarantee over shaky network) use PublishWithConfirmation
 func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 
-	channel, err := pub.ConnectionPool.GetTransientChannel(false)
+	channel, err := pub.pool.GetTransientChannel(false)
 	if err != nil {
 		return fmt.Errorf("publish failed: %w", err)
 	}
@@ -175,7 +175,7 @@ func (pub *Publisher) PublishWithTransient(letter *Letter) error {
 			CorrelationId: letter.Envelope.CorrelationID,
 			Type:          letter.Envelope.Type,
 			Timestamp:     time.Now().UTC(),
-			AppId:         pub.ConnectionPool.Config.ApplicationName,
+			AppId:         pub.pool.Config.ApplicationName,
 		},
 	)
 }
@@ -193,7 +193,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.pool.GetChannelFromPool()
 		if err != nil {
 			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
@@ -217,11 +217,11 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.ConnectionPool.Config.ApplicationName,
+				AppId:         pub.pool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
-			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, true)
 			continue // Take it again! From the top!
 		}
 
@@ -230,7 +230,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			select {
 			case <-timeoutAfter:
 				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String()))
-				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, false) // not a channel error
 				return
 
 			case confirmation := <-chanHost.Confirmations:
@@ -241,7 +241,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, false)
 				return
 
 			default:
@@ -265,7 +265,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.pool.GetChannelFromPool()
 		if err != nil {
 			return fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err)
 		}
@@ -288,11 +288,11 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.ConnectionPool.Config.ApplicationName,
+				AppId:         pub.pool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
-			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, true)
 			continue // Take it again! From the top!
 		}
 
@@ -300,7 +300,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, false) // not a channel error
 				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String())
 
 			case confirmation := <-chanHost.Confirmations:
@@ -310,7 +310,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 				}
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, false)
 				return nil
 
 			default:
@@ -329,7 +329,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.pool.GetChannelFromPool()
 		if err != nil {
 			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
@@ -352,11 +352,11 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.ConnectionPool.Config.ApplicationName,
+				AppId:         pub.pool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
-			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, true)
 			continue // Take it again! From the top!
 		}
 
@@ -365,7 +365,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			select {
 			case <-ctx.Done():
 				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String()))
-				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, false) // not a channel error
 				return
 
 			case confirmation := <-chanHost.Confirmations:
@@ -376,7 +376,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, false)
 				return
 
 			default:
@@ -395,7 +395,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		chanHost, err := pub.ConnectionPool.GetChannelFromPool()
+		chanHost, err := pub.pool.GetChannelFromPool()
 		if err != nil {
 			return fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err)
 		}
@@ -417,11 +417,11 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.ConnectionPool.Config.ApplicationName,
+				AppId:         pub.pool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
-			pub.ConnectionPool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, true)
 			continue // Take it again! From the top!
 		}
 
@@ -429,7 +429,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 		for {
 			select {
 			case <-ctx.Done():
-				pub.ConnectionPool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, false) // not a channel error
 				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String())
 
 			case confirmation := <-chanHost.Confirmations:
@@ -438,7 +438,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 					goto Publish //nack has occurred, republish
 				}
 
-				pub.ConnectionPool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, false)
 				return nil
 
 			default:
@@ -462,7 +462,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 
 	for {
 		// Has to use an Ackable channel for Publish Confirmations.
-		channel, err := pub.ConnectionPool.GetTransientChannel(true)
+		channel, err := pub.pool.GetTransientChannel(true)
 		if err != nil {
 			pub.publishReceipt(letter, fmt.Errorf("publish of LetterID: %s failed: %w", letter.LetterID.String(), err))
 			return
@@ -487,7 +487,7 @@ func (pub *Publisher) PublishWithConfirmationTransient(letter *Letter, timeout t
 				CorrelationId: letter.Envelope.CorrelationID,
 				Type:          letter.Envelope.Type,
 				Timestamp:     time.Now().UTC(),
-				AppId:         pub.ConnectionPool.Config.ApplicationName,
+				AppId:         pub.pool.Config.ApplicationName,
 			},
 		)
 		if err != nil {
@@ -552,7 +552,7 @@ func (pub *Publisher) startAutoPublishingLoop() {
 func (pub *Publisher) deliverLetters() {
 
 	// Allow parallel publishing with transient channels.
-	parallelPublishSemaphore := make(chan struct{}, pub.ConnectionPool.Config.MaxCacheChannelCount/2+1)
+	parallelPublishSemaphore := make(chan struct{}, pub.pool.Config.MaxCacheChannelCount/2+1)
 
 	for {
 		select {
@@ -635,7 +635,7 @@ func (pub *Publisher) Shutdown(shutdownPools bool) {
 	close(pub.shutdownSignal)
 
 	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
-		pub.ConnectionPool.Shutdown()
+		pub.pool.Shutdown()
 	}
 
 	// wait for all spawned goroutines to finish execution

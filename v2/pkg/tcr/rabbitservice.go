@@ -13,15 +13,18 @@ import (
 
 // RabbitService is the struct for containing all you need for RabbitMQ access.
 type RabbitService struct {
-	Config               *RabbitSeasoning
-	ConnectionPool       *ConnectionPool
-	Topologer            *Topologer
-	Publisher            *Publisher
-	encryptionConfigured bool
-	centralErr           chan error
-	consumers            map[string]*Consumer
-	shutdownSignal       chan struct{}
+	config               *RabbitSeasoning
 	monitorSleepInterval time.Duration
+
+	*Topologer
+	*Publisher
+	pool *ConnectionPool
+
+	shutdownSignal chan struct{}
+	centralErr     chan error
+
+	encryptionConfigured bool
+	consumers            map[string]*Consumer
 	serviceLock          *sync.Mutex
 }
 
@@ -63,11 +66,11 @@ func NewRabbitServiceWithPublisher(
 	processPublishReceipts func(*PublishReceipt),
 	processError func(error)) (*RabbitService, error) {
 
-	topologer := NewTopologer(publisher.ConnectionPool)
+	topologer := NewTopologer(publisher.pool)
 
 	rs := &RabbitService{
-		ConnectionPool:       publisher.ConnectionPool,
-		Config:               config,
+		pool:                 publisher.pool,
+		config:               config,
 		Publisher:            publisher,
 		Topologer:            topologer,
 		centralErr:           make(chan error, 1000),
@@ -85,12 +88,12 @@ func NewRabbitServiceWithPublisher(
 
 	// Create a HashKey for Encryption
 	if config.EncryptionConfig.Enabled && len(passphrase) > 0 && len(salt) > 0 {
-		rs.Config.EncryptionConfig.Hashkey = GetHashWithArgon(
+		rs.config.EncryptionConfig.Hashkey = GetHashWithArgon(
 			passphrase,
 			salt,
-			rs.Config.EncryptionConfig.TimeConsideration,
-			rs.Config.EncryptionConfig.MemoryMultiplier,
-			rs.Config.EncryptionConfig.Threads,
+			rs.config.EncryptionConfig.TimeConsideration,
+			rs.config.EncryptionConfig.MemoryMultiplier,
+			rs.config.EncryptionConfig.Threads,
 			32)
 
 		rs.encryptionConfigured = true
@@ -124,11 +127,11 @@ func (rs *RabbitService) createConsumers(consumerConfigs map[string]*ConsumerCon
 
 	for consumerName, consumerConfig := range consumerConfigs {
 
-		consumer := NewConsumerFromConfig(consumerConfig, rs.ConnectionPool)
+		consumer := NewConsumerFromConfig(consumerConfig, rs.pool)
 		hostName, err := os.Hostname()
 
 		if err == nil {
-			consumer.ConsumerName = hostName + "-" + consumer.ConsumerName
+			consumer.consumerName = hostName + "-" + consumer.consumerName
 		}
 
 		rs.consumers[consumerName] = consumer
@@ -156,12 +159,12 @@ func (rs *RabbitService) PublishWithConfirmation(
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = CreateWrappedPayload(input, letterID, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, letterID, metadata, rs.config.CompressionConfig, rs.config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
 	} else {
-		data, err = CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreatePayload(input, rs.config.CompressionConfig, rs.config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -207,12 +210,12 @@ func (rs *RabbitService) Publish(
 	var data []byte
 	var err error
 	if wrapPayload {
-		data, err = CreateWrappedPayload(input, letterID, metadata, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreateWrappedPayload(input, letterID, metadata, rs.config.CompressionConfig, rs.config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
 	} else {
-		data, err = CreatePayload(input, rs.Config.CompressionConfig, rs.Config.EncryptionConfig)
+		data, err = CreatePayload(input, rs.config.CompressionConfig, rs.config.EncryptionConfig)
 		if err != nil {
 			return err
 		}
@@ -318,7 +321,7 @@ func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 func (rs *RabbitService) GetConsumerConfig(consumerName string) (*ConsumerConfig, error) {
 
 	if consumer, ok := rs.consumers[consumerName]; ok {
-		return consumer.Config, nil
+		return consumer.config, nil
 	}
 
 	return nil, fmt.Errorf("consumer %q was not found", consumerName)
@@ -330,7 +333,7 @@ func (rs *RabbitService) CentralErr() <-chan error {
 }
 
 // Shutdown stops the service and shuts down the ChannelPool.
-func (rs *RabbitService) Shutdown(stopConsumers bool) {
+func (rs *RabbitService) Shutdown() {
 
 	rs.Publisher.Shutdown(false)
 
@@ -338,16 +341,14 @@ func (rs *RabbitService) Shutdown(stopConsumers bool) {
 	close(rs.shutdownSignal)
 	time.Sleep(time.Second)
 
-	if stopConsumers {
-		for _, consumer := range rs.consumers {
-			err := consumer.StopConsuming(true, true)
-			if err != nil {
-				rs.centralErr <- err
-			}
+	for _, consumer := range rs.consumers {
+		err := consumer.StopConsuming(true, true)
+		if err != nil {
+			rs.centralErr <- err
 		}
 	}
 
-	rs.ConnectionPool.Shutdown()
+	rs.pool.Shutdown()
 }
 
 func (rs *RabbitService) collectConsumerErrors() {
@@ -395,7 +396,7 @@ func (rs *RabbitService) processPublishReceipts() {
 		case receipt := <-rs.Publisher.PublishReceipts():
 			if !receipt.Success {
 				if receipt.FailedLetter != nil {
-					if receipt.FailedLetter.RetryCount < rs.Config.PublisherConfig.MaxRetryCount {
+					if receipt.FailedLetter.RetryCount < rs.config.PublisherConfig.MaxRetryCount {
 						receipt.FailedLetter.RetryCount++
 						rs.centralErr <- fmt.Errorf("failed to publish LetterID %s... retrying (count: %d)", receipt.LetterID.String(), receipt.FailedLetter.RetryCount)
 						if ok := rs.Publisher.QueueLetter(receipt.FailedLetter); !ok {

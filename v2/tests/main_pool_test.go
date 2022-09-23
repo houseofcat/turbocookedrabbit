@@ -31,8 +31,6 @@ func TestCreateConnectionPoolWithErrorHandler(t *testing.T) {
 	cp, err := tcr.NewConnectionPoolWithErrorHandler(seasoning.PoolConfig, errorHandler)
 	assert.Nil(t, cp)
 	assert.Error(t, err)
-
-	cp.Shutdown()
 }
 
 func errorHandler(err error) {

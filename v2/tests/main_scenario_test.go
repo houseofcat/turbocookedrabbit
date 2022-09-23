@@ -87,7 +87,7 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 
 	<-time.After(time.Second * 5) // refresh rate of management API is 5 seconds, this just allows you to see the queue
 
-	cfg.RabbitService.Shutdown(true)
+	cfg.RabbitService.Shutdown()
 }
 
 // TestPublishWithHeaderAndVerify verifies headers are publishing.

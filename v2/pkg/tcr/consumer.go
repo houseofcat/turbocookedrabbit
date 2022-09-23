@@ -11,36 +11,41 @@ import (
 
 // Consumer receives messages from a RabbitMQ location.
 type Consumer struct {
-	Config               *ConsumerConfig
-	ConnectionPool       *ConnectionPool
-	Enabled              bool
-	QueueName            string
-	ConsumerName         string
-	errors               chan error
-	sleepOnErrorInterval time.Duration
+	config       *ConsumerConfig
+	queueName    string
+	consumerName string
+
 	sleepOnIdleInterval  time.Duration
-	messageGroup         *sync.WaitGroup
-	receivedMessages     chan *ReceivedMessage
-	consumeStop          chan bool
-	stopImmediate        bool
-	started              bool
-	autoAck              bool
-	exclusive            bool
-	noWait               bool
-	args                 amqp.Table
-	qosCountOverride     int
-	conLock              *sync.Mutex
+	sleepOnErrorInterval time.Duration
+
+	args             amqp.Table
+	qosCountOverride int
+	stopImmediate    bool
+	started          bool
+	autoAck          bool
+	exclusive        bool
+	noWait           bool
+	enabled          bool
+	conLock          *sync.Mutex
+
+	pool *ConnectionPool
+
+	messageGroup *sync.WaitGroup
+
+	errors           chan error
+	receivedMessages chan *ReceivedMessage
+	consumeStop      chan bool
 }
 
 // NewConsumerFromConfig creates a new Consumer to receive messages from a specific queuename.
 func NewConsumerFromConfig(config *ConsumerConfig, cp *ConnectionPool) *Consumer {
 
 	return &Consumer{
-		Config:               config,
-		ConnectionPool:       cp,
-		Enabled:              config.Enabled,
-		QueueName:            config.QueueName,
-		ConsumerName:         config.ConsumerName,
+		config:               config,
+		pool:                 cp,
+		enabled:              config.Enabled,
+		queueName:            config.QueueName,
+		consumerName:         config.ConsumerName,
 		errors:               make(chan error, 1000),
 		sleepOnErrorInterval: time.Duration(config.SleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(config.SleepOnIdleInterval) * time.Millisecond,
@@ -77,11 +82,11 @@ func NewConsumer(
 	}
 
 	return &Consumer{
-		Config:               config,
-		ConnectionPool:       cp,
-		Enabled:              true,
-		QueueName:            queuename,
-		ConsumerName:         consumerName,
+		config:               config,
+		pool:                 cp,
+		enabled:              true,
+		queueName:            queuename,
+		consumerName:         consumerName,
 		errors:               make(chan error, 1000),
 		sleepOnErrorInterval: time.Duration(sleepOnErrorInterval) * time.Millisecond,
 		sleepOnIdleInterval:  time.Duration(sleepOnIdleInterval) * time.Millisecond,
@@ -103,7 +108,7 @@ func NewConsumer(
 func (con *Consumer) Get(queueName string) (*amqp.Delivery, error) {
 
 	// Get Channel
-	channel, err := con.ConnectionPool.GetTransientChannel(false)
+	channel, err := con.pool.GetTransientChannel(false)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +135,7 @@ func (con *Consumer) GetBatch(queueName string, batchSize int) ([]*amqp.Delivery
 	}
 
 	// Get Channel
-	channel, err := con.ConnectionPool.GetTransientChannel(false)
+	channel, err := con.pool.GetTransientChannel(false)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +171,7 @@ func (con *Consumer) StartConsuming() {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
-	if con.Enabled {
+	if con.enabled {
 
 		con.FlushErrors()
 		con.FlushStop()
@@ -181,7 +186,7 @@ func (con *Consumer) StartConsumingWithAction(action func(*ReceivedMessage)) {
 	con.conLock.Lock()
 	defer con.conLock.Unlock()
 
-	if con.Enabled {
+	if con.enabled {
 
 		con.FlushErrors()
 		con.FlushStop()
@@ -205,7 +210,7 @@ ConsumeLoop:
 		}
 
 		// Get ChannelHost
-		chanHost, err := con.ConnectionPool.GetChannelFromPool()
+		chanHost, err := con.pool.GetChannelFromPool()
 		if err != nil {
 			if con.sleepOnErrorInterval > 0 {
 				time.Sleep(con.sleepOnErrorInterval)
@@ -222,9 +227,9 @@ ConsumeLoop:
 		}
 
 		// Initiate consuming process.
-		deliveryChan, err := chanHost.Channel.Consume(con.QueueName, con.ConsumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
+		deliveryChan, err := chanHost.Channel.Consume(con.queueName, con.consumerName, con.autoAck, con.exclusive, false, con.noWait, nil)
 		if err != nil {
-			con.ConnectionPool.ReturnChannel(chanHost, true)
+			con.pool.ReturnChannel(chanHost, true)
 			if con.sleepOnErrorInterval > 0 {
 				time.Sleep(con.sleepOnErrorInterval)
 			}
@@ -260,7 +265,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 		select {
 		case errorMessage := <-chanHost.Errors:
 			if errorMessage != nil {
-				con.ConnectionPool.ReturnChannel(chanHost, true)
+				con.pool.ReturnChannel(chanHost, true)
 				con.errors <- fmt.Errorf("consumer's current channel closed\r\n[reason: %s]\r\n[code: %d]", errorMessage.Reason, errorMessage.Code)
 				if con.sleepOnErrorInterval > 0 {
 					time.Sleep(con.sleepOnErrorInterval)
@@ -294,7 +299,7 @@ func (con *Consumer) processDeliveries(deliveryChan <-chan amqp.Delivery, chanHo
 		select {
 		case stop := <-con.consumeStop:
 			if stop {
-				con.ConnectionPool.ReturnChannel(chanHost, false)
+				con.pool.ReturnChannel(chanHost, false)
 				return true
 			}
 		default:

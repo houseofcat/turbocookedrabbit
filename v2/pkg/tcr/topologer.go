@@ -16,14 +16,14 @@ const (
 
 // Topologer allows you to build RabbitMQ topology backed by a ConnectionPool.
 type Topologer struct {
-	ConnectionPool *ConnectionPool
+	pool *ConnectionPool
 }
 
 // NewTopologer builds you a new Topologer.
 func NewTopologer(cp *ConnectionPool) *Topologer {
 
 	return &Topologer{
-		ConnectionPool: cp,
+		pool: cp,
 	}
 }
 
@@ -128,7 +128,7 @@ func (top *Topologer) CreateExchange(
 	passiveDeclare, durable, autoDelete, internal, noWait bool,
 	args map[string]interface{}) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func (top *Topologer) CreateExchange(
 // CreateExchangeFromConfig builds an Exchange topology from a config Exchange element.
 func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -174,7 +174,7 @@ func (top *Topologer) CreateExchangeFromConfig(exchange *Exchange) error {
 // ExchangeBind binds an exchange to an Exchange.
 func (top *Topologer) ExchangeBind(exchangeBinding *ExchangeBinding) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (top *Topologer) ExchangeDelete(
 	exchangeName string,
 	ifUnused, noWait bool) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (top *Topologer) ExchangeDelete(
 // ExchangeUnbind removes the binding of an Exchange to an Exchange.
 func (top *Topologer) ExchangeUnbind(exchangeName, routingKey, parentExchangeName string, noWait bool, args map[string]interface{}) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -229,7 +229,7 @@ func (top *Topologer) CreateQueue(
 	noWait bool,
 	args map[string]interface{}) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -247,7 +247,7 @@ func (top *Topologer) CreateQueue(
 // CreateQueueFromConfig builds a Queue topology from a config Exchange element.
 func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -279,7 +279,7 @@ func (top *Topologer) CreateQueueFromConfig(queue *Queue) error {
 // QueueDelete removes the queue from the server (and all bindings) and returns messages purged (count).
 func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (int, error) {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return 0, err
 	}
@@ -291,7 +291,7 @@ func (top *Topologer) QueueDelete(name string, ifUnused, ifEmpty, noWait bool) (
 // QueueBind binds an Exchange to a Queue.
 func (top *Topologer) QueueBind(queueBinding *QueueBinding) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}
@@ -328,7 +328,7 @@ func (top *Topologer) PurgeQueues(queueNames []string, noWait bool) (int, error)
 // PurgeQueue removes all messages from the Queue that are not waiting to be Acknowledged and returns the count.
 func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return 0, err
 	}
@@ -342,7 +342,7 @@ func (top *Topologer) PurgeQueue(queueName string, noWait bool) (int, error) {
 // UnbindQueue removes the binding of a Queue to an Exchange.
 func (top *Topologer) UnbindQueue(queueName, routingKey, exchangeName string, args map[string]interface{}) error {
 
-	channel, err := top.ConnectionPool.GetTransientChannel(false)
+	channel, err := top.pool.GetTransientChannel(false)
 	if err != nil {
 		return err
 	}

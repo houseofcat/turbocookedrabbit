@@ -387,10 +387,6 @@ func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 
 // Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
 func (cp *ConnectionPool) Shutdown() {
-	if cp == nil {
-		return
-	}
-
 	if cp.isShutdown() {
 		return
 	}

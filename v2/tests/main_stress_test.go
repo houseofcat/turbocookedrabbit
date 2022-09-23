@@ -306,7 +306,7 @@ func TestPublishConsumeCountAccuracy(t *testing.T) {
 	// off based on how much we think it should have consumed. This can lead to a difference
 	// in pub/sub counts and leave messages in the queue. So we manually verify the queue
 	// too.
-	cfg.RabbitService.Shutdown(true)
+	cfg.RabbitService.Shutdown()
 }
 
 func publishAccuracyLoop(

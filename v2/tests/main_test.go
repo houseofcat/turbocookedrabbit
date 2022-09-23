@@ -20,7 +20,7 @@ type Config struct {
 }
 
 func (cfg *Config) Close() {
-	cfg.RabbitService.Shutdown(false)
+	cfg.RabbitService.Shutdown()
 }
 
 func InitTestService(t *testing.T) (c *Config, closer func()) {
@@ -31,14 +31,16 @@ func InitTestService(t *testing.T) (c *Config, closer func()) {
 		t.Fatal(err)
 	}
 
-	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, func(err error) {
-		t.Error(err)
-	})
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg.ConnectionPool = connectionPool
 
-	cfg.ConnectionPool = cfg.RabbitService.ConnectionPool
+	cfg.RabbitService, err = tcr.NewRabbitServiceWithConnectionPool(connectionPool, cfg.Seasoning, "", "", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
 	if err != nil {
@@ -69,12 +71,16 @@ func InitBenchService(b *testing.B) (c *Config, closer func()) {
 		b.Fatal(err)
 	}
 
-	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, nil)
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	if err != nil {
 		b.Fatal(err)
 	}
+	cfg.ConnectionPool = connectionPool
 
-	cfg.ConnectionPool = cfg.RabbitService.ConnectionPool
+	cfg.RabbitService, err = tcr.NewRabbitServiceWithConnectionPool(connectionPool, cfg.Seasoning, "", "", nil, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
 
 	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
 	if err != nil {
