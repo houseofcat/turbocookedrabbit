@@ -6,20 +6,20 @@ import (
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 // TestConsumingAfterPublish is a combination test of Consuming and Publishing
 func TestConsumingAfterPublish(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeoutAfter := time.After(time.Minute * 1)
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsuming()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000 // higher will deadlock publisher since publisher receipts processing wont' be hit yet
 
@@ -68,22 +68,22 @@ WaitForConsumer:
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup(t)
 }
 
 // TestLargeConsumingAfterLargePublish is a combination test of Consuming and Publishing
 func TestLargeConsumingAfterLargePublish(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeoutAfter := time.After(time.Minute * 5)
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	done1 := make(chan struct{}, 1)
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000000
 
@@ -99,7 +99,6 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup(t)
 }
 
 func monitorPublish(t *testing.T, timeoutAfter <-chan time.Time, pub *tcr.Publisher, count int, done chan struct{}) {
@@ -169,17 +168,18 @@ WaitForConsumer:
 
 // TestLargeConsumingAfterLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
 func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeoutAfter := time.After(time.Minute * 2)
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	done1 := make(chan struct{}, 1)
 	done2 := make(chan struct{}, 1)
 	consumer.StartConsuming()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 10000
 
@@ -195,17 +195,17 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup(t)
 }
 
 // TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
 func TestLargePublishConfirmation(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeoutAfter := time.After(time.Minute * 2)
 	done1 := make(chan struct{}, 1)
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 10000
 
@@ -216,6 +216,4 @@ func TestLargePublishConfirmation(t *testing.T) {
 	}
 
 	<-done1
-
-	TestCleanup(t)
 }

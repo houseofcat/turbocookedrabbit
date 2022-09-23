@@ -1,57 +1,97 @@
 package main_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
+	"go.uber.org/goleak"
 )
 
-var Seasoning *tcr.RabbitSeasoning
-var ConnectionPool *tcr.ConnectionPool
-var RabbitService *tcr.RabbitService
-var AckableConsumerConfig *tcr.ConsumerConfig
-var ConsumerConfig *tcr.ConsumerConfig
-
 func TestMain(m *testing.M) {
+	goleak.VerifyTestMain(m)
+}
 
+type Config struct {
+	Seasoning             *tcr.RabbitSeasoning
+	AckableConsumerConfig *tcr.ConsumerConfig
+	ConsumerConfig        *tcr.ConsumerConfig
+	ConnectionPool        *tcr.ConnectionPool
+	RabbitService         *tcr.RabbitService
+}
+
+func (cfg *Config) Close() {
+	cfg.RabbitService.Shutdown(false)
+	cfg.ConnectionPool.Shutdown()
+}
+
+func InitTestService(t *testing.T) (c *Config, closer func()) {
+	var cfg Config
 	var err error
-	Seasoning, err = tcr.ConvertJSONFileToConfig("testseasoning.json") // Load Configuration On Startup
+	cfg.Seasoning, err = tcr.ConvertJSONFileToConfig("testseasoning.json") // Load Configuration On Startup
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
-	RabbitService, err = tcr.NewRabbitService(Seasoning, "", "", nil, nil)
+	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, nil)
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
-	ConnectionPool = RabbitService.ConnectionPool
+	cfg.ConnectionPool = cfg.RabbitService.ConnectionPool
 
-	AckableConsumerConfig, err = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
-	ConsumerConfig, err = RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	cfg.ConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
-	err = RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	err = cfg.RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
 	if err != nil {
-		return
+		t.Fatal(err)
 	}
 
-	os.Exit(m.Run())
+	return &cfg, func() {
+		_, _ = cfg.RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+		cfg.Close()
+	}
 }
 
-func TestCleanup(t *testing.T) {
-	_, _ = RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
-	RabbitService.Shutdown(true)
-}
+func InitBenchService(b *testing.B) (c *Config, closer func()) {
+	var cfg Config
+	var err error
+	cfg.Seasoning, err = tcr.ConvertJSONFileToConfig("testseasoning.json") // Load Configuration On Startup
+	if err != nil {
+		b.Fatal(err)
+	}
 
-func BenchCleanup(b *testing.B) {
-	_, _ = RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
-	RabbitService.Shutdown(true)
+	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	cfg.ConnectionPool = cfg.RabbitService.ConnectionPool
+
+	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	cfg.ConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	err = cfg.RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	return &cfg, func() {
+		_, _ = cfg.RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+		cfg.Close()
+	}
 }

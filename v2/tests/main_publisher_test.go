@@ -8,12 +8,12 @@ import (
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 // TestBasicPublish is used for some baseline numbers using primarily streadway/amqp.
 func TestBasicPublish(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	messageCount := 1000
 
@@ -30,7 +30,7 @@ func TestBasicPublish(t *testing.T) {
 
 	// Test
 	timeStart = time.Now()
-	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
+	amqpConn, err := amqp.Dial(cfg.Seasoning.PoolConfig.URI)
 	if err != nil {
 		return
 	}
@@ -74,10 +74,11 @@ func TestBasicPublish(t *testing.T) {
 // that doesn't exist also doesn't error. This is a demonstration of server
 // side Dead Lettering.
 func TestBasicPublishToNonExistentExchange(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	letter := tcr.CreateMockLetter("DoesNotExist", "TcrTestQueue", nil)
-	amqpConn, err := amqp.Dial(Seasoning.PoolConfig.URI)
+	amqpConn, err := amqp.Dial(cfg.Seasoning.PoolConfig.URI)
 	if err != nil {
 		t.Error(t, err)
 		return
@@ -112,20 +113,20 @@ func TestBasicPublishToNonExistentExchange(t *testing.T) {
 }
 
 func TestCreatePublisherAndPublish(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.Publish(letter, false)
-
-	ConnectionPool.Shutdown()
 }
 
 func TestPublishAndWaitForReceipt(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.Publish(letter, false)
@@ -141,13 +142,13 @@ WaitLoop:
 		}
 	}
 
-	TestCleanup(t)
 }
 
 func TestCreatePublisherAndPublishWithConfirmation(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	publisher.PublishWithConfirmation(letter, time.Millisecond*500)
@@ -162,35 +163,39 @@ WaitLoop:
 			time.Sleep(time.Millisecond * 1)
 		}
 	}
-
-	TestCleanup(t)
 }
 
 func TestPublishAccuracy(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	t1 := time.Now()
 	fmt.Printf("Benchmark Starts: %s\r\n", t1)
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	letter.Envelope.DeliveryMode = amqp.Transient
-	count := 100000
+	count := 10000
 
 	for i := 0; i < count; i++ {
 		publisher.Publish(letter, false)
 	}
 
 	successCount := 0
+
 WaitLoop:
 	for {
 		select {
+		case <-publisher.AwaitShutdown():
+			break WaitLoop
 		case receipt := <-publisher.PublishReceipts():
 			if receipt.Success {
 				successCount++
 				if successCount == count {
 					break WaitLoop
 				}
+			} else {
+				break WaitLoop
 			}
 		default:
 			time.Sleep(time.Millisecond * 1)
@@ -201,15 +206,17 @@ WaitLoop:
 
 	t2 := time.Now()
 	diff := t2.Sub(t1)
+
 	fmt.Printf("Benchmark End: %s\r\n", t2)
+	fmt.Printf("Messages total confirmed: %d\r\n", count)
 	fmt.Printf("Messages: %f msg/s\r\n", float64(count)/diff.Seconds())
-	TestCleanup(t)
 }
 
 func TestPublishWithConfirmationAccuracy(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000
@@ -236,5 +243,4 @@ WaitLoop:
 
 	assert.Equal(t, count, successCount)
 
-	TestCleanup(t)
 }

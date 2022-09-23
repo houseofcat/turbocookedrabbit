@@ -6,13 +6,13 @@ import (
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 func TestCreateRabbitService(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	service, err := tcr.NewRabbitService(Seasoning, "", "", nil, nil)
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "", "", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -20,10 +20,11 @@ func TestCreateRabbitService(t *testing.T) {
 }
 
 func TestCreateRabbitServiceWithEncryption(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+	cfg.Seasoning.EncryptionConfig.Enabled = true
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -31,10 +32,11 @@ func TestCreateRabbitServiceWithEncryption(t *testing.T) {
 }
 
 func TestRabbitServicePublish(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+	cfg.Seasoning.EncryptionConfig.Enabled = true
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -45,10 +47,11 @@ func TestRabbitServicePublish(t *testing.T) {
 }
 
 func TestRabbitServicePublishLetter(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+	cfg.Seasoning.EncryptionConfig.Enabled = true
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -59,10 +62,11 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 }
 
 func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.EncryptionConfig.Enabled = true
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+	cfg.Seasoning.EncryptionConfig.Enabled = true
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
@@ -73,10 +77,11 @@ func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
 }
 
 func TestRabbitServicePublishLetterToNonExistentQueueForRetryTesting(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.PublisherConfig.PublishTimeOutInterval = 0 // triggering instant timeouts for retry test
-	service, err := tcr.NewRabbitService(Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
+	cfg.Seasoning.PublisherConfig.PublishTimeOutInterval = 0 // triggering instant timeouts for retry test
+	service, err := tcr.NewRabbitService(cfg.Seasoning, "PasswordyPassword", "SaltySalt", nil, nil)
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 

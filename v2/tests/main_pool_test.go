@@ -8,24 +8,21 @@ import (
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 func TestCreateConnectionPoolWithZeroConnections(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.PoolConfig.MaxConnectionCount = 0
+	cfg.Seasoning.PoolConfig.MaxConnectionCount = 0
 
-	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	cp, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.Nil(t, cp)
 	assert.Error(t, err)
 
-	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolWithErrorHandler(t *testing.T) {
-	defer goleak.VerifyNone(t)
-
 	seasoning, err := tcr.ConvertJSONFileToConfig("badtest.json")
 	if err != nil {
 		return
@@ -36,7 +33,6 @@ func TestCreateConnectionPoolWithErrorHandler(t *testing.T) {
 	assert.Error(t, err)
 
 	cp.Shutdown()
-	TestCleanup(t)
 }
 
 func errorHandler(err error) {
@@ -44,11 +40,12 @@ func errorHandler(err error) {
 }
 
 func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.PoolConfig.MaxConnectionCount = 1
+	cfg.Seasoning.PoolConfig.MaxConnectionCount = 1
 
-	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	cp, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	conHost, err := cp.GetConnection()
@@ -58,15 +55,15 @@ func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
 	cp.ReturnConnection(conHost, false)
 
 	cp.Shutdown()
-	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.PoolConfig.MaxConnectionCount = 1
+	cfg.Seasoning.PoolConfig.MaxConnectionCount = 1
 
-	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	cp, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	chanHost, err := cp.GetChannelFromPool()
@@ -74,15 +71,15 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	assert.NotNil(t, chanHost)
 
 	cp.Shutdown()
-	TestCleanup(t)
 }
 
 func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	Seasoning.PoolConfig.MaxConnectionCount = 1
+	cfg.Seasoning.PoolConfig.MaxConnectionCount = 1
 
-	cp, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	cp, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	chanHost, err := cp.GetChannelFromPool()
@@ -91,41 +88,40 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	chanHost.Close()
 
 	cp.Shutdown()
-	TestCleanup(t)
 }
 
 func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	for i := 0; i < 1000000; i++ {
 
-		connHost, err := ConnectionPool.GetConnection()
+		connHost, err := cfg.ConnectionPool.GetConnection()
 		assert.NoError(t, err)
 
-		ConnectionPool.ReturnConnection(connHost, false)
+		cfg.ConnectionPool.ReturnConnection(connHost, false)
 	}
 
-	TestCleanup(t)
 }
 
 func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	for i := 0; i < 1000000; i++ {
 
-		chanHost, err := ConnectionPool.GetChannelFromPool()
+		chanHost, err := cfg.ConnectionPool.GetChannelFromPool()
 		assert.NoError(t, err)
 
-		ConnectionPool.ReturnChannel(chanHost, false)
+		cfg.ConnectionPool.ReturnChannel(chanHost, false)
 	}
-
-	TestCleanup(t)
 }
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
 // and then verify connections properly restore.
 func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	wg := &sync.WaitGroup{}
 	semaphore := make(chan bool, 100)
@@ -136,17 +132,16 @@ func TestConnectionGetConnectionAndReturnSlowLoop(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			connHost, err := ConnectionPool.GetConnection()
+			connHost, err := cfg.ConnectionPool.GetConnection()
 			assert.NoError(t, err)
 
 			time.Sleep(time.Millisecond * 20)
 
-			ConnectionPool.ReturnConnection(connHost, false)
+			cfg.ConnectionPool.ReturnConnection(connHost, false)
 
 			<-semaphore
 		}()
 	}
 
 	wg.Wait()
-	TestCleanup(t)
 }

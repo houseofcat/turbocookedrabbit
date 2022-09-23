@@ -556,7 +556,7 @@ func (pub *Publisher) deliverLetters() {
 
 	for {
 		select {
-		case <-pub.catchShutdown():
+		case <-pub.AwaitShutdown():
 			return
 		case letter := <-pub.letters:
 			// Publish the letter.
@@ -600,7 +600,7 @@ func (pub *Publisher) safeSend(letter *Letter) (ok bool) {
 	}()
 
 	select {
-	case <-pub.catchShutdown():
+	case <-pub.AwaitShutdown():
 		return false
 	case pub.letters <- letter:
 		return true // success
@@ -657,6 +657,6 @@ func (pub *Publisher) setAutoStarted(autoStarted bool) {
 	atomic.StoreInt32(&pub.autoStarted, i)
 }
 
-func (pub *Publisher) catchShutdown() <-chan struct{} {
+func (pub *Publisher) AwaitShutdown() <-chan struct{} {
 	return pub.shutdownSignal
 }

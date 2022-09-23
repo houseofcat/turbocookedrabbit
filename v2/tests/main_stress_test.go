@@ -11,6 +11,8 @@ import (
 )
 
 func TestWithStress(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeDuration := time.Duration(2 * time.Hour)
 	pubTimeOut := time.After(timeDuration)
@@ -18,13 +20,13 @@ func TestWithStress(t *testing.T) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	publisher.StartAutoPublishing()
 
-	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	consumerConfig, ok := cfg.Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, cfg.ConnectionPool)
 	conMap := cmap.New()
 
 	publishDone := make(chan bool, 1)
@@ -44,7 +46,6 @@ func TestWithStress(t *testing.T) {
 
 	// Breakpoint here and check the conMap for 100% accuracy.
 	verifyAccuracyT(t, conMap)
-	TestCleanup(t)
 }
 
 func publishQueueLetter(
@@ -101,6 +102,8 @@ PublishLoop:
 }
 
 func TestDurationAccuracy(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeDuration := time.Duration(5 * time.Minute)
 	pubTimeOut := time.After(timeDuration)
@@ -108,11 +111,11 @@ func TestDurationAccuracy(t *testing.T) {
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
 	fmt.Printf("Est. Benchmark End: %s\r\n", time.Now().Add(timeDuration))
 
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
+	consumerConfig, ok := cfg.Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, cfg.ConnectionPool)
 	conMap := cmap.New()
 
 	publishDone := make(chan bool, 1)
@@ -132,7 +135,6 @@ func TestDurationAccuracy(t *testing.T) {
 
 	// Breakpoint here and check the conMap for 100% accuracy.
 	verifyAccuracyT(t, conMap)
-	TestCleanup(t)
 }
 
 func publishDurationAccuracyLoop(
@@ -262,13 +264,15 @@ func verifyAccuracyT(t *testing.T, conMap cmap.ConcurrentMap) {
 }
 
 func TestPublishConsumeCountAccuracy(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	fmt.Printf("Benchmark Starts: %s\r\n", time.Now())
-	publisher := tcr.NewPublisherFromConfig(Seasoning, ConnectionPool)
-	consumerConfig, ok := Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
+	consumerConfig, ok := cfg.Seasoning.ConsumerConfigs["TurboCookedRabbitConsumer-Ackable"]
 	assert.True(t, ok)
 
-	consumer := tcr.NewConsumerFromConfig(consumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(consumerConfig, cfg.ConnectionPool)
 
 	conMap := cmap.New()
 	count := 10000
@@ -302,7 +306,7 @@ func TestPublishConsumeCountAccuracy(t *testing.T) {
 	// off based on how much we think it should have consumed. This can lead to a difference
 	// in pub/sub counts and leave messages in the queue. So we manually verify the queue
 	// too.
-	RabbitService.Shutdown(true)
+	cfg.RabbitService.Shutdown(true)
 }
 
 func publishAccuracyLoop(
@@ -446,6 +450,8 @@ AcknowledgeLoop:
 var conmap cmap.ConcurrentMap
 
 func TestWithRabbitServiceStress(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	timeDuration := time.Duration(2 * time.Hour)
 	pubTimeOut := time.After(timeDuration)
@@ -456,21 +462,21 @@ func TestWithRabbitServiceStress(t *testing.T) {
 	conmap = cmap.New()
 
 	publishDone := make(chan bool, 1)
-	go publishRabbitServiceQueue(t, publishDone, pubTimeOut)
+	go publishRabbitServiceQueue(t, cfg, publishDone, pubTimeOut)
 
 	consumerDone := make(chan bool, 1)
-	go consumerRabbitService(t, consumerDone, conTimeOut)
+	go consumerRabbitService(t, cfg, consumerDone, conTimeOut)
 
 	<-publishDone
 	<-consumerDone
 
 	// Breakpoint here and check the conMap for 100% accuracy.
 	verifyAccuracyT(t, conmap)
-	TestCleanup(t)
 }
 
 func publishRabbitServiceQueue(
 	t *testing.T,
+	cfg *Config,
 	done chan bool,
 	timeOut <-chan time.Time) {
 
@@ -483,7 +489,7 @@ PublishLoop:
 		default:
 			newLetter := tcr.CreateMockRandomWrappedBodyLetter("TcrTestQueue")
 			conmap.Set(newLetter.LetterID.String(), false)
-			_ = RabbitService.QueueLetter(newLetter)
+			_ = cfg.RabbitService.QueueLetter(newLetter)
 		}
 	}
 
@@ -492,10 +498,11 @@ PublishLoop:
 
 func consumerRabbitService(
 	t *testing.T,
+	cfg *Config,
 	done chan bool,
 	timeOut <-chan time.Time) {
 
-	consumer, _ := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	consumer, _ := cfg.RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
 	consumer.StartConsumingWithAction(consumerAction)
 
 	consumerErrors := 0

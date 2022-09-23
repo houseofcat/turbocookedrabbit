@@ -26,6 +26,8 @@ func TestReadTopologyConfig(t *testing.T) {
 }
 
 func TestCreateTopologyFromTopologyConfig(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	fileNamePath := "testtopology.json"
 	assert.FileExists(t, fileNamePath)
@@ -33,7 +35,7 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	topologyConfig, err := tcr.ConvertJSONFileToTopologyConfig(fileNamePath)
 	assert.NoError(t, err)
 
-	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	topologer := tcr.NewTopologer(connectionPool)
@@ -43,8 +45,10 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 }
 
 func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	topologer := tcr.NewTopologer(connectionPool)
@@ -71,8 +75,10 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 }
 
 func TestUnbindQueue(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	topologer := tcr.NewTopologer(connectionPool)
@@ -82,8 +88,10 @@ func TestUnbindQueue(t *testing.T) {
 }
 
 func TestCreateQuorumQueue(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(Seasoning.PoolConfig)
+	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
 	assert.NoError(t, err)
 
 	topologer := tcr.NewTopologer(connectionPool)

@@ -119,6 +119,9 @@ func (cp *ConnectionPool) initializeConnections() error {
 // Flowcontrol (blocking) or transient network outages will pause here until cleared.
 // Uses the SleepOnErrorInterval to pause between retries.
 func (cp *ConnectionPool) GetConnection() (*ConnectionHost, error) {
+	if cp.isShutdown() {
+		return nil, fmt.Errorf("unable to get connection: %w", ErrConnectionPoolClosed)
+	}
 
 	connHost, err := cp.getConnectionFromPool()
 	if err != nil { // errors upon shutdown
@@ -337,7 +340,7 @@ func (cp *ConnectionPool) GetTransientChannel(ackable bool) (*amqp.Channel, erro
 			continue
 		}
 
-		channel, err := connHost.Connection.Channel()
+		channel, err := connHost.Connection.Channel() // weirdly blocks upon
 		if err != nil {
 			cp.handleError(err)
 			cp.ReturnConnection(connHost, true)
@@ -384,8 +387,11 @@ func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 
 // Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
 func (cp *ConnectionPool) Shutdown() {
-
 	if cp == nil {
+		return
+	}
+
+	if cp.isShutdown() {
 		return
 	}
 
@@ -440,15 +446,6 @@ ChannelFlushLoop:
 
 	wg.Wait()
 
-	// TODO: data race, as shutdown is more of a reset than
-	// a one time shutdown, does it make sense to shutdown only once
-	// and not reset the internal state for reuse?
-	// any of the below variables may be accessed asynchronously
-	// while we change them here
-	cp.connections = queue.New(int64(cp.Config.MaxConnectionCount))
-	cp.flaggedConnections = make(map[uint64]bool)
-	cp.connectionID = 0
-	cp.shutdownChan = make(chan struct{})
 }
 
 func (cp *ConnectionPool) isShutdown() bool {

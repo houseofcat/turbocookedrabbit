@@ -10,7 +10,6 @@ import (
 	"github.com/streadway/amqp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/goleak"
 )
 
 // TestConnectionGetConnectionAndReturnSlowLoop is designed to be slow test connection recovery by severing all connections
@@ -18,7 +17,8 @@ import (
 // All publish errors are not recovered but used to trigger channel recovery, total publish count should be lower
 // than expected 10,000 during outages.
 func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	body := []byte("\x68\x65\x6c\x6c\x6f\x20\x77\x6f\x72\x6c\x64")
 
@@ -31,7 +31,7 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			chanHost, err := ConnectionPool.GetChannelFromPool()
+			chanHost, err := cfg.ConnectionPool.GetChannelFromPool()
 			require.NoError(t, err)
 
 			time.Sleep(time.Millisecond * 100) // artificially create channel poool contention by long exposure
@@ -42,20 +42,21 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 				DeliveryMode: 2,
 			})
 
-			ConnectionPool.ReturnChannel(chanHost, err != nil)
+			cfg.ConnectionPool.ReturnChannel(chanHost, err != nil)
 
 			<-semaphore
 		}()
 	}
 
 	wg.Wait() // wait for the final batch of requests to finish
-	ConnectionPool.Shutdown()
+	cfg.ConnectionPool.Shutdown()
 }
 
 // TestOutageAndQueueLetterAccuracy is similar to the above. It is designed to be slow test connection recovery by severing all connections
 // and then verify connections and channels properly (and evenly over connections) restore.
 func TestOutageAndQueueLetterAccuracy(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
@@ -80,24 +81,25 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 	//    2.) Split Brain event in HA mode.
 
 	for i := 0; i < 10000; i++ {
-		err := RabbitService.QueueLetter(letter)
+		err := cfg.RabbitService.QueueLetter(letter)
 		assert.NoError(t, err)
 	}
 
 	<-time.After(time.Second * 5) // refresh rate of management API is 5 seconds, this just allows you to see the queue
 
-	RabbitService.Shutdown(true)
+	cfg.RabbitService.Shutdown(true)
 }
 
 // TestPublishWithHeaderAndVerify verifies headers are publishing.
 func TestPublishWithHeaderAndVerify(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
-	_ = RabbitService.PublishLetter(letter)
+	_ = cfg.RabbitService.PublishLetter(letter)
 
-	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	consumer, err := cfg.RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
 	assert.NoError(t, err)
 
 	delivery, err := consumer.Get("TcrTestQueue")
@@ -109,19 +111,18 @@ func TestPublishWithHeaderAndVerify(t *testing.T) {
 
 		fmt.Printf("Header Received: %s\r\n", testHeader.(string))
 	}
-
-	RabbitService.Shutdown(true)
 }
 
 // TestPublishWithHeaderAndConsumerReceivedHeader verifies headers are being consumed into ReceivedData.
 func TestPublishWithHeaderAndConsumerReceivedHeader(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 
-	_ = RabbitService.PublishLetter(letter)
+	_ = cfg.RabbitService.PublishLetter(letter)
 
-	consumer, err := RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
+	consumer, err := cfg.RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
 	consumer.StartConsuming()
 	assert.NoError(t, err)
 
@@ -140,6 +141,4 @@ WaitLoop:
 			time.Sleep(1 * time.Millisecond)
 		}
 	}
-
-	TestCleanup(t)
 }

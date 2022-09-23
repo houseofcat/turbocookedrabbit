@@ -6,38 +6,37 @@ import (
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/goleak"
 )
 
 func TestCreateConsumer(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	consumer1 := tcr.NewConsumerFromConfig(AckableConsumerConfig, ConnectionPool)
+	consumer1 := tcr.NewConsumerFromConfig(cfg.AckableConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer1)
 
-	consumer2 := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer2 := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer2)
-
-	TestCleanup(t)
 }
 
 func TestStartStopConsumer(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsuming()
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup(t)
 }
 
 func TestStartWithActionStopConsumer(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	consumer.StartConsumingWithAction(
@@ -49,18 +48,16 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
-	TestCleanup(t)
 }
 
 func TestConsumerGet(t *testing.T) {
-	defer goleak.VerifyNone(t)
+	cfg, closer := InitTestService(t)
+	defer closer()
 
-	consumer := tcr.NewConsumerFromConfig(ConsumerConfig, ConnectionPool)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
 	delivery, err := consumer.Get("TcrTestQueue")
 	assert.Nil(t, delivery) // empty queue should be nil
 	assert.NoError(t, err)
-
-	TestCleanup(t)
 }
