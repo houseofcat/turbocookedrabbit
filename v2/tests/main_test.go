@@ -20,7 +20,7 @@ type Config struct {
 }
 
 func (cfg *Config) Close() {
-	cfg.RabbitService.Shutdown()
+	cfg.RabbitService.Close()
 }
 
 func InitTestService(t *testing.T) (c *Config, closer func()) {
@@ -42,23 +42,23 @@ func InitTestService(t *testing.T) (c *Config, closer func()) {
 		t.Fatal(err)
 	}
 
-	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	cfg.AckableConsumerConfig, err = cfg.Seasoning.ConsumerConfig("TurboCookedRabbitConsumer-Ackable")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	cfg.ConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	cfg.ConsumerConfig, err = cfg.Seasoning.ConsumerConfig("TurboCookedRabbitConsumer")
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	err = cfg.RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	err = cfg.RabbitService.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	return &cfg, func() {
-		_, _ = cfg.RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+		_, _ = cfg.RabbitService.QueueDelete("TcrTestQueue", false, false, false)
 		cfg.Close()
 	}
 }
@@ -82,23 +82,23 @@ func InitBenchService(b *testing.B) (c *Config, closer func()) {
 		b.Fatal(err)
 	}
 
-	cfg.AckableConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer-Ackable")
+	cfg.AckableConsumerConfig, err = cfg.Seasoning.ConsumerConfig("TurboCookedRabbitConsumer-Ackable")
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	cfg.ConsumerConfig, err = cfg.RabbitService.GetConsumerConfig("TurboCookedRabbitConsumer")
+	cfg.ConsumerConfig, err = cfg.Seasoning.ConsumerConfig("TurboCookedRabbitConsumer")
 	if err != nil {
 		b.Fatal(err)
 	}
 
-	err = cfg.RabbitService.Topologer.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
+	err = cfg.RabbitService.CreateQueue("TcrTestQueue", false, true, false, false, false, nil)
 	if err != nil {
 		b.Fatal(err)
 	}
 
 	return &cfg, func() {
-		_, _ = cfg.RabbitService.Topologer.QueueDelete("TcrTestQueue", false, false, false)
+		_, _ = cfg.RabbitService.QueueDelete("TcrTestQueue", false, false, false)
 		cfg.Close()
 	}
 }

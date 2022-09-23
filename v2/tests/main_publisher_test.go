@@ -186,8 +186,6 @@ func TestPublishAccuracy(t *testing.T) {
 WaitLoop:
 	for {
 		select {
-		case <-publisher.AwaitShutdown():
-			break WaitLoop
 		case receipt := <-publisher.PublishReceipts():
 			if receipt.Success {
 				successCount++

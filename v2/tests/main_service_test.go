@@ -16,7 +16,7 @@ func TestCreateRabbitService(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
-	service.Shutdown()
+	service.Close()
 }
 
 func TestCreateRabbitServiceWithEncryption(t *testing.T) {
@@ -28,7 +28,7 @@ func TestCreateRabbitServiceWithEncryption(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, service)
 
-	service.Shutdown()
+	service.Close()
 }
 
 func TestRabbitServicePublish(t *testing.T) {
@@ -43,7 +43,7 @@ func TestRabbitServicePublish(t *testing.T) {
 	data := tcr.RandomBytes(1000)
 	_ = service.Publish(data, "", "TcrTestQueue", "", false, nil)
 
-	service.Shutdown()
+	service.Close()
 }
 
 func TestRabbitServicePublishLetter(t *testing.T) {
@@ -58,7 +58,7 @@ func TestRabbitServicePublishLetter(t *testing.T) {
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	_ = service.PublishLetter(letter)
 
-	service.Shutdown()
+	service.Close()
 }
 
 func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
@@ -73,7 +73,7 @@ func TestRabbitServicePublishAndConsumeLetter(t *testing.T) {
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	_ = service.PublishLetter(letter)
 
-	service.Shutdown()
+	service.Close()
 }
 
 func TestRabbitServicePublishLetterToNonExistentQueueForRetryTesting(t *testing.T) {
@@ -91,5 +91,5 @@ func TestRabbitServicePublishLetterToNonExistentQueueForRetryTesting(t *testing.
 	timeout := time.After(time.Duration(2 * time.Second))
 	<-timeout
 
-	service.Shutdown()
+	service.Close()
 }

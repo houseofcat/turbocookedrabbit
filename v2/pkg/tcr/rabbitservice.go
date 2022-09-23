@@ -26,6 +26,9 @@ type RabbitService struct {
 	encryptionConfigured bool
 	consumers            map[string]*Consumer
 	serviceLock          *sync.Mutex
+
+	wg   sync.WaitGroup
+	once sync.Once
 }
 
 // NewRabbitService creates everything you need for a RabbitMQ communication service.
@@ -100,19 +103,24 @@ func NewRabbitServiceWithPublisher(
 	}
 
 	// Start the background monitors and logging.
-	go rs.collectConsumerErrors()
+	rs.wg.Add(1)
+	go rs.collectConsumerErrors(&rs.wg)
 
 	// Monitors all publish events
 	if processPublishReceipts != nil {
-		go rs.invokeProcessPublishReceipts(processPublishReceipts)
+		rs.wg.Add(1)
+		go rs.invokeProcessPublishReceipts(processPublishReceipts, &rs.wg)
 	} else { // Default action is to retry publishing all failures.
-		go rs.processPublishReceipts()
+		rs.wg.Add(1)
+		go rs.processPublishReceipts(&rs.wg)
 	}
 
 	// Monitors all errors
 	if processError != nil {
+		rs.wg.Add(1)
 		go rs.invokeProcessError(processError)
 	} else { // Default action is to retry publishing all failures.
+		rs.wg.Add(1)
 		go rs.processErrors()
 	}
 
@@ -317,41 +325,43 @@ func (rs *RabbitService) GetConsumer(consumerName string) (*Consumer, error) {
 	return nil, fmt.Errorf("consumer %q was not found", consumerName)
 }
 
-// GetConsumerConfig allows you to get the individual consumers' config stored in memory.
-func (rs *RabbitService) GetConsumerConfig(consumerName string) (*ConsumerConfig, error) {
-
-	if consumer, ok := rs.consumers[consumerName]; ok {
-		return consumer.config, nil
-	}
-
-	return nil, fmt.Errorf("consumer %q was not found", consumerName)
-}
-
 // CentralErr yields all the internal errs for sub-processes.
 func (rs *RabbitService) CentralErr() <-chan error {
 	return rs.centralErr
 }
 
 // Shutdown stops the service and shuts down the ChannelPool.
-func (rs *RabbitService) Shutdown() {
+func (rs *RabbitService) Close(shutdownConnPool ...bool) map[string][]*ReceivedMessage {
+	unprocessed := map[string][]*ReceivedMessage{}
 
-	rs.Publisher.Shutdown(false)
+	rs.once.Do(func() {
+		// close producer first, then signal consumers to shut down
+		rs.Publisher.Close(false)
 
-	time.Sleep(time.Second)
-	close(rs.shutdownSignal)
-	time.Sleep(time.Second)
+		close(rs.shutdownSignal)
 
-	for _, consumer := range rs.consumers {
-		err := consumer.StopConsuming(true, true)
-		if err != nil {
-			rs.centralErr <- err
+		unprocessed = make(map[string][]*ReceivedMessage, len(rs.consumers))
+		for k, consumer := range rs.consumers {
+			// TODO: allow consumers to process the unprocessed messages before shutting down
+			// this should have a timeout
+			unprocessed[k] = consumer.Close()
 		}
-	}
 
-	rs.pool.Shutdown()
+		shutdownPool := true
+		if len(shutdownConnPool) > 0 {
+			shutdownPool = shutdownConnPool[0]
+		}
+
+		if shutdownPool {
+			rs.pool.Close()
+		}
+	})
+
+	return unprocessed
 }
 
-func (rs *RabbitService) collectConsumerErrors() {
+func (rs *RabbitService) collectConsumerErrors(wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	for {
 		if rs.isShutdown() {
@@ -375,7 +385,8 @@ func (rs *RabbitService) collectConsumerErrors() {
 	}
 }
 
-func (rs *RabbitService) invokeProcessPublishReceipts(processReceipts func(*PublishReceipt)) {
+func (rs *RabbitService) invokeProcessPublishReceipts(processReceipts func(*PublishReceipt), wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	for {
 		select {
@@ -387,7 +398,8 @@ func (rs *RabbitService) invokeProcessPublishReceipts(processReceipts func(*Publ
 	}
 }
 
-func (rs *RabbitService) processPublishReceipts() {
+func (rs *RabbitService) processPublishReceipts(wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	for {
 		select {
@@ -431,8 +443,9 @@ func (rs *RabbitService) processErrors() {
 		select {
 		case <-rs.catchShutdown():
 			return // Prevent leaking goroutine
-		case err := <-rs.centralErr:
-			fmt.Printf("TCR Central Err: %s\r\n", err)
+		case <-rs.centralErr:
+			// TODO: provide a logger interface
+			//fmt.Printf("TCR Central Err: %s\r\n", err)
 		}
 	}
 }

@@ -50,7 +50,7 @@ func BenchmarkPublishAndConsumeMany(b *testing.B) {
 		}
 	}()
 
-	consumer.StartConsuming()
+	consumer.Start()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(1*time.Minute))
 	messagesReceived := 0
@@ -96,12 +96,10 @@ ReceivePublishConfirmations:
 	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
 	fmt.Printf("Consumer Messages Received: %d\r\n", messagesReceived)
 
-	publisher.Shutdown(false)
+	publisher.Close(false)
 
-	if err := consumer.StopConsuming(true, true); err != nil {
-		b.Error(err)
-	}
-	connectionPool.Shutdown()
+	consumer.Close()
+	connectionPool.Close()
 	cancel()
 }
 
@@ -122,7 +120,7 @@ func BenchmarkPublishForDuration(b *testing.B) {
 	publishLoop(b, conMap, publishDone, timeOut, publisher)
 	<-publishDone
 
-	publisher.Shutdown(false)
+	publisher.Close(false)
 }
 
 func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
@@ -149,16 +147,14 @@ func BenchmarkPublishConsumeAckForDuration(b *testing.B) {
 	go publishLoop(b, conMap, publishDone, pubTimeOut, publisher)
 
 	consumerDone := make(chan bool, 1)
-	consumer.StartConsuming()
+	consumer.Start()
 	go consumeLoop(b, conMap, consumerDone, conTimeOut, publisher, consumer)
 
 	<-publishDone
-	publisher.Shutdown(false)
+	publisher.Close(false)
 
 	<-consumerDone
-	if err := consumer.StopConsuming(false, true); err != nil {
-		b.Error(err)
-	}
+	consumer.Close()
 
 	verifyAccuracyB(b, conMap)
 }
@@ -210,13 +206,7 @@ PublishLoop:
 	done <- true
 }
 
-func consumeLoop(
-	b *testing.B,
-	conMap cmap.ConcurrentMap,
-	done chan bool,
-	timeOut <-chan time.Time,
-	publisher *tcr.Publisher,
-	consumer *tcr.Consumer) {
+func consumeLoop(b *testing.B, conMap cmap.ConcurrentMap, done chan bool, timeOut <-chan time.Time, publisher *tcr.Publisher, consumer *tcr.Consumer) {
 
 	messagesReceived := 0
 	messagesAcked := 0

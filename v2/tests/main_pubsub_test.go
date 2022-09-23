@@ -18,7 +18,7 @@ func TestConsumingAfterPublish(t *testing.T) {
 	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
-	consumer.StartConsuming()
+	consumer.Start()
 
 	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -66,9 +66,7 @@ WaitForConsumer:
 	}
 	assert.Equal(t, count, receivedMessageCount, "Received Message Count: %d  Expected Count: %d", receivedMessageCount, count)
 
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
-
+	consumer.Close()
 }
 
 // TestLargeConsumingAfterLargePublish is a combination test of Consuming and Publishing
@@ -81,7 +79,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	assert.NotNil(t, consumer)
 
 	var wg sync.WaitGroup
-	consumer.StartConsuming()
+	consumer.Start()
 
 	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -96,8 +94,7 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	}
 
 	wg.Wait()
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
+	consumer.Close()
 
 }
 
@@ -110,7 +107,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
-	consumer.StartConsuming()
+	consumer.Start()
 
 	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
@@ -127,9 +124,7 @@ func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
 	}
 
 	wg.Wait()
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
-
+	consumer.Close()
 }
 
 // TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.

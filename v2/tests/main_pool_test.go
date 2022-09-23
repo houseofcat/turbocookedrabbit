@@ -52,7 +52,7 @@ func TestCreateConnectionPoolAndGetConnection(t *testing.T) {
 
 	cp.ReturnConnection(conHost, false)
 
-	cp.Shutdown()
+	cp.Close()
 }
 
 func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
@@ -68,7 +68,7 @@ func TestCreateConnectionPoolAndGetAckableChannel(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, chanHost)
 
-	cp.Shutdown()
+	cp.Close()
 }
 
 func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
@@ -85,7 +85,7 @@ func TestCreateConnectionPoolAndGetChannel(t *testing.T) {
 	assert.NotNil(t, chanHost)
 	chanHost.Close()
 
-	cp.Shutdown()
+	cp.Close()
 }
 
 func TestConnectionGetConnectionAndReturnLoop(t *testing.T) {
@@ -111,7 +111,7 @@ func TestConnectionGetChannelAndReturnLoop(t *testing.T) {
 		chanHost, err := cfg.ConnectionPool.GetChannelFromPool()
 		assert.NoError(t, err)
 
-		cfg.ConnectionPool.ReturnChannel(chanHost, false)
+		cfg.ConnectionPool.ReturnChannel(chanHost, err)
 	}
 }
 

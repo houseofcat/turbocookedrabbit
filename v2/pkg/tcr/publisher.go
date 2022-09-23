@@ -12,18 +12,17 @@ import (
 
 // Publisher contains everything you need to publish a message.
 type Publisher struct {
-	config                 *RabbitSeasoning
-	sleepOnIdleInterval    time.Duration
 	sleepOnErrorInterval   time.Duration
 	publishTimeOutDuration time.Duration
 
 	pool *ConnectionPool
 
-	publishReceipts chan *PublishReceipt
 	autoStarted     int32
 	letters         chan *Letter
-	shutdownSignal  chan struct{}
+	publishReceipts chan *PublishReceipt
 	wg              sync.WaitGroup
+	shutdownSignal  chan struct{}
+	once            sync.Once
 }
 
 // NewPublisherFromConfig creates and configures a new Publisher.
@@ -34,8 +33,7 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 	}
 
 	return &Publisher{
-		config: config,
-		pool:   cp,
+		pool: cp,
 
 		letters:         make(chan *Letter, 1000),
 		publishReceipts: make(chan *PublishReceipt, 1000),
@@ -43,7 +41,6 @@ func NewPublisherFromConfig(config *RabbitSeasoning, cp *ConnectionPool) *Publis
 		autoStarted:    0, // false
 		shutdownSignal: make(chan struct{}),
 
-		sleepOnIdleInterval:    time.Duration(config.PublisherConfig.SleepOnIdleInterval) * time.Millisecond,
 		sleepOnErrorInterval:   time.Duration(config.PublisherConfig.SleepOnErrorInterval) * time.Millisecond,
 		publishTimeOutDuration: time.Duration(config.PublisherConfig.PublishTimeOutInterval) * time.Millisecond,
 	}
@@ -61,7 +58,6 @@ func NewPublisher(cp *ConnectionPool, sleepOnIdleInterval time.Duration, sleepOn
 		autoStarted:    0, //false
 		shutdownSignal: make(chan struct{}),
 
-		sleepOnIdleInterval:    sleepOnIdleInterval,
 		sleepOnErrorInterval:   sleepOnErrorInterval,
 		publishTimeOutDuration: publishTimeOutDuration,
 	}
@@ -77,7 +73,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 	if err != nil {
 		// potential problem of loosing the letter
 		// upon shutdown of the connection pool
-		pub.pool.ReturnChannel(chanHost, true)
+		pub.pool.ReturnChannel(chanHost, err)
 		return
 	}
 
@@ -104,7 +100,7 @@ func (pub *Publisher) Publish(letter *Letter, skipReceipt bool) {
 		pub.publishReceipt(letter, err)
 	}
 
-	pub.pool.ReturnChannel(chanHost, err != nil)
+	pub.pool.ReturnChannel(chanHost, err)
 }
 
 // PublishWithError sends a single message to the address on the letter using a cached ChannelHost.
@@ -140,7 +136,7 @@ func (pub *Publisher) PublishWithError(letter *Letter, skipReceipt bool) error {
 		pub.publishReceipt(letter, err)
 	}
 
-	pub.pool.ReturnChannel(chanHost, err != nil)
+	pub.pool.ReturnChannel(chanHost, err)
 	return err
 }
 
@@ -221,7 +217,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			},
 		)
 		if err != nil {
-			pub.pool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, err)
 			continue // Take it again! From the top!
 		}
 
@@ -230,7 +226,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 			select {
 			case <-timeoutAfter:
 				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String()))
-				pub.pool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, nil) // not a channel error
 				return
 
 			case confirmation := <-chanHost.Confirmations:
@@ -241,7 +237,7 @@ func (pub *Publisher) PublishWithConfirmation(letter *Letter, timeout time.Durat
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
-				pub.pool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, nil)
 				return
 
 			default:
@@ -292,7 +288,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 			},
 		)
 		if err != nil {
-			pub.pool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, err)
 			continue // Take it again! From the top!
 		}
 
@@ -300,7 +296,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 		for {
 			select {
 			case <-timeoutAfter:
-				pub.pool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, nil) // not a channel error
 				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received in a timely manner - recommend retry/requeue", letter.LetterID.String())
 
 			case confirmation := <-chanHost.Confirmations:
@@ -310,7 +306,7 @@ func (pub *Publisher) PublishWithConfirmationError(letter *Letter, timeout time.
 				}
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
-				pub.pool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, nil)
 				return nil
 
 			default:
@@ -356,7 +352,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			},
 		)
 		if err != nil {
-			pub.pool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, err)
 			continue // Take it again! From the top!
 		}
 
@@ -365,7 +361,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 			select {
 			case <-ctx.Done():
 				pub.publishReceipt(letter, fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String()))
-				pub.pool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, nil) // not a channel error
 				return
 
 			case confirmation := <-chanHost.Confirmations:
@@ -376,7 +372,7 @@ func (pub *Publisher) PublishWithConfirmationContext(ctx context.Context, letter
 
 				// Happy Path, publish was received by server and we didn't timeout client side.
 				pub.publishReceipt(letter, nil)
-				pub.pool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, nil)
 				return
 
 			default:
@@ -421,7 +417,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 			},
 		)
 		if err != nil {
-			pub.pool.ReturnChannel(chanHost, true)
+			pub.pool.ReturnChannel(chanHost, err)
 			continue // Take it again! From the top!
 		}
 
@@ -429,7 +425,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 		for {
 			select {
 			case <-ctx.Done():
-				pub.pool.ReturnChannel(chanHost, false) // not a channel error
+				pub.pool.ReturnChannel(chanHost, nil) // not a channel error
 				return fmt.Errorf("publish confirmation for LetterID: %s wasn't received before context expired - recommend retry/requeue", letter.LetterID.String())
 
 			case confirmation := <-chanHost.Confirmations:
@@ -438,7 +434,7 @@ func (pub *Publisher) PublishWithConfirmationContextError(ctx context.Context, l
 					goto Publish //nack has occurred, republish
 				}
 
-				pub.pool.ReturnChannel(chanHost, false)
+				pub.pool.ReturnChannel(chanHost, nil)
 				return nil
 
 			default:
@@ -556,9 +552,12 @@ func (pub *Publisher) deliverLetters() {
 
 	for {
 		select {
-		case <-pub.AwaitShutdown():
+		case <-pub.catchShutdown():
 			return
-		case letter := <-pub.letters:
+		case letter, ok := <-pub.letters:
+			if !ok {
+				return
+			}
 			// Publish the letter.
 			parallelPublishSemaphore <- struct{}{} // throttling
 			pub.wg.Add(1)
@@ -600,7 +599,7 @@ func (pub *Publisher) safeSend(letter *Letter) (ok bool) {
 	}()
 
 	select {
-	case <-pub.AwaitShutdown():
+	case <-pub.catchShutdown():
 		return false
 	case pub.letters <- letter:
 		return true // success
@@ -629,18 +628,28 @@ func (pub *Publisher) publishReceipt(l *Letter, e error) {
 	}(l, e)
 }
 
-// Shutdown cleanly shutdown the publisher and resets it's internal state.
-func (pub *Publisher) Shutdown(shutdownPools bool) {
+// Close cleanly shutdown the publisher.
+// By default the internal connection pool is also closed.
+func (pub *Publisher) Close(shutdownPools ...bool) {
+	pub.once.Do(func() {
+		closePool := true
+		if len(shutdownPools) > 0 {
+			closePool = shutdownPools[0]
+		}
 
-	close(pub.shutdownSignal)
+		if pub.pool.isShutdown() {
+			return
+		}
 
-	if shutdownPools { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
-		pub.pool.Shutdown()
-	}
+		close(pub.shutdownSignal)
 
-	// wait for all spawned goroutines to finish execution
-	pub.wg.Wait()
+		if closePool { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
+			pub.pool.Close()
+		}
 
+		// wait for all spawned goroutines to finish execution
+		pub.wg.Wait()
+	})
 }
 
 func (pub *Publisher) isAutoStarted() bool {
@@ -657,6 +666,6 @@ func (pub *Publisher) setAutoStarted(autoStarted bool) {
 	atomic.StoreInt32(&pub.autoStarted, i)
 }
 
-func (pub *Publisher) AwaitShutdown() <-chan struct{} {
+func (pub *Publisher) catchShutdown() <-chan struct{} {
 	return pub.shutdownSignal
 }

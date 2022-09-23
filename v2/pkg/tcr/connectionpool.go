@@ -23,10 +23,11 @@ type ConnectionPool struct {
 	poolRWLock           *sync.RWMutex
 	flaggedConnections   map[uint64]bool
 	sleepOnErrorInterval time.Duration
-	errorHandler         func(error)
-	unhealthyHandler     func(error)
+	errorHandler         func(error) // TODO: what is the purpose of an error handler that can at most print the error
+	unhealthyHandler     func(error) // TODO: what is the purpose of an error handler that can at most print the
 
 	shutdownChan chan struct{}
+	once         sync.Once
 }
 
 // NewConnectionPool creates hosting structure for the ConnectionPool.
@@ -387,62 +388,60 @@ func (cp *ConnectionPool) isConnectionFlagged(connectionID uint64) bool {
 	return false
 }
 
-// Shutdown closes all connections in the ConnectionPool and resets the Pool to pre-initialized state.
-func (cp *ConnectionPool) Shutdown() {
-	if cp.isShutdown() {
-		return
-	}
+// Close closes all connections in the ConnectionPool.
+func (cp *ConnectionPool) Close() {
+	cp.once.Do(func() {
+		wg := &sync.WaitGroup{}
+	ChannelFlushLoop:
+		for {
+			select {
+			case chanHost := <-cp.channels:
+				wg.Add(1)
+				// Started receiving panics on Channel.Close()
+				go func(*ChannelHost) {
+					defer wg.Done()
+					defer func() { _ = recover() }()
 
-	wg := &sync.WaitGroup{}
-ChannelFlushLoop:
-	for {
-		select {
-		case chanHost := <-cp.channels:
-			wg.Add(1)
-			// Started receiving panics on Channel.Close()
-			go func(*ChannelHost) {
-				defer wg.Done()
-				defer func() { _ = recover() }()
+					chanHost.Close()
+				}(chanHost)
 
-				chanHost.Close()
-			}(chanHost)
-
-		default:
-			break ChannelFlushLoop
-		}
-	}
-	wg.Wait()
-
-	for !cp.connections.Empty() {
-		items, _ := cp.connections.Get(cp.connections.Len())
-
-		for _, item := range items {
-			wg.Add(1)
-
-			connectionHost, ok := item.(*ConnectionHost)
-			if !ok {
-				// library programming error that cannot be handled
-				panic("invalid struct type found in ConnectionPool queue")
+			default:
+				break ChannelFlushLoop
 			}
-
-			// Started receiving panics on Connection.Close()
-			go func(*ConnectionHost) {
-				defer wg.Done()
-				defer func() { _ = recover() }()
-
-				if !connectionHost.Connection.IsClosed() {
-					connectionHost.Connection.Close()
-				}
-			}(connectionHost)
 		}
-	}
+		wg.Wait()
 
-	// signal shutdown
-	close(cp.shutdownChan)
-	// any further queue access yields an error
-	cp.connections.Dispose()
+		for !cp.connections.Empty() {
+			items, _ := cp.connections.Get(cp.connections.Len())
 
-	wg.Wait()
+			for _, item := range items {
+				wg.Add(1)
+
+				connectionHost, ok := item.(*ConnectionHost)
+				if !ok {
+					// library programming error that cannot be handled
+					panic("invalid struct type found in ConnectionPool queue")
+				}
+
+				// Started receiving panics on Connection.Close()
+				go func(*ConnectionHost) {
+					defer wg.Done()
+					defer func() { _ = recover() }()
+
+					if !connectionHost.Connection.IsClosed() {
+						connectionHost.Connection.Close()
+					}
+				}(connectionHost)
+			}
+		}
+
+		// signal shutdown
+		close(cp.shutdownChan)
+		// any further queue access yields an error
+		cp.connections.Dispose()
+
+		wg.Wait()
+	})
 
 }
 

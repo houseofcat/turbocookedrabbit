@@ -26,10 +26,8 @@ func TestStartStopConsumer(t *testing.T) {
 	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
-	consumer.StartConsuming()
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
-
+	consumer.Start()
+	consumer.Close()
 }
 
 func TestStartWithActionStopConsumer(t *testing.T) {
@@ -39,15 +37,13 @@ func TestStartWithActionStopConsumer(t *testing.T) {
 	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
-	consumer.StartConsumingWithAction(
+	consumer.StartWithAction(
 		func(msg *tcr.ReceivedMessage) {
 			if err := msg.Acknowledge(); err != nil {
 				fmt.Printf("Error acking message: %v\r\n", msg.Delivery.Body)
 			}
 		})
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
-
+	consumer.Close()
 }
 
 func TestConsumerGet(t *testing.T) {

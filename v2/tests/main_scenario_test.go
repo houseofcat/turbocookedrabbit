@@ -42,14 +42,13 @@ func TestConnectionGetChannelAndReturnSlowLoop(t *testing.T) {
 				DeliveryMode: 2,
 			})
 
-			cfg.ConnectionPool.ReturnChannel(chanHost, err != nil)
+			cfg.ConnectionPool.ReturnChannel(chanHost, err)
 
 			<-semaphore
 		}()
 	}
 
 	wg.Wait() // wait for the final batch of requests to finish
-	cfg.ConnectionPool.Shutdown()
 }
 
 // TestOutageAndQueueLetterAccuracy is similar to the above. It is designed to be slow test connection recovery by severing all connections
@@ -69,13 +68,13 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 	// The only thing that would probably improve this, is directly call PublishWithConfirmations more
 	// directly (which is an option).
 	//
-	// RabbitService has been hardened with a solid shutdown mechanism so please hook into this
+	// RabbitService has been hardened with a solid Close mechanism so please hook into this
 	// in your application.
 	//
 	// This still leaves a few open ended vulnerabilities.
 	// ApplicationSide:
-	//    1.) Uncontrolled shutdown event or panic.
-	//    2.) RabbitService publish receipt indicates a retry scenario, but we are mid-shutdown.
+	//    1.) Uncontrolled Close event or panic.
+	//    2.) RabbitService publish receipt indicates a retry scenario, but we are mid-Close.
 	// ServerSide:
 	//    1.) A storage failure (without backup).
 	//    2.) Split Brain event in HA mode.
@@ -87,7 +86,7 @@ func TestOutageAndQueueLetterAccuracy(t *testing.T) {
 
 	<-time.After(time.Second * 5) // refresh rate of management API is 5 seconds, this just allows you to see the queue
 
-	cfg.RabbitService.Shutdown()
+	cfg.RabbitService.Close()
 }
 
 // TestPublishWithHeaderAndVerify verifies headers are publishing.
@@ -123,7 +122,7 @@ func TestPublishWithHeaderAndConsumerReceivedHeader(t *testing.T) {
 	_ = cfg.RabbitService.PublishLetter(letter)
 
 	consumer, err := cfg.RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
-	consumer.StartConsuming()
+	consumer.Start()
 	assert.NoError(t, err)
 
 WaitLoop:

@@ -33,16 +33,14 @@ func TestWithStress(t *testing.T) {
 	go publishQueueLetter(t, conMap, publishDone, pubTimeOut, publisher)
 
 	consumerDone := make(chan bool, 1)
-	consumer.StartConsuming()
+	consumer.Start()
 	go consumeDurationAccuracyLoop(t, conMap, consumerDone, conTimeOut, consumer)
 
 	<-publishDone
-	publisher.Shutdown(false)
+	publisher.Close(false)
 
 	<-consumerDone
-	if err := consumer.StopConsuming(false, true); err != nil {
-		t.Error(err)
-	}
+	consumer.Close()
 
 	// Breakpoint here and check the conMap for 100% accuracy.
 	verifyAccuracyT(t, conMap)
@@ -122,16 +120,14 @@ func TestDurationAccuracy(t *testing.T) {
 	go publishDurationAccuracyLoop(t, conMap, publishDone, pubTimeOut, publisher)
 
 	consumerDone := make(chan bool, 1)
-	consumer.StartConsuming()
+	consumer.Start()
 	go consumeDurationAccuracyLoop(t, conMap, consumerDone, conTimeOut, consumer)
 
 	<-publishDone
-	publisher.Shutdown(false)
+	publisher.Close(false)
 
 	<-consumerDone
-	if err := consumer.StopConsuming(false, true); err != nil {
-		t.Error(err)
-	}
+	consumer.Close()
 
 	// Breakpoint here and check the conMap for 100% accuracy.
 	verifyAccuracyT(t, conMap)
@@ -279,7 +275,7 @@ func TestPublishConsumeCountAccuracy(t *testing.T) {
 
 	pubCount := publishAccuracyLoop(t, conMap, publisher, count)
 
-	consumer.StartConsuming()
+	consumer.Start()
 	consumeAccuracyLoop(t, conMap, consumer, pubCount)
 
 	// Breakpoint here to manually check the conMap for 100% accuracy.
@@ -306,7 +302,7 @@ func TestPublishConsumeCountAccuracy(t *testing.T) {
 	// off based on how much we think it should have consumed. This can lead to a difference
 	// in pub/sub counts and leave messages in the queue. So we manually verify the queue
 	// too.
-	cfg.RabbitService.Shutdown()
+	cfg.RabbitService.Close()
 }
 
 func publishAccuracyLoop(
@@ -503,7 +499,7 @@ func consumerRabbitService(
 	timeOut <-chan time.Time) {
 
 	consumer, _ := cfg.RabbitService.GetConsumer("TurboCookedRabbitConsumer-Ackable")
-	consumer.StartConsumingWithAction(consumerAction)
+	consumer.StartWithAction(consumerAction)
 
 	consumerErrors := 0
 
@@ -526,9 +522,7 @@ ConsumeLoop:
 
 	fmt.Printf("Consumer Errors: %d\r\n", consumerErrors)
 
-	if err := consumer.StopConsuming(false, true); err != nil {
-		t.Error(err)
-	}
+	consumer.Close()
 
 	done <- true
 }
