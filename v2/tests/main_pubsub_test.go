@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -79,29 +80,83 @@ func TestLargeConsumingAfterLargePublish(t *testing.T) {
 	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
 	assert.NotNil(t, consumer)
 
-	done1 := make(chan struct{}, 1)
-	done2 := make(chan struct{}, 1)
+	var wg sync.WaitGroup
 	consumer.StartConsuming()
 
 	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
 	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
 	count := 1000000
 
-	go monitorPublish(t, timeoutAfter, publisher, count, done1)
-	go monitorConsumer(t, timeoutAfter, consumer, count, done2)
+	wg.Add(2)
+	go monitorPublish(t, timeoutAfter, publisher, count, &wg)
+	go monitorConsumer(t, timeoutAfter, consumer, count, &wg)
 
 	for i := 0; i < count; i++ {
 		publisher.Publish(letter, false)
 	}
 
-	<-done1
-	<-done2
+	wg.Wait()
 	err := consumer.StopConsuming(false, false)
 	assert.NoError(t, err)
 
 }
 
-func monitorPublish(t *testing.T, timeoutAfter <-chan time.Time, pub *tcr.Publisher, count int, done chan struct{}) {
+// TestLargeConsumingAfterLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
+func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
+
+	timeoutAfter := time.After(time.Minute * 2)
+	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
+	assert.NotNil(t, consumer)
+
+	consumer.StartConsuming()
+
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	count := 10000
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+	go monitorPublish(t, timeoutAfter, publisher, count, &wg)
+	go monitorConsumer(t, timeoutAfter, consumer, count, &wg)
+
+	for i := 0; i < count; i++ {
+		publisher.PublishWithConfirmation(letter, 500*time.Millisecond)
+	}
+
+	wg.Wait()
+	err := consumer.StopConsuming(false, false)
+	assert.NoError(t, err)
+
+}
+
+// TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
+func TestLargePublishConfirmation(t *testing.T) {
+	cfg, closer := InitTestService(t)
+	defer closer()
+
+	timeoutAfter := time.After(time.Minute * 2)
+
+	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
+	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
+	count := 10000
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+
+	go monitorPublish(t, timeoutAfter, publisher, count, &wg)
+
+	for i := 0; i < count; i++ {
+		publisher.PublishWithConfirmation(letter, 50*time.Millisecond)
+	}
+
+	wg.Wait()
+}
+
+func monitorPublish(t *testing.T, timeoutAfter <-chan time.Time, pub *tcr.Publisher, count int, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	publishSuccessCount := 0
 	publishFailureCount := 0
@@ -120,6 +175,8 @@ WaitForReceiptsLoop:
 				}
 			} else {
 				publishFailureCount++
+				t.Error("receipt.Succeed is false")
+				break WaitForReceiptsLoop
 			}
 
 		default:
@@ -138,10 +195,10 @@ FlushRemainingReceiptsIfAny:
 
 	actualCount := publishSuccessCount + publishFailureCount
 	assert.Equal(t, count, actualCount, "Publish Success Count: %d  Expected Count: %d", publishSuccessCount, count)
-	done <- struct{}{}
 }
 
-func monitorConsumer(t *testing.T, timeoutAfter <-chan time.Time, con *tcr.Consumer, count int, done chan struct{}) {
+func monitorConsumer(t *testing.T, timeoutAfter <-chan time.Time, con *tcr.Consumer, count int, wg *sync.WaitGroup) {
+	defer wg.Done()
 
 	receivedMessageCount := 0
 WaitForConsumer:
@@ -163,57 +220,5 @@ WaitForConsumer:
 		}
 	}
 	assert.Equal(t, count, receivedMessageCount, "Received Message Count: %d  Expected Count: %d", receivedMessageCount, count)
-	done <- struct{}{}
-}
 
-// TestLargeConsumingAfterLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
-func TestLargeConsumingAfterLargePublishConfirmation(t *testing.T) {
-	cfg, closer := InitTestService(t)
-	defer closer()
-
-	timeoutAfter := time.After(time.Minute * 2)
-	consumer := tcr.NewConsumerFromConfig(cfg.ConsumerConfig, cfg.ConnectionPool)
-	assert.NotNil(t, consumer)
-
-	done1 := make(chan struct{}, 1)
-	done2 := make(chan struct{}, 1)
-	consumer.StartConsuming()
-
-	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
-	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	count := 10000
-
-	go monitorPublish(t, timeoutAfter, publisher, count, done1)
-	go monitorConsumer(t, timeoutAfter, consumer, count, done2)
-
-	for i := 0; i < count; i++ {
-		publisher.PublishWithConfirmation(letter, 500*time.Millisecond)
-	}
-
-	<-done1
-	<-done2
-	err := consumer.StopConsuming(false, false)
-	assert.NoError(t, err)
-
-}
-
-// TestLargePublishConfirmation is a combination test of Consuming and Publishing with confirmation.
-func TestLargePublishConfirmation(t *testing.T) {
-	cfg, closer := InitTestService(t)
-	defer closer()
-
-	timeoutAfter := time.After(time.Minute * 2)
-	done1 := make(chan struct{}, 1)
-
-	publisher := tcr.NewPublisherFromConfig(cfg.Seasoning, cfg.ConnectionPool)
-	letter := tcr.CreateMockRandomLetter("TcrTestQueue")
-	count := 10000
-
-	go monitorPublish(t, timeoutAfter, publisher, count, done1)
-
-	for i := 0; i < count; i++ {
-		publisher.PublishWithConfirmation(letter, 50*time.Millisecond)
-	}
-
-	<-done1
 }
