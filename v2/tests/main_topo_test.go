@@ -35,27 +35,40 @@ func TestCreateTopologyFromTopologyConfig(t *testing.T) {
 	topologyConfig, err := tcr.ConvertJSONFileToTopologyConfig(fileNamePath)
 	assert.NoError(t, err)
 
-	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
-	assert.NoError(t, err)
-
-	topologer := tcr.NewTopologer(connectionPool)
+	topologer := tcr.NewTopologer(cfg.ConnectionPool)
 
 	err = topologer.BuildTopology(topologyConfig, true)
 	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("QueueAttachedToExch01", false, false, false)
+	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("QueueAttachedToExch02", false, false, false)
+	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("QueueAttachedToRoot", false, false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchangeRoot", false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchange.Child02", false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchange.Child01", false, false)
+	assert.NoError(t, err)
+
 }
 
 func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 	cfg, closer := InitTestService(t)
 	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
-	assert.NoError(t, err)
-
-	topologer := tcr.NewTopologer(connectionPool)
+	topologer := tcr.NewTopologer(cfg.ConnectionPool)
 
 	topologyConfigs := make([]string, 0)
 	configRoot := "./"
-	err = filepath.Walk(configRoot, func(path string, info os.FileInfo, err error) error {
+	err := filepath.Walk(configRoot, func(path string, info os.FileInfo, err error) error {
 		if strings.Contains(path, "topology") {
 			topologyConfigs = append(topologyConfigs, path)
 		}
@@ -72,18 +85,40 @@ func TestCreateMultipleTopologyFromTopologyConfig(t *testing.T) {
 			assert.NoError(t, err)
 		}
 	}
+
+	_, err = topologer.QueueDelete("QueueAttachedToExch01", false, false, false)
+	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("QueueAttachedToExch02", false, false, false)
+	assert.NoError(t, err)
+
+	_, err = topologer.QueueDelete("QueueAttachedToRoot", false, false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchangeRoot", false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchange.Child02", false, false)
+	assert.NoError(t, err)
+
+	err = topologer.ExchangeDelete("MyTestExchange.Child01", false, false)
+	assert.NoError(t, err)
+
 }
 
 func TestUnbindQueue(t *testing.T) {
 	cfg, closer := InitTestService(t)
 	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
+	topologer := tcr.NewTopologer(cfg.ConnectionPool)
+
+	err := topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
 	assert.NoError(t, err)
 
-	topologer := tcr.NewTopologer(connectionPool)
+	_, err = topologer.QueueDelete("QueueAttachedToExch01", false, false, false)
+	assert.NoError(t, err)
 
-	err = topologer.UnbindQueue("QueueAttachedToExch01", "RoutingKey1", "MyTestExchange.Child01", nil)
+	err = topologer.ExchangeDelete("MyTestExchange.Child01", false, false)
 	assert.NoError(t, err)
 }
 
@@ -91,12 +126,9 @@ func TestCreateQuorumQueue(t *testing.T) {
 	cfg, closer := InitTestService(t)
 	defer closer()
 
-	connectionPool, err := tcr.NewConnectionPool(cfg.Seasoning.PoolConfig)
-	assert.NoError(t, err)
+	topologer := tcr.NewTopologer(cfg.ConnectionPool)
 
-	topologer := tcr.NewTopologer(connectionPool)
-
-	err = topologer.CreateQueue("TcrTestQuorumQueue", false, true, false, false, false, amqp.Table{
+	err := topologer.CreateQueue("TcrTestQuorumQueue", false, true, false, false, false, amqp.Table{
 		"x-queue-type": tcr.QueueTypeQuorum,
 	})
 	assert.NoError(t, err)

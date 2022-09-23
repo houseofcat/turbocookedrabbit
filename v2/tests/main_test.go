@@ -21,7 +21,6 @@ type Config struct {
 
 func (cfg *Config) Close() {
 	cfg.RabbitService.Shutdown(false)
-	cfg.ConnectionPool.Shutdown()
 }
 
 func InitTestService(t *testing.T) (c *Config, closer func()) {
@@ -32,7 +31,9 @@ func InitTestService(t *testing.T) (c *Config, closer func()) {
 		t.Fatal(err)
 	}
 
-	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, nil)
+	cfg.RabbitService, err = tcr.NewRabbitService(cfg.Seasoning, "", "", nil, func(err error) {
+		t.Error(err)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
