@@ -1,5 +1,10 @@
 package tcr
 
+import (
+	"errors"
+	"fmt"
+)
+
 // RabbitSeasoning represents the configuration values.
 type RabbitSeasoning struct {
 	EncryptionConfig  *EncryptionConfig          `json:"EncryptionConfig" yaml:"EncryptionConfig"`
@@ -7,6 +12,19 @@ type RabbitSeasoning struct {
 	PoolConfig        *PoolConfig                `json:"PoolConfig" yaml:"PoolConfig"`
 	ConsumerConfigs   map[string]*ConsumerConfig `json:"ConsumerConfigs" yaml:"ConsumerConfigs"`
 	PublisherConfig   *PublisherConfig           `json:"PublisherConfig" yaml:"PublisherConfig"`
+}
+
+var errConsumerConfigNotFound = errors.New("consumer config not found")
+
+func (rs *RabbitSeasoning) ConsumerConfig(name string) (cc *ConsumerConfig, err error) {
+	if len(rs.ConsumerConfigs) == 0 {
+		return nil, fmt.Errorf("%w: %s", errConsumerConfigNotFound, name)
+	}
+	cc, ok := rs.ConsumerConfigs[name]
+	if !ok {
+		return nil, fmt.Errorf("%w: %s", errConsumerConfigNotFound, name)
+	}
+	return cc, nil
 }
 
 // PoolConfig represents settings for creating/configuring pools.
@@ -31,7 +49,6 @@ type TLSConfig struct {
 
 // ConsumerConfig represents settings for configuring a consumer with ease.
 type ConsumerConfig struct {
-	Enabled              bool                   `json:"Enabled" yaml:"Enabled"`
 	QueueName            string                 `json:"QueueName" yaml:"QueueName"`
 	ConsumerName         string                 `json:"ConsumerName" yaml:"ConsumerName"`
 	AutoAck              bool                   `json:"AutoAck" yaml:"AutoAck"`
