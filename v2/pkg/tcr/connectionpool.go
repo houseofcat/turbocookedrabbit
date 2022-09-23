@@ -241,12 +241,14 @@ func (cp *ConnectionPool) GetChannelFromPool() (*ChannelHost, error) {
 
 // ReturnChannel returns a Channel.
 // If Channel is not a cached channel, it is simply closed here.
-// If Cache Channel, we check if erred, new Channel is created instead and then returned to the cache.
-func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, erred bool) {
+// If Cache Channel, we check if err != nil, new Channel is created instead and then returned to the cache.
+// Pass nil in case you the channel has not erred.
+// In case err is nil, the passed channel will be reused, otherwise recreated
+func (cp *ConnectionPool) ReturnChannel(chanHost *ChannelHost, err error) {
 
 	// If called by user with the wrong channel don't add a non-managed channel back to the channel cache.
 	if chanHost.CachedChannel {
-		if erred {
+		if err != nil {
 			cp.reconnectChannel(chanHost) // <- blocking operation
 		} else {
 			chanHost.FlushConfirms()
