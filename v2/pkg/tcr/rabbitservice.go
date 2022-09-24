@@ -362,12 +362,14 @@ func (rs *RabbitService) Close(shutdownConnPool ...bool) map[string][]*ReceivedM
 
 func (rs *RabbitService) collectConsumerErrors(wg *sync.WaitGroup) {
 	defer wg.Done()
+	timer := time.NewTimer(rs.monitorSleepInterval)
+	defer func() {
+		if !timer.Stop() {
+			<-timer.C
+		}
+	}()
 
 	for {
-		if rs.isShutdown() {
-			return // Prevent leaking goroutine
-		}
-
 		// TODO: rs.consumers might be written to asynchronously, potential race condition
 		for _, consumer := range rs.consumers {
 		IndividualConsumerLoop:
@@ -381,7 +383,17 @@ func (rs *RabbitService) collectConsumerErrors(wg *sync.WaitGroup) {
 			}
 		}
 
-		time.Sleep(rs.monitorSleepInterval)
+		if !timer.Stop() {
+			<-timer.C
+		}
+		timer.Reset(rs.monitorSleepInterval)
+		select {
+		case <-timer.C:
+			// after sleep
+			continue
+		case <-rs.catchShutdown():
+			return // Prevent leaking goroutine
+		}
 	}
 }
 

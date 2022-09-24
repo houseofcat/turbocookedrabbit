@@ -183,20 +183,23 @@ func TestPublishAccuracy(t *testing.T) {
 
 	successCount := 0
 
-WaitLoop:
+Outer:
 	for {
 		select {
-		case receipt := <-publisher.PublishReceipts():
+		case receipt, ok := <-publisher.PublishReceipts():
+			if !ok {
+				break Outer
+			}
 			if receipt.Success {
 				successCount++
 				if successCount == count {
-					break WaitLoop
+					break
 				}
 			} else {
-				break WaitLoop
+				break Outer
 			}
 		default:
-			time.Sleep(time.Millisecond * 1)
+			time.Sleep(100 * time.Microsecond)
 		}
 	}
 

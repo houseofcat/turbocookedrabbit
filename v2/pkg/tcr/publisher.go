@@ -623,7 +623,17 @@ func (pub *Publisher) publishReceipt(l *Letter, e error) {
 			publishReceipt.FailedLetter = letter
 		}
 
-		pub.publishReceipts <- publishReceipt
+		select {
+		case <-pub.catchShutdown():
+			// TODO: loosing receipt, potentially loosing
+			// failed letter delivery
+			fmt.Println("lost publishing receipt")
+			return
+		case pub.publishReceipts <- publishReceipt:
+			// it's possible that in case the receipts are never received
+			// that this will block forever, so we want to catch shutdowns
+			return
+		}
 
 	}(l, e)
 }
@@ -637,10 +647,6 @@ func (pub *Publisher) Close(shutdownPools ...bool) {
 			closePool = shutdownPools[0]
 		}
 
-		if pub.pool.isShutdown() {
-			return
-		}
-
 		close(pub.shutdownSignal)
 
 		if closePool { // in case the ChannelPool is shared between structs, you can prevent it from shutting down
@@ -649,6 +655,9 @@ func (pub *Publisher) Close(shutdownPools ...bool) {
 
 		// wait for all spawned goroutines to finish execution
 		pub.wg.Wait()
+		// all routines are down, now close the publisher
+		// receipt channel
+		close(pub.publishReceipts)
 	})
 }
 

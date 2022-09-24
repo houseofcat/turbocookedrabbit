@@ -2,6 +2,7 @@ package main_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/houseofcat/turbocookedrabbit/v2/pkg/tcr"
 	"go.uber.org/goleak"
@@ -58,7 +59,19 @@ func InitTestService(t *testing.T) (c *Config, closer func()) {
 	}
 
 	return &cfg, func() {
-		_, _ = cfg.RabbitService.QueueDelete("TcrTestQueue", false, false, false)
+
+		done := make(chan struct{})
+
+		go func() {
+			// this seems to block indefinitly
+			_, _ = cfg.RabbitService.QueueDelete("TcrTestQueue", false, false, false)
+			close(done)
+		}()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			t.Error("failed to delete TcrTestQueue: blocking indefinitly")
+		}
 		cfg.Close()
 	}
 }
